@@ -104,7 +104,7 @@ fun MoreScreen(
 
     LaunchedEffect(refreshKey) {
         checkDefaultDialer()
-        sims = simRepository.getActiveSims()
+        sims = simRepository.getSimCards()
     }
 
     // Dialogs

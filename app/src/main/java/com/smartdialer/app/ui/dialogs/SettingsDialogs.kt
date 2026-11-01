@@ -129,10 +129,10 @@ fun DualSimSettingsDialog(
                 // SIM 1 option
                 val sim1 = sims.firstOrNull { it.slotIndex == 0 }
                 val sim1Name = sim1?.displayName ?: "SIM 1"
-                val sim1Carrier = if (!sim1?.carrierName.isNullOrBlank()) " (${sim1?.carrierName})" else ""
+                val sim1Carrier = if (!sim1?.carrierName.isNullOrBlank()) " (${sim1.carrierName})" else ""
                 SimOptionRow(
                     title = "SIM 1: $sim1Name$sim1Carrier",
-                    subtitle = if (!sim1?.phoneNumber.isNullOrBlank()) sim1?.phoneNumber!! else "Standard cellular",
+                    subtitle = sim1?.carrierName ?: "Standard cellular",
                     isSelected = selectedSlot == 0,
                     onClick = { selectedSlot = 0 }
                 )
@@ -140,10 +140,10 @@ fun DualSimSettingsDialog(
                 // SIM 2 option
                 val sim2 = sims.firstOrNull { it.slotIndex == 1 }
                 val sim2Name = sim2?.displayName ?: "SIM 2"
-                val sim2Carrier = if (!sim2?.carrierName.isNullOrBlank()) " (${sim2?.carrierName})" else ""
+                val sim2Carrier = if (!sim2?.carrierName.isNullOrBlank()) " (${sim2.carrierName})" else ""
                 SimOptionRow(
                     title = "SIM 2: $sim2Name$sim2Carrier",
-                    subtitle = if (!sim2?.phoneNumber.isNullOrBlank()) sim2?.phoneNumber!! else "Standard cellular",
+                    subtitle = sim2?.carrierName ?: "Standard cellular",
                     isSelected = selectedSlot == 1,
                     onClick = { selectedSlot = 1 }
                 )
