@@ -84,6 +84,17 @@
             </intent-filter>
         </service>
 
+        <!-- BroadcastReceiver for Incoming Call Notification Actions (Answer / Decline) -->
+        <receiver
+            android:name=".telecom.CallActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.smartdialer.app.ACTION_ANSWER_CALL" />
+                <action android:name="com.smartdialer.app.ACTION_DECLINE_CALL" />
+                <action android:name="com.smartdialer.app.ACTION_DISCONNECT_CALL" />
+            </intent-filter>
+        </receiver>
+
     </application>
 
 </manifest>

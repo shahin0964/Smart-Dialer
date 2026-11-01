@@ -1,6 +1,7 @@
 package com.smartdialer.app.telecom
 
 import android.Manifest
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -71,19 +72,29 @@ object CallManager {
         call.registerCallback(callCallback)
         updateFromCall(call)
 
-        // Launch CallActivity
-        val intent = Intent(context, CallActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        val isLocked = keyguardManager?.isKeyguardLocked == true
+        val isIncoming = (call.state == Call.STATE_RINGING)
+
+        // If it's an incoming call while device is unlocked (user in app/game),
+        // we DO NOT aggressively pop up CallActivity full-screen.
+        // Instead, the floating Heads-Up notification card is displayed at top.
+        // Only launch CallActivity directly if outgoing, or if device is locked.
+        if (!isIncoming || isLocked) {
+            val intent = Intent(context, CallActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            context.startActivity(intent)
         }
-        context.startActivity(intent)
     }
 
     fun clearCall() {
         activeCall?.unregisterCallback(callCallback)
         activeCall = null
         stopDurationTimer()
+        appContext?.let { CallNotificationManager.dismissAll(it) }
         _currentCallState.value = ActiveCallInfo(status = CallStatus.DISCONNECTED)
     }
 
@@ -190,6 +201,38 @@ object CallManager {
             isSpeakerOn = isSpeaker,
             isHolding = (status == CallStatus.HOLDING)
         )
+
+        // Notification management for Incoming (Heads-Up) and Ongoing states
+        if (context != null) {
+            when (status) {
+                CallStatus.RINGING -> {
+                    CallNotificationManager.showIncomingCallNotification(
+                        context = context,
+                        rawNumber = rawNumber,
+                        contactName = contactName,
+                        photoUri = contactPhoto,
+                        isSpam = isSpam,
+                        spamCategory = spamCategory
+                    )
+                }
+                CallStatus.ACTIVE -> {
+                    CallNotificationManager.dismissIncomingCallNotification(context)
+                    CallNotificationManager.showOngoingCallNotification(
+                        context = context,
+                        rawNumber = rawNumber,
+                        contactName = contactName,
+                        photoUri = contactPhoto,
+                        durationFormatted = _currentCallState.value.durationFormatted
+                    )
+                }
+                CallStatus.DISCONNECTED -> {
+                    CallNotificationManager.dismissAll(context)
+                }
+                else -> {
+                    // IDLE, CONNECTING, DIALING, HOLDING
+                }
+            }
+        }
     }
 
     private fun startDurationTimer() {
@@ -199,7 +242,19 @@ object CallManager {
             while (isActive) {
                 delay(1000)
                 seconds++
-                _currentCallState.value = _currentCallState.value.copy(durationSeconds = seconds)
+                val updatedState = _currentCallState.value.copy(durationSeconds = seconds)
+                _currentCallState.value = updatedState
+                if (seconds % 5 == 0L) {
+                    appContext?.let { ctx ->
+                        CallNotificationManager.showOngoingCallNotification(
+                            context = ctx,
+                            rawNumber = updatedState.number,
+                            contactName = updatedState.contactName,
+                            photoUri = updatedState.photoUri,
+                            durationFormatted = updatedState.durationFormatted
+                        )
+                    }
+                }
             }
         }
     }
@@ -211,6 +266,7 @@ object CallManager {
 
     fun answer() {
         activeCall?.answer(android.telecom.VideoProfile.STATE_AUDIO_ONLY)
+        appContext?.let { CallNotificationManager.dismissIncomingCallNotification(it) }
     }
 
     fun reject() {
@@ -220,11 +276,13 @@ object CallManager {
             @Suppress("DEPRECATION")
             activeCall?.reject(false, null as? String)
         }
+        appContext?.let { CallNotificationManager.dismissAll(it) }
         clearCall()
     }
 
     fun disconnect() {
         activeCall?.disconnect()
+        appContext?.let { CallNotificationManager.dismissAll(it) }
         clearCall()
     }
 
