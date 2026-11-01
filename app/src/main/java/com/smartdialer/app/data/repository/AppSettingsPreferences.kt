@@ -54,7 +54,7 @@ class AppSettingsPreferences(private val context: Context) {
         set(value) = prefs.edit().putBoolean("sound_call_ended_vibration", value).apply()
 
     // ==========================================
-    // 4. Blocked Numbers & Spam Protection
+    // 4. Blocked Numbers & 3-Layer Spam Protection
     // ==========================================
     var blockUnknownNumbers: Boolean
         get() = prefs.getBoolean("block_unknown_numbers", false)
@@ -64,9 +64,23 @@ class AppSettingsPreferences(private val context: Context) {
         get() = prefs.getBoolean("spam_protection_enabled", true)
         set(value) = prefs.edit().putBoolean("spam_protection_enabled", value).apply()
 
+    var spamProtectionLevel: com.smartdialer.app.data.model.SpamProtectionLevel
+        get() = com.smartdialer.app.data.model.SpamProtectionLevel.fromId(
+            prefs.getString("spam_protection_layer", com.smartdialer.app.data.model.SpamProtectionLevel.SMART.id)
+        )
+        set(value) = prefs.edit().putString("spam_protection_layer", value.id).apply()
+
+    var silenceUnknownCallers: Boolean
+        get() = prefs.getBoolean("silence_unknown_callers", false)
+        set(value) = prefs.edit().putBoolean("silence_unknown_callers", value).apply()
+
     var blockedNumbers: Set<String>
         get() = prefs.getStringSet("blocked_numbers_set", emptySet()) ?: emptySet()
         set(value) = prefs.edit().putStringSet("blocked_numbers_set", value).apply()
+
+    var reportedSpamNumbers: Set<String>
+        get() = prefs.getStringSet("reported_spam_numbers_set", emptySet()) ?: emptySet()
+        set(value) = prefs.edit().putStringSet("reported_spam_numbers_set", value).apply()
 
     fun addBlockedNumber(number: String) {
         val clean = number.trim()
@@ -80,6 +94,31 @@ class AppSettingsPreferences(private val context: Context) {
         val clean = number.trim()
         val updated = blockedNumbers.toMutableSet().apply { remove(clean) }
         blockedNumbers = updated
+    }
+
+    fun reportSpam(number: String) {
+        val clean = number.trim()
+        if (clean.isNotBlank()) {
+            val updatedSpam = reportedSpamNumbers.toMutableSet().apply { add(clean) }
+            reportedSpamNumbers = updatedSpam
+            addBlockedNumber(clean)
+        }
+    }
+
+    fun unreportSpam(number: String) {
+        val clean = number.trim()
+        val updatedSpam = reportedSpamNumbers.toMutableSet().apply { remove(clean) }
+        reportedSpamNumbers = updatedSpam
+        removeBlockedNumber(clean)
+    }
+
+    fun isReportedSpam(number: String): Boolean {
+        val clean = number.trim().replace(" ", "").replace("-", "")
+        if (clean.isBlank()) return false
+        return reportedSpamNumbers.any { reported ->
+            val rClean = reported.trim().replace(" ", "").replace("-", "")
+            clean.endsWith(rClean) || rClean.endsWith(clean)
+        }
     }
 
     fun isBlocked(number: String): Boolean {

@@ -12,9 +12,11 @@ import android.telecom.CallAudioState
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.telephony.SubscriptionManager
-import androidx.core.content.ContextCompat
+import android.provider.ContactsContract
 import com.smartdialer.app.data.model.ActiveCallInfo
 import com.smartdialer.app.data.model.CallStatus
+import com.smartdialer.app.data.model.SpamAction
+import com.smartdialer.app.data.repository.SpamProtectionManager
 import com.smartdialer.app.ui.call.CallActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,8 +52,11 @@ object CallManager {
         )
     }
 
+    private var appContext: Context? = null
+
     fun registerInCallService(service: CallService) {
         inCallService = service
+        appContext = service.applicationContext
     }
 
     fun unregisterInCallService() {
@@ -59,6 +64,7 @@ object CallManager {
     }
 
     fun setCall(call: Call, context: Context) {
+        appContext = context.applicationContext
         activeCall?.unregisterCallback(callCallback)
         activeCall = call
         call.registerCallback(callCallback)
@@ -78,6 +84,32 @@ object CallManager {
         activeCall = null
         stopDurationTimer()
         _currentCallState.value = ActiveCallInfo(status = CallStatus.DISCONNECTED)
+    }
+
+    private fun lookupContactInfo(context: Context, number: String): Pair<String?, String?> {
+        if (number.isBlank()) return null to null
+        try {
+            val uri = Uri.withAppendedPath(ContactsContract.PhoneLookup.CONTENT_FILTER_URI, Uri.encode(number))
+            val projection = arrayOf(
+                ContactsContract.PhoneLookup.DISPLAY_NAME,
+                ContactsContract.PhoneLookup.PHOTO_URI,
+                ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI
+            )
+            context.contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val nameIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.DISPLAY_NAME)
+                    val photoIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_URI)
+                    val thumbIdx = cursor.getColumnIndex(ContactsContract.PhoneLookup.PHOTO_THUMBNAIL_URI)
+                    val name = if (nameIdx != -1) cursor.getString(nameIdx) else null
+                    val photo = if (photoIdx != -1) cursor.getString(photoIdx) else null
+                    val thumb = if (thumbIdx != -1) cursor.getString(thumbIdx) else null
+                    return name to (photo ?: thumb)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return null to null
     }
 
     private fun updateFromCall(call: Call) {
@@ -105,10 +137,53 @@ object CallManager {
             stopDurationTimer()
         }
 
+        val context = appContext
+        var contactName = callerName
+        var contactPhoto: String? = null
+        var isSpam = false
+        var isSilencedSpam = false
+        var isBlocked = false
+        var spamCategory: String? = null
+
+        if (context != null && rawNumber.isNotBlank()) {
+            val (resolvedName, resolvedPhoto) = lookupContactInfo(context, rawNumber)
+            if (contactName.isBlank() && !resolvedName.isNullOrBlank()) {
+                contactName = resolvedName
+            }
+            contactPhoto = resolvedPhoto
+
+            val spamResult = SpamProtectionManager.checkNumber(context, rawNumber, contactName)
+            if (spamResult.isSpam) {
+                isSpam = true
+                isBlocked = spamResult.isBlocked
+                spamCategory = spamResult.category
+
+                if (status == CallStatus.RINGING) {
+                    if (spamResult.action == SpamAction.REJECT) {
+                        reject()
+                        return
+                    } else if (spamResult.action == SpamAction.SILENCE) {
+                        isSilencedSpam = true
+                        try {
+                            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                            audioManager?.adjustStreamVolume(AudioManager.STREAM_RING, AudioManager.ADJUST_MUTE, 0)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+            }
+        }
+
         _currentCallState.value = _currentCallState.value.copy(
             callId = call.toString(),
             number = rawNumber,
-            contactName = callerName,
+            contactName = contactName,
+            photoUri = contactPhoto,
+            isSpam = isSpam,
+            isBlocked = isBlocked,
+            isSilencedSpam = isSilencedSpam,
+            spamCategory = spamCategory,
             status = status,
             isMuted = isMuted,
             isSpeakerOn = isSpeaker,

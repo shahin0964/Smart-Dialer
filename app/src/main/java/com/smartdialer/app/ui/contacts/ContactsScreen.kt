@@ -34,7 +34,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
@@ -88,6 +90,8 @@ import com.smartdialer.app.data.model.ContactCounts
 import com.smartdialer.app.data.model.ContactItem
 import com.smartdialer.app.data.model.ContactSaveDestinationType
 import com.smartdialer.app.data.model.ContactSourceFilter
+import com.smartdialer.app.data.repository.AppSettingsPreferences
+import com.smartdialer.app.ui.components.ContactAvatar
 import com.smartdialer.app.ui.components.PermissionCard
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.DividerColor
@@ -647,20 +651,12 @@ fun ContactRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
-            Box(
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(colorPair.first),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = contact.initial,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorPair.second
-                )
-            }
+            ContactAvatar(
+                name = contact.name,
+                photoUri = contact.photoUri,
+                contactId = contact.id,
+                size = 44.dp
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
@@ -758,20 +754,14 @@ fun ContactDetailsDialog(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(colorPair.first),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = contact.initial,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorPair.second
-                    )
-                }
+                ContactAvatar(
+                    name = contact.name,
+                    photoUri = contact.photoUri,
+                    contactId = contact.id,
+                    size = 72.dp,
+                    preferHighRes = true,
+                    fontSize = 28.sp
+                )
 
                 Spacer(modifier = Modifier.height(10.dp))
 
@@ -921,6 +911,47 @@ fun ContactDetailsDialog(
                                 )
                             }
                         }
+                    }
+                }
+
+                // Block & Report Spam Action
+                if (contact.phoneNumber.isNotBlank()) {
+                    val appSettings = remember { AppSettingsPreferences(context) }
+                    var isBlocked by remember { mutableStateOf(appSettings.isBlocked(contact.phoneNumber)) }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    OutlinedButton(
+                        onClick = {
+                            if (isBlocked) {
+                                appSettings.removeBlockedNumber(contact.phoneNumber)
+                                appSettings.unreportSpam(contact.phoneNumber)
+                                isBlocked = false
+                            } else {
+                                appSettings.reportSpam(contact.phoneNumber)
+                                isBlocked = true
+                            }
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (isBlocked) Color(0xFF10B981) else Color(0xFFEF4444)
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isBlocked) Color(0xFF10B981) else Color(0xFFEF4444).copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(
+                            imageVector = if (isBlocked) Icons.Default.Check else Icons.Default.Block,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isBlocked) "Unblock Number" else "Report as Spam & Block",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
             }

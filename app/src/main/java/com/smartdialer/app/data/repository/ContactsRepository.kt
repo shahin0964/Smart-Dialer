@@ -95,6 +95,7 @@ class ContactsRepository(private val context: Context) {
                 ContactsContract.CommonDataKinds.Phone.NUMBER,
                 ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY,
                 ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
+                ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI,
                 ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
             )
 
@@ -111,6 +112,7 @@ class ContactsRepository(private val context: Context) {
                 val numIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
                 val nameIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY)
                 val photoIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
+                val thumbIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_THUMBNAIL_URI)
                 val lookupIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
 
                 while (c.moveToNext()) {
@@ -118,7 +120,9 @@ class ContactsRepository(private val context: Context) {
                     val num = if (numIdx != -1) c.getString(numIdx) else null
                     val name = if (nameIdx != -1) c.getString(nameIdx) else null
                     val photo = if (photoIdx != -1) c.getString(photoIdx) else null
+                    val thumb = if (thumbIdx != -1) c.getString(thumbIdx) else null
                     val lookup = if (lookupIdx != -1) c.getString(lookupIdx) else null
+                    val resolvedPhoto = photo ?: thumb
 
                     if (!cId.isNullOrBlank() && !num.isNullOrBlank()) {
                         val list = phonesMap.getOrPut(cId) { mutableListOf() }
@@ -129,7 +133,7 @@ class ContactsRepository(private val context: Context) {
                         if (!name.isNullOrBlank() && !phoneContactNames.containsKey(cId)) {
                             phoneContactNames[cId] = name
                         }
-                        if (photo != null) phonePhotos[cId] = photo
+                        if (resolvedPhoto != null) phonePhotos[cId] = resolvedPhoto
                         if (lookup != null) phoneLookups[cId] = lookup
                     }
                 }
@@ -189,6 +193,7 @@ class ContactsRepository(private val context: Context) {
                 ContactsContract.Contacts._ID,
                 ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
                 ContactsContract.Contacts.PHOTO_URI,
+                ContactsContract.Contacts.PHOTO_THUMBNAIL_URI,
                 ContactsContract.Contacts.LOOKUP_KEY
             )
 
@@ -204,6 +209,7 @@ class ContactsRepository(private val context: Context) {
                 val idIdx = c.getColumnIndex(ContactsContract.Contacts._ID)
                 val nameIdx = c.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)
                 val photoIdx = c.getColumnIndex(ContactsContract.Contacts.PHOTO_URI)
+                val thumbIdx = c.getColumnIndex(ContactsContract.Contacts.PHOTO_THUMBNAIL_URI)
                 val lookupIdx = c.getColumnIndex(ContactsContract.Contacts.LOOKUP_KEY)
 
                 while (c.moveToNext()) {
@@ -211,7 +217,9 @@ class ContactsRepository(private val context: Context) {
                     if (cId.isBlank()) continue
 
                     val name = if (nameIdx != -1) c.getString(nameIdx) ?: "Unknown" else "Unknown"
-                    val photo = if (photoIdx != -1) c.getString(photoIdx) else phonePhotos[cId]
+                    val photo = if (photoIdx != -1) c.getString(photoIdx) else null
+                    val thumb = if (thumbIdx != -1) c.getString(thumbIdx) else null
+                    val resolvedPhoto = photo ?: thumb ?: phonePhotos[cId]
                     val lookup = if (lookupIdx != -1) c.getString(lookupIdx) else phoneLookups[cId]
 
                     val phones = phonesMap[cId] ?: emptyList()
@@ -228,7 +236,7 @@ class ContactsRepository(private val context: Context) {
                         phoneNumbers = phones,
                         email = emails.firstOrNull(),
                         emails = emails,
-                        photoUri = photo,
+                        photoUri = resolvedPhoto,
                         lookupKey = lookup,
                         accountType = primeAccount?.type,
                         accountName = primeAccount?.name,

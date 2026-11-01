@@ -30,7 +30,8 @@ class CallLogRepository(private val context: Context) {
             CallLog.Calls.NUMBER,
             CallLog.Calls.TYPE,
             CallLog.Calls.DATE,
-            CallLog.Calls.DURATION
+            CallLog.Calls.DURATION,
+            CallLog.Calls.CACHED_PHOTO_URI
         )
 
         val sortOrder = "${CallLog.Calls.DATE} DESC"
@@ -62,6 +63,7 @@ class CallLogRepository(private val context: Context) {
                 val typeIdx = it.getColumnIndex(CallLog.Calls.TYPE)
                 val dateIdx = it.getColumnIndex(CallLog.Calls.DATE)
                 val durIdx = it.getColumnIndex(CallLog.Calls.DURATION)
+                val photoIdx = it.getColumnIndex(CallLog.Calls.CACHED_PHOTO_URI)
 
                 while (it.moveToNext()) {
                     val id = if (idIdx != -1) it.getString(idIdx) ?: "" else ""
@@ -70,6 +72,7 @@ class CallLogRepository(private val context: Context) {
                     val typeInt = if (typeIdx != -1) it.getInt(typeIdx) else 0
                     val dateMillis = if (dateIdx != -1) it.getLong(dateIdx) else 0L
                     val duration = if (durIdx != -1) it.getLong(durIdx) else 0L
+                    val photoUri = if (photoIdx != -1) it.getString(photoIdx) else null
 
                     val callType = when (typeInt) {
                         CallLog.Calls.INCOMING_TYPE -> CallType.INCOMING
@@ -82,6 +85,12 @@ class CallLogRepository(private val context: Context) {
                     if (filterType != null && callType != filterType) {
                         continue
                     }
+
+                    val spamResult = com.smartdialer.app.data.repository.SpamProtectionManager.checkNumber(
+                        context = context,
+                        rawNumber = number,
+                        contactName = name
+                    )
 
                     val callCal = Calendar.getInstance().apply { timeInMillis = dateMillis }
                     val isToday = (callCal.get(Calendar.YEAR) == todayYear && callCal.get(Calendar.DAY_OF_YEAR) == todayDay)
@@ -101,7 +110,10 @@ class CallLogRepository(private val context: Context) {
                             formattedTime = formattedTime,
                             formattedDate = formattedDate,
                             isToday = isToday,
-                            isYesterday = isYesterday
+                            isYesterday = isYesterday,
+                            photoUri = photoUri,
+                            isSpam = spamResult.isSpam,
+                            spamCategory = if (spamResult.isSpam) spamResult.category else null
                         )
                     )
                 }

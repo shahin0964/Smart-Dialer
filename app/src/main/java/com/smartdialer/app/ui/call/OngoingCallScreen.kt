@@ -26,8 +26,13 @@ import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
+import com.smartdialer.app.data.repository.AppSettingsPreferences
+import com.smartdialer.app.ui.components.ContactAvatar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -140,34 +145,72 @@ fun OngoingCallScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Neon Glowing Avatar
+                // Neon Glowing Avatar (Red if spam, Purple/Blue if safe)
                 Box(
                     modifier = Modifier
                         .size(130.dp)
                         .clip(CircleShape)
                         .border(
                             width = 4.dp,
-                            brush = Brush.sweepGradient(
-                                listOf(
-                                    Color(0xFF8B5CF6),
-                                    Color(0xFF3B82F6),
-                                    Color(0xFF8B5CF6)
+                            brush = if (callInfo.isSpam) {
+                                Brush.linearGradient(listOf(Color(0xFFEF4444), Color(0xFFDC2626)))
+                            } else {
+                                Brush.sweepGradient(
+                                    listOf(
+                                        Color(0xFF8B5CF6),
+                                        Color(0xFF3B82F6),
+                                        Color(0xFF8B5CF6)
+                                    )
                                 )
-                            ),
+                            },
                             shape = CircleShape
                         )
-                        .background(Color(0xFF23204E)),
+                        .background(if (callInfo.isSpam) Color(0xFF450A0A) else Color(0xFF23204E)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier.size(68.dp)
+                    ContactAvatar(
+                        name = if (callInfo.contactName.isNotBlank()) callInfo.contactName else callInfo.number,
+                        photoUri = callInfo.photoUri,
+                        size = 122.dp,
+                        preferHighRes = true,
+                        fontSize = 44.sp
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Spam / Blocked Protection Banner
+                if (callInfo.isSpam) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF7F1D1D).copy(alpha = 0.9f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFEF4444))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = if (callInfo.isBlocked) Icons.Default.Block else Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFFCA5A5),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = when {
+                                    callInfo.isBlocked -> "🚫 BLOCKED CALLER"
+                                    callInfo.isSilencedSpam -> "🔕 SILENCED SPAM (${callInfo.spamCategory ?: "Telemarketing"})"
+                                    else -> "⚠️ SUSPECTED SPAM: ${callInfo.spamCategory ?: "Scam / Fraud"}"
+                                },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
 
                 // Caller Name
                 Text(

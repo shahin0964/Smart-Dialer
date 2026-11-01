@@ -299,19 +299,21 @@ fun MoreScreen(
         )
 
         // 5. Blocked Numbers & Spam Protection
-        val blockedSummary = remember(refreshKey, appSettings.blockedNumbers.size) {
-            if (appSettings.blockedNumbers.isNotEmpty()) {
-                "${appSettings.blockedNumbers.size} numbers blocked"
-            } else if (appSettings.spamProtectionEnabled) {
-                "Spam protection: Active"
+        val blockedSummary = remember(refreshKey, appSettings.blockedNumbers.size, appSettings.spamProtectionEnabled, appSettings.spamProtectionLevel) {
+            if (!appSettings.spamProtectionEnabled) {
+                if (appSettings.blockedNumbers.isNotEmpty()) {
+                    "${appSettings.blockedNumbers.size} numbers blocked (Spam filter Off)"
+                } else {
+                    "Protection disabled"
+                }
             } else {
-                "Manage blocked numbers and spam filtering"
+                "${appSettings.spamProtectionLevel.title} (Layer ${appSettings.spamProtectionLevel.layerNumber}) • ${appSettings.blockedNumbers.size} blocked"
             }
         }
 
         MoreOptionItem(
             icon = Icons.Default.Security,
-            title = "Blocked Numbers & Spam Protection",
+            title = "3-Layer Spam & Block Protection",
             subtitle = blockedSummary,
             onClick = { showBlockedDialog = true }
         )

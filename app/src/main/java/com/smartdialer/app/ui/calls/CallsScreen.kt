@@ -36,6 +36,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
@@ -57,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.CallLogItem
 import com.smartdialer.app.data.model.CallType
+import com.smartdialer.app.ui.components.ContactAvatar
 import com.smartdialer.app.ui.components.PermissionCard
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
@@ -332,34 +334,44 @@ fun CallLogRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.weight(1f)
         ) {
-            // Circular Avatar with Initial
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .clip(CircleShape)
-                    .background(colorPair.first),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = item.initial,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorPair.second
-                )
-            }
+            // Circular Avatar with Photo or Initial
+            ContactAvatar(
+                name = item.displayName,
+                photoUri = item.photoUri,
+                size = 46.dp
+            )
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Name + Call Direction Icon + Phone Number
-            Column {
-                Text(
-                    text = item.displayName,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = TextDark,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+            // Name + Spam Tag + Call Direction Icon + Phone Number
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = item.displayName,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (item.isSpam) Color(0xFFDC2626) else TextDark,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    if (item.isSpam) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFFFEE2E2),
+                            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFFCA5A5))
+                        ) {
+                            Text(
+                                text = item.spamCategory ?: "SPAM",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFDC2626),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(2.dp))
 

@@ -21,17 +21,25 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SimCard
+import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Warning
+import com.smartdialer.app.data.model.SpamProtectionLevel
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -471,25 +479,29 @@ fun BlockedNumbersDialog(
     onSaved: () -> Unit
 ) {
     var blockUnknown by remember { mutableStateOf(appSettings.blockUnknownNumbers) }
+    var silenceUnknown by remember { mutableStateOf(appSettings.silenceUnknownCallers) }
     var spamProtection by remember { mutableStateOf(appSettings.spamProtectionEnabled) }
+    var selectedLayer by remember { mutableStateOf(appSettings.spamProtectionLevel) }
     var newNumberInput by remember { mutableStateOf("") }
     var blockedList by remember { mutableStateOf(appSettings.blockedNumbers.toList()) }
+    val scrollState = rememberScrollState()
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp),
-            shape = RoundedCornerShape(20.dp),
+                .padding(vertical = 12.dp),
+            shape = RoundedCornerShape(22.dp),
             colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(20.dp)
+                    .verticalScroll(scrollState)
             ) {
                 DialogHeader(
-                    title = "Blocked & Spam Protection",
+                    title = "Spam & Security",
                     icon = Icons.Default.Security,
                     iconTint = Color(0xFF10B981),
                     onDismiss = onDismiss
@@ -497,24 +509,87 @@ fun BlockedNumbersDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
+                // Master Spam Protection Toggle
                 ToggleSettingRow(
-                    title = "Block Unknown Numbers",
-                    subtitle = "Block calls from private or hidden callers",
+                    title = "Spam Protection Engine",
+                    subtitle = "Advanced 3-layer fraud & robocall defense",
+                    checked = spamProtection,
+                    onCheckedChange = { spamProtection = it }
+                )
+
+                if (spamProtection) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Protection Layers (সুরক্ষার লেয়ার নির্বাচন করুন):",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Layer 1: BASIC
+                    SpamLayerCard(
+                        level = SpamProtectionLevel.BASIC,
+                        isSelected = selectedLayer == SpamProtectionLevel.BASIC,
+                        icon = Icons.Default.Warning,
+                        accentColor = Color(0xFF0284C7),
+                        tag = "Layer 1",
+                        onClick = { selectedLayer = SpamProtectionLevel.BASIC }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Layer 2: SMART BALANCED
+                    SpamLayerCard(
+                        level = SpamProtectionLevel.SMART,
+                        isSelected = selectedLayer == SpamProtectionLevel.SMART,
+                        icon = Icons.Default.NotificationsOff,
+                        accentColor = PurplePrimary,
+                        tag = "Layer 2 • Recommended",
+                        onClick = { selectedLayer = SpamProtectionLevel.SMART }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Layer 3: MAXIMUM STRICT
+                    SpamLayerCard(
+                        level = SpamProtectionLevel.MAXIMUM,
+                        isSelected = selectedLayer == SpamProtectionLevel.MAXIMUM,
+                        icon = Icons.Default.Block,
+                        accentColor = Color(0xFFDC2626),
+                        tag = "Layer 3 • Maximum",
+                        onClick = { selectedLayer = SpamProtectionLevel.MAXIMUM }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Additional Filtering Options",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+
+                ToggleSettingRow(
+                    title = "Block Hidden & Private Calls",
+                    subtitle = "Auto-reject calls without caller ID",
                     checked = blockUnknown,
                     onCheckedChange = { blockUnknown = it }
                 )
 
                 ToggleSettingRow(
-                    title = "Spam Protection",
-                    subtitle = "Identify potential telemarketers and fraud",
-                    checked = spamProtection,
-                    onCheckedChange = { spamProtection = it }
+                    title = "Silence Unsaved Numbers",
+                    subtitle = "Mute ringtone for callers not in Contacts",
+                    checked = silenceUnknown,
+                    onCheckedChange = { silenceUnknown = it }
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "Blocked Phone Numbers",
+                    text = "Blocked Phone Numbers (${blockedList.size})",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     color = TextDark
@@ -558,14 +633,14 @@ fun BlockedNumbersDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // List of blocked numbers
                 if (blockedList.isEmpty()) {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
                         color = Color(0xFFF8FAFC),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
                         Text(
                             text = "No phone numbers blocked yet.",
@@ -575,13 +650,11 @@ fun BlockedNumbersDialog(
                         )
                     }
                 } else {
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = 160.dp),
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        items(blockedList) { number ->
+                        for (number in blockedList) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -621,12 +694,14 @@ fun BlockedNumbersDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(18.dp))
 
                 Button(
                     onClick = {
                         appSettings.blockUnknownNumbers = blockUnknown
+                        appSettings.silenceUnknownCallers = silenceUnknown
                         appSettings.spamProtectionEnabled = spamProtection
+                        appSettings.spamProtectionLevel = selectedLayer
                         onSaved()
                         onDismiss()
                     },
@@ -634,8 +709,89 @@ fun BlockedNumbersDialog(
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
                 ) {
-                    Text("Save Block & Spam Settings", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Save Spam & Security Settings", fontWeight = FontWeight.Bold, color = Color.White)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SpamLayerCard(
+    level: SpamProtectionLevel,
+    isSelected: Boolean,
+    icon: ImageVector,
+    accentColor: Color,
+    tag: String,
+    onClick: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = if (isSelected) accentColor.copy(alpha = 0.08f) else Color(0xFFF8FAFC),
+        border = BorderStroke(
+            width = if (isSelected) 1.5.dp else 1.dp,
+            color = if (isSelected) accentColor else Color(0xFFE2E8F0)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            RadioButton(
+                selected = isSelected,
+                onClick = onClick,
+                colors = RadioButtonDefaults.colors(selectedColor = accentColor)
+            )
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = level.title,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) accentColor else TextDark
+                    )
+
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isSelected) accentColor else Color(0xFFE2E8F0)
+                    ) {
+                        Text(
+                            text = tag,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelected) Color.White else TextMuted,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = level.subtitle,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isSelected) accentColor else TextMuted
+                )
+
+                Spacer(modifier = Modifier.height(3.dp))
+
+                Text(
+                    text = level.description,
+                    fontSize = 11.sp,
+                    color = TextMuted,
+                    lineHeight = 15.sp
+                )
             }
         }
     }
