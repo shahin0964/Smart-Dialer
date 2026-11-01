@@ -1,83 +1,77 @@
 package com.smartdialer.app.data.repository
 
+import android.accounts.AccountManager
+import android.content.ContentResolver
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Bundle
 import android.provider.ContactsContract
+import android.provider.Settings
 import androidx.core.content.ContextCompat
+import com.smartdialer.app.data.model.ContactAccountInfo
+import com.smartdialer.app.data.model.ContactCounts
 import com.smartdialer.app.data.model.ContactItem
+import com.smartdialer.app.data.model.ContactSourceFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class ContactsRepository(private val context: Context) {
 
-    suspend fun getContacts(searchQuery: String = ""): List<ContactItem> = withContext(Dispatchers.IO) {
+    suspend fun getContacts(
+        searchQuery: String = "",
+        filter: ContactSourceFilter = ContactSourceFilter.ALL
+    ): List<ContactItem> = withContext(Dispatchers.IO) {
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS)
             != PackageManager.PERMISSION_GRANTED
         ) {
             return@withContext emptyList()
         }
 
-        val contactsList = mutableListOf<ContactItem>()
-        val seenNumbers = mutableSetOf<String>()
-
-        val projection = arrayOf(
-            ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
-            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY,
-            ContactsContract.CommonDataKinds.Phone.NUMBER,
-            ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
-            ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
-        )
-
-        val selection = if (searchQuery.isNotBlank()) {
-            "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY} LIKE ? OR ${ContactsContract.CommonDataKinds.Phone.NUMBER} LIKE ?"
-        } else {
-            null
-        }
-
-        val selectionArgs = if (searchQuery.isNotBlank()) {
-            arrayOf("%$searchQuery%", "%$searchQuery%")
-        } else {
-            null
-        }
-
-        val sortOrder = "${ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY} COLLATE NOCASE ASC"
+        // Step 1: Map Contact ID -> Account Infos from ContactsContract.RawContacts
+        val accountMap = mutableMapOf<String, MutableList<ContactAccountInfo>>()
+        val googleContactIds = mutableSetOf<String>()
+        val simContactIds = mutableSetOf<String>()
+        val deviceContactIds = mutableSetOf<String>()
 
         try {
-            val cursor = context.contentResolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-                projection,
-                selection,
-                selectionArgs,
-                sortOrder
+            val rawProjection = arrayOf(
+                ContactsContract.RawContacts.CONTACT_ID,
+                ContactsContract.RawContacts.ACCOUNT_NAME,
+                ContactsContract.RawContacts.ACCOUNT_TYPE
             )
+            val rawCursor = context.contentResolver.query(
+                ContactsContract.RawContacts.CONTENT_URI,
+                rawProjection,
+                "${ContactsContract.RawContacts.DELETED} = 0",
+                null,
+                null
+            )
+            rawCursor?.use { c ->
+                val cIdIdx = c.getColumnIndex(ContactsContract.RawContacts.CONTACT_ID)
+                val aNameIdx = c.getColumnIndex(ContactsContract.RawContacts.ACCOUNT_NAME)
+                val aTypeIdx = c.getColumnIndex(ContactsContract.RawContacts.ACCOUNT_TYPE)
 
-            cursor?.use {
-                val idIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
-                val nameIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY)
-                val numberIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-                val photoIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
-                val lookupIndex = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
+                while (c.moveToNext()) {
+                    val cId = if (cIdIdx != -1) c.getString(cIdIdx) else null
+                    val aName = if (aNameIdx != -1) c.getString(aNameIdx) else null
+                    val aType = if (aTypeIdx != -1) c.getString(aTypeIdx) else null
 
-                while (it.moveToNext()) {
-                    val id = if (idIndex != -1) it.getString(idIndex) ?: "" else ""
-                    val name = if (nameIndex != -1) it.getString(nameIndex) ?: "Unknown" else "Unknown"
-                    val rawNumber = if (numberIndex != -1) it.getString(numberIndex) ?: "" else ""
-                    val cleanNumber = rawNumber.replace("\\s+".toRegex(), "").replace("-", "")
+                    if (!cId.isNullOrBlank()) {
+                        val acc = ContactAccountInfo(aName, aType)
+                        accountMap.getOrPut(cId) { mutableListOf() }.add(acc)
 
-                    if (cleanNumber.isNotBlank() && !seenNumbers.contains(cleanNumber)) {
-                        seenNumbers.add(cleanNumber)
-                        val photoUri = if (photoIndex != -1) it.getString(photoIndex) else null
-                        val lookup = if (lookupIndex != -1) it.getString(lookupIndex) else null
-
-                        contactsList.add(
-                            ContactItem(
-                                id = id,
-                                name = name,
-                                phoneNumber = rawNumber,
-                                photoUri = photoUri,
-                                lookupKey = lookup
-                            )
-                        )
+                        if (acc.isGoogle) {
+                            googleContactIds.add(cId)
+                        } else if (aType?.contains("sim", ignoreCase = true) == true ||
+                            aType?.contains("icc", ignoreCase = true) == true ||
+                            aName?.contains("sim", ignoreCase = true) == true
+                        ) {
+                            simContactIds.add(cId)
+                        } else {
+                            deviceContactIds.add(cId)
+                        }
                     }
                 }
             }
@@ -85,13 +79,327 @@ class ContactsRepository(private val context: Context) {
             e.printStackTrace()
         }
 
-        contactsList
+        // Step 2: Query all phone numbers grouped by CONTACT_ID
+        val phonesMap = mutableMapOf<String, MutableList<String>>()
+        val phoneContactNames = mutableMapOf<String, String>()
+        val phonePhotos = mutableMapOf<String, String?>()
+        val phoneLookups = mutableMapOf<String, String?>()
+
+        try {
+            val phoneProjection = arrayOf(
+                ContactsContract.CommonDataKinds.Phone.CONTACT_ID,
+                ContactsContract.CommonDataKinds.Phone.NUMBER,
+                ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY,
+                ContactsContract.CommonDataKinds.Phone.PHOTO_URI,
+                ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY
+            )
+
+            val phoneCursor = context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                phoneProjection,
+                null,
+                null,
+                null
+            )
+
+            phoneCursor?.use { c ->
+                val cIdIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.CONTACT_ID)
+                val numIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
+                val nameIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME_PRIMARY)
+                val photoIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.PHOTO_URI)
+                val lookupIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Phone.LOOKUP_KEY)
+
+                while (c.moveToNext()) {
+                    val cId = if (cIdIdx != -1) c.getString(cIdIdx) else null
+                    val num = if (numIdx != -1) c.getString(numIdx) else null
+                    val name = if (nameIdx != -1) c.getString(nameIdx) else null
+                    val photo = if (photoIdx != -1) c.getString(photoIdx) else null
+                    val lookup = if (lookupIdx != -1) c.getString(lookupIdx) else null
+
+                    if (!cId.isNullOrBlank() && !num.isNullOrBlank()) {
+                        val list = phonesMap.getOrPut(cId) { mutableListOf() }
+                        val cleanNum = num.trim()
+                        if (!list.contains(cleanNum)) {
+                            list.add(cleanNum)
+                        }
+                        if (!name.isNullOrBlank() && !phoneContactNames.containsKey(cId)) {
+                            phoneContactNames[cId] = name
+                        }
+                        if (photo != null) phonePhotos[cId] = photo
+                        if (lookup != null) phoneLookups[cId] = lookup
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Step 3: Query all emails grouped by CONTACT_ID
+        val emailsMap = mutableMapOf<String, MutableList<String>>()
+        try {
+            val emailProjection = arrayOf(
+                ContactsContract.CommonDataKinds.Email.CONTACT_ID,
+                ContactsContract.CommonDataKinds.Email.ADDRESS,
+                ContactsContract.CommonDataKinds.Email.DISPLAY_NAME_PRIMARY
+            )
+
+            val emailCursor = context.contentResolver.query(
+                ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+                emailProjection,
+                null,
+                null,
+                null
+            )
+
+            emailCursor?.use { c ->
+                val cIdIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Email.CONTACT_ID)
+                val addrIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS)
+                val nameIdx = c.getColumnIndex(ContactsContract.CommonDataKinds.Email.DISPLAY_NAME_PRIMARY)
+
+                while (c.moveToNext()) {
+                    val cId = if (cIdIdx != -1) c.getString(cIdIdx) else null
+                    val addr = if (addrIdx != -1) c.getString(addrIdx) else null
+                    val name = if (nameIdx != -1) c.getString(nameIdx) else null
+
+                    if (!cId.isNullOrBlank() && !addr.isNullOrBlank()) {
+                        val list = emailsMap.getOrPut(cId) { mutableListOf() }
+                        val cleanAddr = addr.trim()
+                        if (!list.contains(cleanAddr)) {
+                            list.add(cleanAddr)
+                        }
+                        if (!name.isNullOrBlank() && !phoneContactNames.containsKey(cId)) {
+                            phoneContactNames[cId] = name
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Step 4: Query all Contacts from ContactsContract.Contacts
+        val allContacts = mutableMapOf<String, ContactItem>()
+
+        try {
+            val contactsProjection = arrayOf(
+                ContactsContract.Contacts._ID,
+                ContactsContract.Contacts.DISPLAY_NAME_PRIMARY,
+                ContactsContract.Contacts.PHOTO_URI,
+                ContactsContract.Contacts.LOOKUP_KEY
+            )
+
+            val cursor = context.contentResolver.query(
+                ContactsContract.Contacts.CONTENT_URI,
+                contactsProjection,
+                null,
+                null,
+                "${ContactsContract.Contacts.DISPLAY_NAME_PRIMARY} COLLATE NOCASE ASC"
+            )
+
+            cursor?.use { c ->
+                val idIdx = c.getColumnIndex(ContactsContract.Contacts._ID)
+                val nameIdx = c.getColumnIndex(ContactsContract.Contacts.DISPLAY_NAME_PRIMARY)
+                val photoIdx = c.getColumnIndex(ContactsContract.Contacts.PHOTO_URI)
+                val lookupIdx = c.getColumnIndex(ContactsContract.Contacts.LOOKUP_KEY)
+
+                while (c.moveToNext()) {
+                    val cId = if (idIdx != -1) c.getString(idIdx) else ""
+                    if (cId.isBlank()) continue
+
+                    val name = if (nameIdx != -1) c.getString(nameIdx) ?: "Unknown" else "Unknown"
+                    val photo = if (photoIdx != -1) c.getString(photoIdx) else phonePhotos[cId]
+                    val lookup = if (lookupIdx != -1) c.getString(lookupIdx) else phoneLookups[cId]
+
+                    val phones = phonesMap[cId] ?: emptyList()
+                    val emails = emailsMap[cId] ?: emptyList()
+                    val accounts = accountMap[cId] ?: emptyList()
+
+                    val isGoogle = googleContactIds.contains(cId) || accounts.any { it.isGoogle }
+                    val primeAccount = accounts.firstOrNull { it.isGoogle } ?: accounts.firstOrNull()
+
+                    allContacts[cId] = ContactItem(
+                        id = cId,
+                        name = name,
+                        phoneNumber = phones.firstOrNull() ?: "",
+                        phoneNumbers = phones,
+                        email = emails.firstOrNull(),
+                        emails = emails,
+                        photoUri = photo,
+                        lookupKey = lookup,
+                        accountType = primeAccount?.type,
+                        accountName = primeAccount?.name,
+                        isGoogleContact = isGoogle
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Merge any contacts that exist in phonesMap, emailsMap, or googleContactIds but weren't in Contacts.CONTENT_URI
+        val extraIds = (phonesMap.keys + emailsMap.keys + googleContactIds) - allContacts.keys
+        for (extraId in extraIds) {
+            val name = phoneContactNames[extraId] ?: "Unknown"
+            val phones = phonesMap[extraId] ?: emptyList()
+            val emails = emailsMap[extraId] ?: emptyList()
+            val accounts = accountMap[extraId] ?: emptyList()
+            val isGoogle = googleContactIds.contains(extraId) || accounts.any { it.isGoogle }
+            val primeAccount = accounts.firstOrNull { it.isGoogle } ?: accounts.firstOrNull()
+
+            allContacts[extraId] = ContactItem(
+                id = extraId,
+                name = name,
+                phoneNumber = phones.firstOrNull() ?: "",
+                phoneNumbers = phones,
+                email = emails.firstOrNull(),
+                emails = emails,
+                photoUri = phonePhotos[extraId],
+                lookupKey = phoneLookups[extraId],
+                accountType = primeAccount?.type,
+                accountName = primeAccount?.name,
+                isGoogleContact = isGoogle
+            )
+        }
+
+        // Apply source filter
+        var resultList = allContacts.values.toList()
+        resultList = when (filter) {
+            ContactSourceFilter.ALL -> resultList
+            ContactSourceFilter.GOOGLE -> resultList.filter { it.isGoogleContact }
+            ContactSourceFilter.DEVICE -> resultList.filter { !it.isGoogleContact && !simContactIds.contains(it.id) }
+            ContactSourceFilter.SIM -> resultList.filter { simContactIds.contains(it.id) }
+        }
+
+        // Apply search query filter
+        if (searchQuery.isNotBlank()) {
+            val q = searchQuery.trim().lowercase()
+            resultList = resultList.filter { contact ->
+                contact.name.lowercase().contains(q) ||
+                    contact.phoneNumbers.any { it.contains(q) } ||
+                    contact.phoneNumber.contains(q) ||
+                    contact.emails.any { it.lowercase().contains(q) } ||
+                    contact.accountName?.lowercase()?.contains(q) == true
+            }
+        }
+
+        resultList.sortedWith(compareBy(String.CASE_INSENSITIVE_ORDER) { it.name })
+    }
+
+    suspend fun getContactCounts(): ContactCounts = withContext(Dispatchers.IO) {
+        val all = getContacts(filter = ContactSourceFilter.ALL)
+        val google = all.count { it.isGoogleContact }
+        val sim = all.count { it.accountType?.contains("sim", true) == true || it.accountType?.contains("icc", true) == true }
+        val device = (all.size - google - sim).coerceAtLeast(0)
+        ContactCounts(
+            total = all.size,
+            google = google,
+            device = device,
+            sim = sim
+        )
+    }
+
+    suspend fun getGoogleAccounts(): List<String> = withContext(Dispatchers.IO) {
+        val list = mutableSetOf<String>()
+        // From RawContacts
+        try {
+            val rawCursor = context.contentResolver.query(
+                ContactsContract.RawContacts.CONTENT_URI,
+                arrayOf(ContactsContract.RawContacts.ACCOUNT_NAME, ContactsContract.RawContacts.ACCOUNT_TYPE),
+                "${ContactsContract.RawContacts.DELETED} = 0",
+                null,
+                null
+            )
+            rawCursor?.use { c ->
+                val nameIdx = c.getColumnIndex(ContactsContract.RawContacts.ACCOUNT_NAME)
+                val typeIdx = c.getColumnIndex(ContactsContract.RawContacts.ACCOUNT_TYPE)
+                while (c.moveToNext()) {
+                    val name = if (nameIdx != -1) c.getString(nameIdx) else null
+                    val type = if (typeIdx != -1) c.getString(typeIdx) else null
+                    if (!name.isNullOrBlank()) {
+                        if (type == "com.google" || name.contains("@gmail.com", ignoreCase = true)) {
+                            list.add(name)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // From AccountManager
+        try {
+            val am = AccountManager.get(context)
+            for (acc in am.getAccountsByType("com.google")) {
+                if (!acc.name.isNullOrBlank()) {
+                    list.add(acc.name)
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        list.toList()
+    }
+
+    fun syncGoogleContacts() {
+        try {
+            val am = AccountManager.get(context)
+            val accounts = am.getAccountsByType("com.google")
+            for (account in accounts) {
+                val bundle = Bundle().apply {
+                    putBoolean(ContentResolver.SYNC_EXTRAS_MANUAL, true)
+                    putBoolean(ContentResolver.SYNC_EXTRAS_EXPEDITED, true)
+                }
+                ContentResolver.requestSync(account, ContactsContract.AUTHORITY, bundle)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun openSyncSettings() {
+        try {
+            val intent = Intent(Settings.ACTION_SYNC_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            try {
+                val intent = Intent(Settings.ACTION_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            } catch (e2: Exception) {
+                e2.printStackTrace()
+            }
+        }
+    }
+
+    fun openGoogleContactsTrash() {
+        try {
+            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://contacts.google.com/trash")).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     suspend fun getContactByNumber(number: String): ContactItem? = withContext(Dispatchers.IO) {
         val clean = number.replace("[^0-9+]".toRegex(), "")
         if (clean.isEmpty()) return@withContext null
-        val contacts = getContacts(clean)
-        contacts.firstOrNull()
+
+        val contacts = getContacts(filter = ContactSourceFilter.ALL)
+        contacts.firstOrNull { contact ->
+            val primaryClean = contact.phoneNumber.replace("[^0-9+]".toRegex(), "")
+            if (primaryClean == clean || (clean.length >= 7 && primaryClean.endsWith(clean.takeLast(7)))) {
+                return@firstOrNull true
+            }
+            contact.phoneNumbers.any { p ->
+                val pClean = p.replace("[^0-9+]".toRegex(), "")
+                pClean == clean || (clean.length >= 7 && pClean.endsWith(clean.takeLast(7)))
+            }
+        }
     }
 }
