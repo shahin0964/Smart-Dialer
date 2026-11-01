@@ -505,12 +505,12 @@ fun DtmfOverlay(
                     listOf('*', '0', '#')
                 )
 
-                digits.forEach { row ->
+                for (row in digits) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         modifier = Modifier.padding(vertical = 6.dp)
                     ) {
-                        row.forEach { char ->
+                        for (char in row) {
                             Box(
                                 modifier = Modifier
                                     .size(56.dp)

@@ -59,7 +59,7 @@ fun TopTabBar(
                 .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceAround
         ) {
-            MainTab.entries.forEach { tab ->
+            for (tab in MainTab.entries) {
                 val isSelected = (tab == selectedTab)
                 val tint = if (isSelected) PurplePrimary else TextLightGray
 
@@ -71,7 +71,7 @@ fun TopTabBar(
                             indication = null
                         ) { onTabSelected(tab) }
                         .padding(top = 8.dp),
-                    horizontalAlignment = Alignment.CenterVertically
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
                         imageVector = tab.icon,

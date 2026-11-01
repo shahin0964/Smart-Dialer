@@ -257,7 +257,7 @@ fun ContactsScreen(
                     verticalArrangement = Arrangement.SpaceEvenly,
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    alphabet.forEach { char ->
+                    for (char in alphabet) {
                         Text(
                             text = char,
                             fontSize = 10.sp,

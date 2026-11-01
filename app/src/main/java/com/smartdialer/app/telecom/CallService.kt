@@ -24,4 +24,9 @@ class CallService : InCallService() {
         super.onCallRemoved(call)
         CallManager.clearCall()
     }
+
+    override fun onCallAudioStateChanged(audioState: android.telecom.CallAudioState) {
+        super.onCallAudioStateChanged(audioState)
+        CallManager.updateAudioState(audioState)
+    }
 }

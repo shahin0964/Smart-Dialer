@@ -37,13 +37,13 @@ object CallManager {
         override fun onStateChanged(call: Call, state: Int) {
             updateFromCall(call)
         }
+    }
 
-        override fun onCallAudioStateChanged(call: Call, audioState: CallAudioState) {
-            _currentCallState.value = _currentCallState.value.copy(
-                isMuted = audioState.isMuted,
-                isSpeakerOn = (audioState.route == CallAudioState.ROUTE_SPEAKER)
-            )
-        }
+    fun updateAudioState(audioState: CallAudioState) {
+        _currentCallState.value = _currentCallState.value.copy(
+            isMuted = audioState.isMuted,
+            isSpeakerOn = (audioState.route == CallAudioState.ROUTE_SPEAKER)
+        )
     }
 
     fun registerInCallService(service: CallService) {
