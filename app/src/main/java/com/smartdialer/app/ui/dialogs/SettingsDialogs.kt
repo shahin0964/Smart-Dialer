@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.border
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -67,6 +68,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -531,31 +533,28 @@ fun BlockedNumbersDialog(
                     SpamLayerCard(
                         level = SpamProtectionLevel.BASIC,
                         isSelected = selectedLayer == SpamProtectionLevel.BASIC,
-                        icon = Icons.Default.Warning,
                         accentColor = Color(0xFF0284C7),
                         tag = "Layer 1",
                         onClick = { selectedLayer = SpamProtectionLevel.BASIC }
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Layer 2: SMART BALANCED
                     SpamLayerCard(
                         level = SpamProtectionLevel.SMART,
                         isSelected = selectedLayer == SpamProtectionLevel.SMART,
-                        icon = Icons.Default.NotificationsOff,
                         accentColor = PurplePrimary,
                         tag = "Layer 2 • Recommended",
                         onClick = { selectedLayer = SpamProtectionLevel.SMART }
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     // Layer 3: MAXIMUM STRICT
                     SpamLayerCard(
                         level = SpamProtectionLevel.MAXIMUM,
                         isSelected = selectedLayer == SpamProtectionLevel.MAXIMUM,
-                        icon = Icons.Default.Block,
                         accentColor = Color(0xFFDC2626),
                         tag = "Layer 3 • Maximum",
                         onClick = { selectedLayer = SpamProtectionLevel.MAXIMUM }
@@ -720,13 +719,12 @@ fun BlockedNumbersDialog(
 private fun SpamLayerCard(
     level: SpamProtectionLevel,
     isSelected: Boolean,
-    icon: ImageVector,
     accentColor: Color,
     tag: String,
     onClick: () -> Unit
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(10.dp),
         color = if (isSelected) accentColor.copy(alpha = 0.08f) else Color(0xFFF8FAFC),
         border = BorderStroke(
             width = if (isSelected) 1.5.dp else 1.dp,
@@ -737,16 +735,30 @@ private fun SpamLayerCard(
             .clickable { onClick() }
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.Top
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            RadioButton(
-                selected = isSelected,
-                onClick = onClick,
-                colors = RadioButtonDefaults.colors(selectedColor = accentColor)
-            )
+            // Sleek selection circle
+            Box(
+                modifier = Modifier
+                    .size(18.dp)
+                    .border(
+                        width = if (isSelected) 5.dp else 1.5.dp,
+                        color = if (isSelected) accentColor else Color(0xFFCBD5E1),
+                        shape = CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .background(Color.White, CircleShape)
+                    )
+                }
+            }
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(
@@ -756,19 +768,26 @@ private fun SpamLayerCard(
                 ) {
                     Text(
                         text = level.title,
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) accentColor else TextDark
+                        color = if (isSelected) accentColor else TextDark,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
 
+                    Spacer(modifier = Modifier.width(6.dp))
+
                     Surface(
-                        shape = RoundedCornerShape(6.dp),
+                        shape = RoundedCornerShape(4.dp),
                         color = if (isSelected) accentColor else Color(0xFFE2E8F0)
                     ) {
                         Text(
                             text = tag,
-                            fontSize = 10.sp,
+                            fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
                             color = if (isSelected) Color.White else TextMuted,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
@@ -779,18 +798,10 @@ private fun SpamLayerCard(
 
                 Text(
                     text = level.subtitle,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isSelected) accentColor else TextMuted
-                )
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Text(
-                    text = level.description,
                     fontSize = 11.sp,
-                    color = TextMuted,
-                    lineHeight = 15.sp
+                    color = if (isSelected) accentColor.copy(alpha = 0.9f) else TextMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
