@@ -99,7 +99,7 @@ class ContactsRepository(private val context: Context) {
             )
 
             val phoneCursor = context.contentResolver.query(
-                phoneUri,
+                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
                 phoneProjection,
                 null,
                 null,
@@ -148,7 +148,7 @@ class ContactsRepository(private val context: Context) {
             )
 
             val emailCursor = context.contentResolver.query(
-                emailUri,
+                ContactsContract.CommonDataKinds.Email.CONTENT_URI,
                 emailProjection,
                 null,
                 null,
@@ -193,7 +193,7 @@ class ContactsRepository(private val context: Context) {
             )
 
             val cursor = context.contentResolver.query(
-                contactsUri,
+                ContactsContract.Contacts.CONTENT_URI,
                 contactsProjection,
                 null,
                 null,
