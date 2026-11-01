@@ -8,12 +8,15 @@ android {
     namespace = "com.smartdialer.app"
     compileSdk = 35
 
+    val appVersionCode = (project.findProperty("versionCode") as? String)?.toIntOrNull() ?: 1
+    val appVersionName = (project.findProperty("versionName") as? String) ?: "1.0.0"
+
     defaultConfig {
         applicationId = "com.smartdialer.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -24,19 +27,15 @@ android {
                 file("release.jks")
             } else if (file("../release.jks").exists()) {
                 file("../release.jks")
-            } else if (file("../../release.jks").exists()) {
-                file("../../release.jks")
             } else {
                 null
             }
 
             if (keystoreFile != null) {
                 storeFile = keystoreFile
-                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: ""
-                keyAlias = System.getenv("KEY_ALIAS") ?: ""
-                keyPassword = System.getenv("KEY_PASSWORD") ?: ""
-            } else {
-                initWith(getByName("debug"))
+                storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "android"
+                keyAlias = System.getenv("KEY_ALIAS") ?: "smartdialer"
+                keyPassword = System.getenv("KEY_PASSWORD") ?: "android"
             }
         }
     }
@@ -44,7 +43,10 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("release")
+            val releaseSigning = signingConfigs.findByName("release")
+            if (releaseSigning?.storeFile != null) {
+                signingConfig = releaseSigning
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

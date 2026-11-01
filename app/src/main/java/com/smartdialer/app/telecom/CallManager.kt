@@ -134,7 +134,12 @@ object CallManager {
     }
 
     fun reject() {
-        activeCall?.reject(false, null)
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            activeCall?.reject(Call.REJECT_REASON_DECLINED)
+        } else {
+            @Suppress("DEPRECATION")
+            activeCall?.reject(false, null as? String)
+        }
         clearCall()
     }
 

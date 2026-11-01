@@ -19,7 +19,7 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -59,7 +59,7 @@ fun TopTabBar(
                 .padding(horizontal = 8.dp),
             horizontalArrangement = Arrangement.SpaceAround
         ) {
-            MainTab.values().forEach { tab ->
+            MainTab.entries.forEach { tab ->
                 val isSelected = (tab == selectedTab)
                 val tint = if (isSelected) PurplePrimary else TextLightGray
 
@@ -106,6 +106,6 @@ fun TopTabBar(
             }
         }
 
-        Divider(color = DividerColor, thickness = 0.8.dp)
+        HorizontalDivider(color = DividerColor, thickness = 0.8.dp)
     }
 }

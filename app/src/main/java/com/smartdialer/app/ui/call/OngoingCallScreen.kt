@@ -22,7 +22,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Dialpad
-import androidx.compose.material.icons.filled.FiberManualRecord
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
@@ -450,10 +450,10 @@ fun InCallRecordButton(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.FiberManualRecord,
+                imageVector = Icons.Default.Circle,
                 contentDescription = "Record Call",
                 tint = if (isRecording) Color(0xFFEF4444) else Color(0xFFF43F5E),
-                modifier = Modifier.size(26.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
         Spacer(modifier = Modifier.height(6.dp))
