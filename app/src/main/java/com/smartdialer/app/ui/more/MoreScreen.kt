@@ -2,7 +2,6 @@ package com.smartdialer.app.ui.more
 
 import android.app.role.RoleManager
 import android.content.Context
-import android.content.Intent
 import android.os.Build
 import android.telecom.TelecomManager
 import androidx.compose.foundation.background
@@ -30,8 +29,6 @@ import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.VolumeUp
-import com.smartdialer.app.data.repository.IpCallPreferences
-import com.smartdialer.app.ui.components.IpCallConfigDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -53,6 +50,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartdialer.app.data.model.SimInfo
+import com.smartdialer.app.data.repository.AppSettingsPreferences
+import com.smartdialer.app.data.repository.IpCallPreferences
+import com.smartdialer.app.data.repository.SimRepository
+import com.smartdialer.app.ui.components.IpCallConfigDialog
+import com.smartdialer.app.ui.dialogs.AboutSmartDialerDialog
+import com.smartdialer.app.ui.dialogs.BlockedNumbersDialog
+import com.smartdialer.app.ui.dialogs.CallRecordingDialog
+import com.smartdialer.app.ui.dialogs.DualSimSettingsDialog
+import com.smartdialer.app.ui.dialogs.SoundsHapticsDialog
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.PurplePrimary
@@ -64,12 +71,22 @@ import com.smartdialer.app.ui.theme.TextMuted
 @Composable
 fun MoreScreen(
     ipPreferences: IpCallPreferences,
+    simRepository: SimRepository,
+    appSettings: AppSettingsPreferences,
     onRequestDefaultDialer: () -> Unit
 ) {
     val context = LocalContext.current
     var isDefaultDialer by remember { mutableStateOf(false) }
+
     var showIpDialog by remember { mutableStateOf(false) }
+    var showDualSimDialog by remember { mutableStateOf(false) }
+    var showCallRecordDialog by remember { mutableStateOf(false) }
+    var showSoundsHapticsDialog by remember { mutableStateOf(false) }
+    var showBlockedDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
+
     var refreshKey by remember { mutableStateOf(0) }
+    var sims by remember { mutableStateOf<List<SimInfo>>(emptyList()) }
 
     fun checkDefaultDialer() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -85,11 +102,56 @@ fun MoreScreen(
         checkDefaultDialer()
     }
 
+    LaunchedEffect(refreshKey) {
+        checkDefaultDialer()
+        sims = simRepository.getActiveSims()
+    }
+
+    // Dialogs
     if (showIpDialog) {
         IpCallConfigDialog(
             ipPreferences = ipPreferences,
             onDismiss = { showIpDialog = false },
             onSaved = { refreshKey++ }
+        )
+    }
+
+    if (showDualSimDialog) {
+        DualSimSettingsDialog(
+            sims = sims,
+            appSettings = appSettings,
+            onDismiss = { showDualSimDialog = false },
+            onSaved = { refreshKey++ }
+        )
+    }
+
+    if (showCallRecordDialog) {
+        CallRecordingDialog(
+            appSettings = appSettings,
+            onDismiss = { showCallRecordDialog = false },
+            onSaved = { refreshKey++ }
+        )
+    }
+
+    if (showSoundsHapticsDialog) {
+        SoundsHapticsDialog(
+            appSettings = appSettings,
+            onDismiss = { showSoundsHapticsDialog = false },
+            onSaved = { refreshKey++ }
+        )
+    }
+
+    if (showBlockedDialog) {
+        BlockedNumbersDialog(
+            appSettings = appSettings,
+            onDismiss = { showBlockedDialog = false },
+            onSaved = { refreshKey++ }
+        )
+    }
+
+    if (showAboutDialog) {
+        AboutSmartDialerDialog(
+            onDismiss = { showAboutDialog = false }
         )
     }
 
@@ -174,6 +236,7 @@ fun MoreScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         // Options List
+        // 1. IP Calling & IP Number Settings
         val ipSummary = remember(refreshKey) {
             if (ipPreferences.username.isNotBlank()) {
                 "Account: ${ipPreferences.username} (${ipPreferences.transportProtocol})"
@@ -191,39 +254,74 @@ fun MoreScreen(
             onClick = { showIpDialog = true }
         )
 
+        // 2. Dual SIM Settings
+        val simSummary = remember(refreshKey, appSettings.preferredSimSlot) {
+            if (appSettings.preferredSimSlot == -1) {
+                "Outgoing: Always Ask"
+            } else {
+                "Outgoing: SIM ${appSettings.preferredSimSlot + 1}"
+            }
+        }
+
         MoreOptionItem(
             icon = Icons.Default.SimCard,
             title = "Dual SIM Settings",
-            subtitle = "Configure SIM 1 and SIM 2 preferences",
-            onClick = {}
+            subtitle = simSummary,
+            onClick = { showDualSimDialog = true }
         )
+
+        // 3. Call Recording
+        val recordSummary = remember(refreshKey, appSettings.autoRecord) {
+            if (appSettings.autoRecord) {
+                "Auto Recording: Active (${appSettings.audioFormat})"
+            } else {
+                "Record incoming and outgoing calls"
+            }
+        }
 
         MoreOptionItem(
             icon = Icons.Default.RecordVoiceOver,
             title = "Call Recording",
-            subtitle = "Record incoming and outgoing calls",
-            onClick = {}
+            subtitle = recordSummary,
+            onClick = { showCallRecordDialog = true }
         )
+
+        // 4. Sounds & Haptics
+        val soundSummary = remember(refreshKey, appSettings.dialpadTones, appSettings.dialpadVibration) {
+            "Tones: ${if (appSettings.dialpadTones) "On" else "Off"}, Haptics: ${if (appSettings.dialpadVibration) "On" else "Off"}"
+        }
 
         MoreOptionItem(
             icon = Icons.Default.VolumeUp,
             title = "Sounds & Haptics",
-            subtitle = "Dialpad tones and vibration on keypress",
-            onClick = {}
+            subtitle = soundSummary,
+            onClick = { showSoundsHapticsDialog = true }
         )
+
+        // 5. Blocked Numbers & Spam Protection
+        val blockedSummary = remember(refreshKey, appSettings.blockedNumbers.size) {
+            if (appSettings.blockedNumbers.isNotEmpty()) {
+                "${appSettings.blockedNumbers.size} numbers blocked"
+            } else if (appSettings.spamProtectionEnabled) {
+                "Spam protection: Active"
+            } else {
+                "Manage blocked numbers and spam filtering"
+            }
+        }
 
         MoreOptionItem(
             icon = Icons.Default.Security,
             title = "Blocked Numbers & Spam Protection",
-            subtitle = "Manage blocked numbers and spam filtering",
-            onClick = {}
+            subtitle = blockedSummary,
+            onClick = { showBlockedDialog = true }
         )
 
+        // 6. About Smart Dialer
         MoreOptionItem(
             icon = Icons.Default.Info,
             title = "About Smart Dialer",
-            subtitle = "Version 1.0.0 (Native Jetpack Compose)",
-            onClick = {}
+            subtitle = "Version 1.0.6 (Native Jetpack Compose)",
+            onClick = { showAboutDialog = true }
         )
     }
 }

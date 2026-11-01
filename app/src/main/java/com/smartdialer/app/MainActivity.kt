@@ -8,10 +8,12 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.telecom.TelecomManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -27,7 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewmodel.compose.viewModel
+import com.smartdialer.app.data.repository.AppSettingsPreferences
 import com.smartdialer.app.data.repository.CallLogRepository
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.data.repository.IpCallPreferences
@@ -51,6 +53,9 @@ class MainActivity : ComponentActivity() {
     private lateinit var callLogRepository: CallLogRepository
     private lateinit var simRepository: SimRepository
     private lateinit var ipPreferences: IpCallPreferences
+    private lateinit var appSettings: AppSettingsPreferences
+
+    private var defaultDialerLauncher: ActivityResultLauncher<Intent>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,6 +64,7 @@ class MainActivity : ComponentActivity() {
         callLogRepository = CallLogRepository(applicationContext)
         simRepository = SimRepository(applicationContext)
         ipPreferences = IpCallPreferences(applicationContext)
+        appSettings = AppSettingsPreferences(applicationContext)
 
         val initialNumber = extractDialNumber(intent)
 
@@ -66,7 +72,7 @@ class MainActivity : ComponentActivity() {
             SmartDialerTheme(darkTheme = false) {
                 MainContent(
                     initialNumber = initialNumber,
-                    onRequestDefaultDialer = { requestDefaultDialerRole() }
+                    onRequestDefaultDialer = { triggerDefaultDialerRequest() }
                 )
             }
         }
@@ -86,24 +92,61 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    fun requestDefaultDialerRole() {
+    fun triggerDefaultDialerRequest() {
+        // Attempt 1: RoleManager for Android 10+ (Q)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
-            if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
-                if (!roleManager.isRoleHeld(RoleManager.ROLE_DIALER)) {
+            try {
+                val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
+                if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
                     val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
-                    startActivity(intent)
+                    if (defaultDialerLauncher != null) {
+                        defaultDialerLauncher?.launch(intent)
+                    } else {
+                        startActivity(intent)
+                    }
+                    return
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
             }
-        } else {
-            val telecomManager = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
-            if (telecomManager != null && telecomManager.defaultDialerPackage != packageName) {
-                @Suppress("DEPRECATION")
-                val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
-                    putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
-                }
+        }
+
+        // Attempt 2: TelecomManager ACTION_CHANGE_DEFAULT_DIALER
+        try {
+            @Suppress("DEPRECATION")
+            val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
+                putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
+            }
+            if (defaultDialerLauncher != null) {
+                defaultDialerLauncher?.launch(intent)
+            } else {
                 startActivity(intent)
             }
+            return
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Attempt 3: Direct to Android Default Apps Settings (MIUI, HyperOS, Samsung, Oppo, Vivo)
+        try {
+            val intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+            return
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // Attempt 4: App Details Settings
+        try {
+            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = Uri.fromParts("package", packageName, null)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            startActivity(intent)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -122,6 +165,15 @@ class MainActivity : ComponentActivity() {
         }
         val contactsViewModel = remember {
             ContactsViewModel(contactsRepository)
+        }
+
+        val roleLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.StartActivityForResult()
+        ) { _ ->
+            // Role dialog finished
+        }
+        LaunchedEffect(roleLauncher) {
+            defaultDialerLauncher = roleLauncher
         }
 
         LaunchedEffect(initialNumber) {
@@ -188,6 +240,8 @@ class MainActivity : ComponentActivity() {
                     MainTab.CONTACTS -> ContactsScreen(viewModel = contactsViewModel)
                     MainTab.MORE -> MoreScreen(
                         ipPreferences = ipPreferences,
+                        simRepository = simRepository,
+                        appSettings = appSettings,
                         onRequestDefaultDialer = onRequestDefaultDialer
                     )
                 }
