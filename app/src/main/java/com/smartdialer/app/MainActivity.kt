@@ -30,6 +30,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.smartdialer.app.data.repository.CallLogRepository
 import com.smartdialer.app.data.repository.ContactsRepository
+import com.smartdialer.app.data.repository.IpCallPreferences
 import com.smartdialer.app.data.repository.SimRepository
 import com.smartdialer.app.ui.calls.CallsScreen
 import com.smartdialer.app.ui.calls.CallsViewModel
@@ -49,6 +50,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var contactsRepository: ContactsRepository
     private lateinit var callLogRepository: CallLogRepository
     private lateinit var simRepository: SimRepository
+    private lateinit var ipPreferences: IpCallPreferences
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,6 +58,7 @@ class MainActivity : ComponentActivity() {
         contactsRepository = ContactsRepository(applicationContext)
         callLogRepository = CallLogRepository(applicationContext)
         simRepository = SimRepository(applicationContext)
+        ipPreferences = IpCallPreferences(applicationContext)
 
         val initialNumber = extractDialNumber(intent)
 
@@ -93,7 +96,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         } else {
-            val telecomManager = getSystemService(Context.TELEPHONY_SERVICE) as? TelecomManager
+            val telecomManager = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
             if (telecomManager != null && telecomManager.defaultDialerPackage != packageName) {
                 @Suppress("DEPRECATION")
                 val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
@@ -112,7 +115,7 @@ class MainActivity : ComponentActivity() {
         var selectedTab by remember { mutableStateOf(MainTab.DIALER) }
 
         val dialerViewModel = remember {
-            DialerViewModel(contactsRepository, simRepository)
+            DialerViewModel(contactsRepository, simRepository, ipPreferences)
         }
         val callsViewModel = remember {
             CallsViewModel(callLogRepository)
@@ -183,7 +186,10 @@ class MainActivity : ComponentActivity() {
                     MainTab.DIALER -> DialerScreen(viewModel = dialerViewModel)
                     MainTab.CALLS -> CallsScreen(viewModel = callsViewModel)
                     MainTab.CONTACTS -> ContactsScreen(viewModel = contactsViewModel)
-                    MainTab.MORE -> MoreScreen(onRequestDefaultDialer = onRequestDefaultDialer)
+                    MainTab.MORE -> MoreScreen(
+                        ipPreferences = ipPreferences,
+                        onRequestDefaultDialer = onRequestDefaultDialer
+                    )
                 }
             }
         }

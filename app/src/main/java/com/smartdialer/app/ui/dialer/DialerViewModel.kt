@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.smartdialer.app.data.model.ContactItem
 import com.smartdialer.app.data.model.SimInfo
 import com.smartdialer.app.data.repository.ContactsRepository
+import com.smartdialer.app.data.repository.IpCallPreferences
 import com.smartdialer.app.data.repository.SimRepository
 import com.smartdialer.app.telecom.CallManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +16,8 @@ import kotlinx.coroutines.launch
 
 class DialerViewModel(
     private val contactsRepository: ContactsRepository,
-    private val simRepository: SimRepository
+    private val simRepository: SimRepository,
+    val ipPreferences: IpCallPreferences
 ) : ViewModel() {
 
     private val _inputNumber = MutableStateFlow("")
@@ -26,6 +28,9 @@ class DialerViewModel(
 
     private val _sims = MutableStateFlow<List<SimInfo>>(emptyList())
     val sims: StateFlow<List<SimInfo>> = _sims.asStateFlow()
+
+    private val _showIpDialog = MutableStateFlow(false)
+    val showIpDialog: StateFlow<Boolean> = _showIpDialog.asStateFlow()
 
     init {
         loadSims()
@@ -82,8 +87,20 @@ class DialerViewModel(
 
     fun makeIpCall(context: Context) {
         val number = _inputNumber.value.trim()
-        if (number.isNotBlank()) {
-            CallManager.initiateCall(context, number, 0)
+        if (number.isBlank()) return
+
+        if (!ipPreferences.isConfigured) {
+            _showIpDialog.value = true
+        } else {
+            ipPreferences.makeIpCall(number, 0)
         }
+    }
+
+    fun openIpSettings() {
+        _showIpDialog.value = true
+    }
+
+    fun dismissIpDialog() {
+        _showIpDialog.value = false
     }
 }

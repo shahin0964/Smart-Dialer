@@ -24,11 +24,14 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.VolumeUp
+import com.smartdialer.app.data.repository.IpCallPreferences
+import com.smartdialer.app.ui.components.IpCallConfigDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -60,23 +63,34 @@ import com.smartdialer.app.ui.theme.TextMuted
 
 @Composable
 fun MoreScreen(
+    ipPreferences: IpCallPreferences,
     onRequestDefaultDialer: () -> Unit
 ) {
     val context = LocalContext.current
     var isDefaultDialer by remember { mutableStateOf(false) }
+    var showIpDialog by remember { mutableStateOf(false) }
+    var refreshKey by remember { mutableStateOf(0) }
 
     fun checkDefaultDialer() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             val roleManager = context.getSystemService(Context.ROLE_SERVICE) as? RoleManager
             isDefaultDialer = roleManager?.isRoleHeld(RoleManager.ROLE_DIALER) == true
         } else {
-            val telecomManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelecomManager
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
             isDefaultDialer = telecomManager?.defaultDialerPackage == context.packageName
         }
     }
 
     LaunchedEffect(Unit) {
         checkDefaultDialer()
+    }
+
+    if (showIpDialog) {
+        IpCallConfigDialog(
+            ipPreferences = ipPreferences,
+            onDismiss = { showIpDialog = false },
+            onSaved = { refreshKey++ }
+        )
     }
 
     Column(
@@ -160,6 +174,23 @@ fun MoreScreen(
         Spacer(modifier = Modifier.height(12.dp))
 
         // Options List
+        val ipSummary = remember(refreshKey) {
+            if (ipPreferences.ipNumber.isNotBlank()) {
+                "Number: ${ipPreferences.ipNumber} (${ipPreferences.ipMode.name})"
+            } else if (ipPreferences.ipPrefix.isNotBlank()) {
+                "Prefix: ${ipPreferences.ipPrefix} (${ipPreferences.ipMode.name})"
+            } else {
+                "Configure your IP number, prefix & calling mode"
+            }
+        }
+
+        MoreOptionItem(
+            icon = Icons.Default.Language,
+            title = "IP Calling & IP Number Settings",
+            subtitle = ipSummary,
+            onClick = { showIpDialog = true }
+        )
+
         MoreOptionItem(
             icon = Icons.Default.SimCard,
             title = "Dual SIM Settings",

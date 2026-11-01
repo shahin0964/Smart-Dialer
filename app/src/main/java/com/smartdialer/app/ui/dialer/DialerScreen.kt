@@ -31,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.smartdialer.app.ui.components.IpCallConfigDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -65,6 +66,19 @@ fun DialerScreen(
     val view = LocalView.current
     val inputNumber by viewModel.inputNumber.collectAsState()
     val matchedContacts by viewModel.matchedContacts.collectAsState()
+    val showIpDialog by viewModel.showIpDialog.collectAsState()
+
+    if (showIpDialog) {
+        IpCallConfigDialog(
+            ipPreferences = viewModel.ipPreferences,
+            onDismiss = { viewModel.dismissIpDialog() },
+            onSaved = {
+                if (inputNumber.isNotBlank()) {
+                    viewModel.makeIpCall(context)
+                }
+            }
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -95,10 +109,10 @@ fun DialerScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
-                        text = if (inputNumber.isEmpty()) "+1 415 555 2678" else inputNumber,
-                        fontSize = 24.sp,
+                        text = inputNumber,
+                        fontSize = 26.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (inputNumber.isEmpty()) TextLightGray.copy(alpha = 0.6f) else TextDark,
+                        color = TextDark,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
@@ -336,6 +350,10 @@ fun DialerScreen(
                 onClick = {
                     view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
                     viewModel.makeIpCall(context)
+                },
+                onLongClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    viewModel.openIpSettings()
                 }
             )
         }
@@ -390,13 +408,15 @@ fun KeypadButton(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun CallPillButton(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     backgroundColor: Color,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null
 ) {
     Surface(
         modifier = modifier
@@ -408,7 +428,10 @@ fun CallPillButton(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .clickable { onClick() }
+                .combinedClickable(
+                    onClick = onClick,
+                    onLongClick = onLongClick
+                )
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center

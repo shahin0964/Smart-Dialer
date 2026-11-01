@@ -180,11 +180,13 @@ fun OngoingCallScreen(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 // Caller Number
-                Text(
-                    text = if (callInfo.number.isNotBlank()) callInfo.number else "+1 415 555 2678",
-                    fontSize = 16.sp,
-                    color = Color(0xFFCBD5E1)
-                )
+                if (callInfo.number.isNotBlank()) {
+                    Text(
+                        text = callInfo.number,
+                        fontSize = 16.sp,
+                        color = Color(0xFFCBD5E1)
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(10.dp))
 

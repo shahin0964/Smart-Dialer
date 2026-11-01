@@ -1,14 +1,18 @@
 package com.smartdialer.app.telecom
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Bundle
 import android.telecom.Call
 import android.telecom.CallAudioState
+import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.telephony.SubscriptionManager
+import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.ActiveCallInfo
 import com.smartdialer.app.data.model.CallStatus
 import com.smartdialer.app.ui.call.CallActivity
@@ -184,27 +188,58 @@ object CallManager {
     }
 
     fun initiateCall(context: Context, number: String, simSlot: Int = 0) {
+        if (number.isBlank()) return
         val cleanNumber = number.replace("#", "%23")
         val uri = Uri.parse("tel:$cleanNumber")
-        val telecomManager = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelecomManager
+        val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+
+        val hasPhonePermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.CALL_PHONE
+        ) == PackageManager.PERMISSION_GRANTED
+
+        val hasPhoneStatePermission = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.READ_PHONE_STATE
+        ) == PackageManager.PERMISSION_GRANTED
+
+        // Find real PhoneAccountHandle for the requested simSlot
+        var targetAccount: PhoneAccountHandle? = null
+        if (telecomManager != null && hasPhoneStatePermission) {
+            try {
+                val callCapableAccounts: List<PhoneAccountHandle> = telecomManager.callCapablePhoneAccounts
+                if (callCapableAccounts.isNotEmpty()) {
+                    targetAccount = callCapableAccounts.getOrNull(simSlot) ?: callCapableAccounts.firstOrNull()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        val action = if (hasPhonePermission) Intent.ACTION_CALL else Intent.ACTION_DIAL
+        val intent = Intent(action, uri).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            if (targetAccount != null) {
+                putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, targetAccount)
+            }
+            putExtra("com.android.phone.extra.slot", simSlot)
+            putExtra("simSlot", simSlot)
+            putExtra("phone_account_id", simSlot)
+            putExtra("Subscription", simSlot)
+        }
 
         try {
-            val intent = Intent(Intent.ACTION_CALL, uri).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                // Attempt to specify SIM slot extra
-                putExtra("com.android.phone.extra.slot", simSlot)
-                putExtra("android.telecom.extra.PHONE_ACCOUNT_HANDLE", simSlot)
-                putExtra("simSlot", simSlot)
-            }
             context.startActivity(intent)
-        } catch (e: SecurityException) {
-            // Fallback to ACTION_DIAL if permission missing
-            val dialIntent = Intent(Intent.ACTION_DIAL, uri).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            }
-            context.startActivity(dialIntent)
         } catch (e: Exception) {
-            e.printStackTrace()
+            // Fallback to standard ACTION_DIAL without account extra
+            try {
+                val dialFallback = Intent(Intent.ACTION_DIAL, uri).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(dialFallback)
+            } catch (ex: Exception) {
+                ex.printStackTrace()
+            }
         }
     }
 }
