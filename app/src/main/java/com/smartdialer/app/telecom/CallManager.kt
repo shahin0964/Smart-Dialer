@@ -13,6 +13,7 @@ import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.telephony.SubscriptionManager
 import android.provider.ContactsContract
+import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.ActiveCallInfo
 import com.smartdialer.app.data.model.CallStatus
 import com.smartdialer.app.data.model.SpamAction

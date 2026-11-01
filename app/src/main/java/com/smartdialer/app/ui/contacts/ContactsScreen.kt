@@ -746,6 +746,7 @@ fun ContactDetailsDialog(
         Color(0xFFFFE4E6) to Color(0xFFBE123C)
     )
     val colorPair = avatarColors[Math.abs(contact.name.hashCode()) % avatarColors.size]
+    val context = LocalContext.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
