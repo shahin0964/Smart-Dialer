@@ -175,12 +175,12 @@ fun MoreScreen(
 
         // Options List
         val ipSummary = remember(refreshKey) {
-            if (ipPreferences.ipNumber.isNotBlank()) {
-                "Number: ${ipPreferences.ipNumber} (${ipPreferences.ipMode.name})"
-            } else if (ipPreferences.ipPrefix.isNotBlank()) {
-                "Prefix: ${ipPreferences.ipPrefix} (${ipPreferences.ipMode.name})"
+            if (ipPreferences.username.isNotBlank()) {
+                "Account: ${ipPreferences.username} (${ipPreferences.transportProtocol})"
+            } else if (ipPreferences.domain.isNotBlank()) {
+                "Domain: ${ipPreferences.domain} (${ipPreferences.transportProtocol})"
             } else {
-                "Configure your IP number, prefix & calling mode"
+                "Configure SIP account, proxy & network"
             }
         }
 
