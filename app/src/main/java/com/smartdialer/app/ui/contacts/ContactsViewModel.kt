@@ -8,6 +8,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.smartdialer.app.data.model.ContactCounts
 import com.smartdialer.app.data.model.ContactItem
+import com.smartdialer.app.data.model.ContactSaveDestination
+import com.smartdialer.app.data.model.ContactSaveDestinationType
 import com.smartdialer.app.data.model.ContactSourceFilter
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.telecom.CallManager
@@ -45,6 +47,15 @@ class ContactsViewModel(
     private val _showDeletedDialog = MutableStateFlow(false)
     val showDeletedDialog: StateFlow<Boolean> = _showDeletedDialog.asStateFlow()
 
+    private val _showAddContactDialog = MutableStateFlow(false)
+    val showAddContactDialog: StateFlow<Boolean> = _showAddContactDialog.asStateFlow()
+
+    private val _availableDestinations = MutableStateFlow<List<ContactSaveDestination>>(emptyList())
+    val availableDestinations: StateFlow<List<ContactSaveDestination>> = _availableDestinations.asStateFlow()
+
+    private val _isSavingContact = MutableStateFlow(false)
+    val isSavingContact: StateFlow<Boolean> = _isSavingContact.asStateFlow()
+
     private val _syncMessage = MutableStateFlow<String?>(null)
     val syncMessage: StateFlow<String?> = _syncMessage.asStateFlow()
 
@@ -61,6 +72,10 @@ class ContactsViewModel(
 
             val gAccounts = contactsRepository.getGoogleAccounts()
             _googleAccounts.value = gAccounts
+
+            val destinations = contactsRepository.getAvailableSaveDestinations()
+            _availableDestinations.value = destinations
+
             _isRefreshing.value = false
         }
     }
@@ -73,6 +88,53 @@ class ContactsViewModel(
     fun setFilter(filter: ContactSourceFilter) {
         _activeFilter.value = filter
         loadContacts()
+    }
+
+    fun openAddContactDialog() {
+        viewModelScope.launch {
+            val destinations = contactsRepository.getAvailableSaveDestinations()
+            _availableDestinations.value = destinations
+            _showAddContactDialog.value = true
+        }
+    }
+
+    fun closeAddContactDialog() {
+        _showAddContactDialog.value = false
+    }
+
+    fun saveContact(
+        name: String,
+        phoneNumber: String,
+        secondaryNumber: String?,
+        email: String?,
+        company: String?,
+        destination: ContactSaveDestination,
+        onComplete: (Boolean, String?) -> Unit
+    ) {
+        viewModelScope.launch {
+            _isSavingContact.value = true
+            val result = contactsRepository.saveNewContact(
+                name = name,
+                phoneNumber = phoneNumber,
+                secondaryNumber = secondaryNumber,
+                email = email,
+                company = company,
+                destination = destination
+            )
+            _isSavingContact.value = false
+
+            if (result.isSuccess) {
+                _syncMessage.value = "Contact saved to ${destination.title} successfully!"
+                loadContacts()
+                _showAddContactDialog.value = false
+                onComplete(true, null)
+                delay(3000)
+                _syncMessage.value = null
+            } else {
+                val err = result.exceptionOrNull()?.localizedMessage ?: "Failed to save contact"
+                onComplete(false, err)
+            }
+        }
     }
 
     fun syncGoogleContacts() {
@@ -142,15 +204,7 @@ class ContactsViewModel(
     }
 
     fun createNewContact(context: Context) {
-        val intent = Intent(ContactsContract.Intents.Insert.ACTION).apply {
-            type = ContactsContract.RawContacts.CONTENT_TYPE
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-        }
-        try {
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        openAddContactDialog()
     }
 
     fun editContact(context: Context, contact: ContactItem) {

@@ -86,6 +86,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.ContactCounts
 import com.smartdialer.app.data.model.ContactItem
+import com.smartdialer.app.data.model.ContactSaveDestinationType
 import com.smartdialer.app.data.model.ContactSourceFilter
 import com.smartdialer.app.ui.components.PermissionCard
 import com.smartdialer.app.ui.theme.BgLight
@@ -140,6 +141,9 @@ fun ContactsScreen(
     val selectedContact by viewModel.selectedContact.collectAsState()
     val showDeletedDialog by viewModel.showDeletedDialog.collectAsState()
     val syncMessage by viewModel.syncMessage.collectAsState()
+    val showAddContactDialog by viewModel.showAddContactDialog.collectAsState()
+    val availableDestinations by viewModel.availableDestinations.collectAsState()
+    val isSavingContact by viewModel.isSavingContact.collectAsState()
 
     // Group contacts alphabetically
     val grouped = remember(contacts) {
@@ -546,6 +550,32 @@ fun ContactsScreen(
             onOpenSettings = {
                 viewModel.openGoogleSyncSettings()
                 viewModel.setShowDeletedDialog(false)
+            }
+        )
+    }
+
+    // Add New Contact Modal Dialog
+    if (showAddContactDialog) {
+        AddNewContactDialog(
+            destinations = availableDestinations,
+            initialDestinationType = when (activeFilter) {
+                ContactSourceFilter.GOOGLE -> ContactSaveDestinationType.GOOGLE
+                ContactSourceFilter.DEVICE -> ContactSaveDestinationType.PHONE
+                ContactSourceFilter.SIM -> ContactSaveDestinationType.SIM
+                else -> ContactSaveDestinationType.GOOGLE
+            },
+            isSaving = isSavingContact,
+            onDismiss = { viewModel.closeAddContactDialog() },
+            onSave = { name, phone, secPhone, email, company, dest ->
+                viewModel.saveContact(
+                    name = name,
+                    phoneNumber = phone,
+                    secondaryNumber = secPhone,
+                    email = email,
+                    company = company,
+                    destination = dest,
+                    onComplete = { _, _ -> }
+                )
             }
         )
     }

@@ -1,7 +1,9 @@
 package com.smartdialer.app.data.repository
 
 import android.accounts.AccountManager
+import android.content.ContentProviderOperation
 import android.content.ContentResolver
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -13,6 +15,8 @@ import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.ContactAccountInfo
 import com.smartdialer.app.data.model.ContactCounts
 import com.smartdialer.app.data.model.ContactItem
+import com.smartdialer.app.data.model.ContactSaveDestination
+import com.smartdialer.app.data.model.ContactSaveDestinationType
 import com.smartdialer.app.data.model.ContactSourceFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -95,7 +99,7 @@ class ContactsRepository(private val context: Context) {
             )
 
             val phoneCursor = context.contentResolver.query(
-                ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
+                phoneUri,
                 phoneProjection,
                 null,
                 null,
@@ -144,7 +148,7 @@ class ContactsRepository(private val context: Context) {
             )
 
             val emailCursor = context.contentResolver.query(
-                ContactsContract.CommonDataKinds.Email.CONTENT_URI,
+                emailUri,
                 emailProjection,
                 null,
                 null,
@@ -189,7 +193,7 @@ class ContactsRepository(private val context: Context) {
             )
 
             val cursor = context.contentResolver.query(
-                ContactsContract.Contacts.CONTENT_URI,
+                contactsUri,
                 contactsProjection,
                 null,
                 null,
@@ -339,6 +343,276 @@ class ContactsRepository(private val context: Context) {
         }
 
         list.toList()
+    }
+
+    suspend fun getAvailableSaveDestinations(): List<ContactSaveDestination> = withContext(Dispatchers.IO) {
+        val destinations = mutableListOf<ContactSaveDestination>()
+
+        // 1. Google Accounts
+        val googleAccounts = getGoogleAccounts()
+        if (googleAccounts.isNotEmpty()) {
+            for (gAcc in googleAccounts) {
+                destinations.add(
+                    ContactSaveDestination(
+                        type = ContactSaveDestinationType.GOOGLE,
+                        title = "Google Account",
+                        subtitle = gAcc,
+                        accountName = gAcc,
+                        accountType = "com.google"
+                    )
+                )
+            }
+        } else {
+            destinations.add(
+                ContactSaveDestination(
+                    type = ContactSaveDestinationType.GOOGLE,
+                    title = "Google Account",
+                    subtitle = "Sync to Google Cloud",
+                    accountName = null,
+                    accountType = "com.google"
+                )
+            )
+        }
+
+        // 2. Phone Storage
+        destinations.add(
+            ContactSaveDestination(
+                type = ContactSaveDestinationType.PHONE,
+                title = "Phone Storage",
+                subtitle = "Saved to device memory",
+                accountName = null,
+                accountType = null
+            )
+        )
+
+        // 3. SIM Card
+        destinations.add(
+            ContactSaveDestination(
+                type = ContactSaveDestinationType.SIM,
+                title = "SIM Card",
+                subtitle = "Saved to SIM card memory",
+                accountName = "SIM",
+                accountType = "com.android.icc"
+            )
+        )
+
+        destinations
+    }
+
+    suspend fun saveNewContact(
+        name: String,
+        phoneNumber: String,
+        secondaryNumber: String? = null,
+        email: String? = null,
+        company: String? = null,
+        destination: ContactSaveDestination
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.WRITE_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return@withContext Result.failure(SecurityException("WRITE_CONTACTS permission not granted"))
+        }
+
+        try {
+            val trimmedName = name.trim()
+            val trimmedPhone = phoneNumber.trim()
+
+            when (destination.type) {
+                ContactSaveDestinationType.GOOGLE -> {
+                    val targetAccount = destination.accountName ?: getGoogleAccounts().firstOrNull()
+                    val ops = ArrayList<ContentProviderOperation>()
+                    val rawIndex = ops.size
+
+                    val rawOp = ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, "com.google")
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, targetAccount)
+                        .build()
+                    ops.add(rawOp)
+
+                    // Display Name
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, trimmedName)
+                            .build()
+                    )
+
+                    // Primary Phone
+                    if (trimmedPhone.isNotBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, trimmedPhone)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                                .build()
+                        )
+                    }
+
+                    // Secondary Phone
+                    if (!secondaryNumber.isNullOrBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, secondaryNumber.trim())
+                                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_HOME)
+                                .build()
+                        )
+                    }
+
+                    // Email
+                    if (!email.isNullOrBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, email.trim())
+                                .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                                .build()
+                        )
+                    }
+
+                    // Company
+                    if (!company.isNullOrBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Organization.COMPANY, company.trim())
+                                .build()
+                        )
+                    }
+
+                    context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+                    syncGoogleContacts()
+                }
+
+                ContactSaveDestinationType.PHONE -> {
+                    val ops = ArrayList<ContentProviderOperation>()
+                    val rawIndex = ops.size
+
+                    val rawOp = ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, null)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, null)
+                        .build()
+                    ops.add(rawOp)
+
+                    // Display Name
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, trimmedName)
+                            .build()
+                    )
+
+                    // Primary Phone
+                    if (trimmedPhone.isNotBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, trimmedPhone)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                                .build()
+                        )
+                    }
+
+                    // Secondary Phone
+                    if (!secondaryNumber.isNullOrBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, secondaryNumber.trim())
+                                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_HOME)
+                                .build()
+                        )
+                    }
+
+                    // Email
+                    if (!email.isNullOrBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, email.trim())
+                                .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_HOME)
+                                .build()
+                        )
+                    }
+
+                    // Company
+                    if (!company.isNullOrBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Organization.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Organization.COMPANY, company.trim())
+                                .build()
+                        )
+                    }
+
+                    context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+                }
+
+                ContactSaveDestinationType.SIM -> {
+                    // Try writing to SIM ICC provider
+                    try {
+                        val simUri = Uri.parse("content://icc/adn")
+                        val values = ContentValues().apply {
+                            put("tag", trimmedName.take(20))
+                            put("number", trimmedPhone)
+                        }
+                        context.contentResolver.insert(simUri, values)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+
+                    // Also write to RawContacts with SIM account so it is indexed by system
+                    val ops = ArrayList<ContentProviderOperation>()
+                    val rawIndex = ops.size
+
+                    val rawOp = ContentProviderOperation.newInsert(ContactsContract.RawContacts.CONTENT_URI)
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_TYPE, "com.android.icc")
+                        .withValue(ContactsContract.RawContacts.ACCOUNT_NAME, "SIM")
+                        .build()
+                    ops.add(rawOp)
+
+                    ops.add(
+                        ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                            .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                            .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.StructuredName.CONTENT_ITEM_TYPE)
+                            .withValue(ContactsContract.CommonDataKinds.StructuredName.DISPLAY_NAME, trimmedName)
+                            .build()
+                    )
+
+                    if (trimmedPhone.isNotBlank()) {
+                        ops.add(
+                            ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                .withValueBackReference(ContactsContract.Data.RAW_CONTACT_ID, rawIndex)
+                                .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, trimmedPhone)
+                                .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_MOBILE)
+                                .build()
+                        )
+                    }
+
+                    try {
+                        context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+
+            Result.success(Unit)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
     }
 
     fun syncGoogleContacts() {

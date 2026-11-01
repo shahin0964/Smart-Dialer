@@ -17,6 +17,21 @@ enum class ContactSourceFilter(val displayName: String) {
     SIM("SIM Card")
 }
 
+enum class ContactSaveDestinationType {
+    GOOGLE,
+    PHONE,
+    SIM
+}
+
+data class ContactSaveDestination(
+    val type: ContactSaveDestinationType,
+    val title: String,
+    val subtitle: String? = null,
+    val accountName: String? = null,
+    val accountType: String? = null,
+    val simSlot: Int = 0
+)
+
 data class ContactCounts(
     val total: Int = 0,
     val google: Int = 0,
