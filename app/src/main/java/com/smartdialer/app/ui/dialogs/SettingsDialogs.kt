@@ -895,35 +895,13 @@ fun AboutSmartDialerDialog(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
-
                 Button(
-                    onClick = {
-                        onDismiss()
-                        onCheckUpdates()
-                    },
+                    onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth().height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Security,
-                        contentDescription = null,
-                        tint = Color.White,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Check for Updates (OTA)", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                androidx.compose.material3.OutlinedButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth().height(42.dp),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Close", fontWeight = FontWeight.Medium, color = TextMuted, fontSize = 13.sp)
+                    Text("Close", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
                 }
             }
         }

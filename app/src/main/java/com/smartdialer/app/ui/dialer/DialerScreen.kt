@@ -21,7 +21,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Backspace
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.SimCard
@@ -40,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -64,9 +67,21 @@ fun DialerScreen(
 ) {
     val context = LocalContext.current
     val view = LocalView.current
+    val clipboardManager = LocalClipboardManager.current
     val inputNumber by viewModel.inputNumber.collectAsState()
     val matchedContacts by viewModel.matchedContacts.collectAsState()
     val showIpDialog by viewModel.showIpDialog.collectAsState()
+
+    val pasteFromClipboard = {
+        val clipData = clipboardManager.getText()?.text
+        if (!clipData.isNullOrBlank()) {
+            val clean = clipData.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
+            if (clean.isNotEmpty()) {
+                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                viewModel.setNumber(inputNumber + clean)
+            }
+        }
+    }
 
     if (showIpDialog) {
         IpCallConfigDialog(
@@ -97,7 +112,11 @@ fun DialerScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp)
-                    .shadow(elevation = 2.dp, shape = RoundedCornerShape(16.dp)),
+                    .shadow(elevation = 2.dp, shape = RoundedCornerShape(16.dp))
+                    .combinedClickable(
+                        onClick = { },
+                        onLongClick = { pasteFromClipboard() }
+                    ),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
@@ -108,30 +127,90 @@ fun DialerScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = inputNumber,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = TextDark,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
+                    if (inputNumber.isEmpty()) {
+                        Text(
+                            text = "Enter number...",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Normal,
+                            color = TextMuted,
+                            modifier = Modifier.weight(1f)
+                        )
 
-                    if (inputNumber.isNotEmpty()) {
-                        IconButton(
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                viewModel.onBackspaceClick()
-                            },
-                            modifier = Modifier.size(32.dp)
+                        // Quick Paste Button when empty
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { pasteFromClipboard() }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = "Clear / Backspace",
-                                tint = TextMuted,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Default.ContentPaste,
+                                contentDescription = "Paste",
+                                tint = PurplePrimary,
+                                modifier = Modifier.size(18.dp)
                             )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Paste",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = PurplePrimary
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = inputNumber,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Paste Icon Button
+                            IconButton(
+                                onClick = { pasteFromClipboard() },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentPaste,
+                                    contentDescription = "Paste",
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(4.dp))
+
+                            // Backspace / Clear All Button (Single click = 1 digit, Long press = Clear all)
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .combinedClickable(
+                                        onClick = {
+                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                            viewModel.onBackspaceClick()
+                                        },
+                                        onLongClick = {
+                                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                            viewModel.onClearAll()
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Backspace,
+                                    contentDescription = "Backspace (Long press to clear all)",
+                                    tint = TextMuted,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -474,12 +553,24 @@ fun ContactChip(
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = contact.name,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = PurplePrimary
-            )
+            Column {
+                Text(
+                    text = contact.name,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = PurplePrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (contact.phoneNumber.isNotBlank()) {
+                    Text(
+                        text = contact.phoneNumber,
+                        fontSize = 10.sp,
+                        color = TextMuted,
+                        maxLines = 1
+                    )
+                }
+            }
         }
     }
 }

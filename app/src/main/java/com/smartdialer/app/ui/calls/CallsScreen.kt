@@ -58,8 +58,10 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.CallLogItem
 import com.smartdialer.app.data.model.CallType
+import com.smartdialer.app.telecom.CallManager
 import com.smartdialer.app.ui.components.ContactAvatar
 import com.smartdialer.app.ui.components.PermissionCard
+import com.smartdialer.app.ui.dialogs.CallAccountPickerDialog
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.CallMissedRed
@@ -80,6 +82,29 @@ fun CallsScreen(
                 context,
                 Manifest.permission.READ_CALL_LOG
             ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+
+    var pendingCallNumber by remember { mutableStateOf<String?>(null) }
+    var pendingCallName by remember { mutableStateOf<String?>(null) }
+
+    if (pendingCallNumber != null) {
+        CallAccountPickerDialog(
+            phoneNumber = pendingCallNumber!!,
+            contactName = pendingCallName,
+            onCallSim1 = {
+                CallManager.initiateCall(context, pendingCallNumber!!, 0)
+            },
+            onCallSim2 = {
+                CallManager.initiateCall(context, pendingCallNumber!!, 1)
+            },
+            onCallIp = {
+                CallManager.initiateIpCall(context, pendingCallNumber!!)
+            },
+            onDismiss = {
+                pendingCallNumber = null
+                pendingCallName = null
+            }
         )
     }
 
@@ -263,7 +288,10 @@ fun CallsScreen(
                     items(todayCalls, key = { it.id }) { call ->
                         CallLogRow(
                             item = call,
-                            onCallClick = { viewModel.callContact(context, call.phoneNumber) }
+                            onCallClick = {
+                                pendingCallNumber = call.phoneNumber
+                                pendingCallName = call.displayName
+                            }
                         )
                     }
                 }
@@ -275,7 +303,10 @@ fun CallsScreen(
                     items(yesterdayCalls, key = { it.id }) { call ->
                         CallLogRow(
                             item = call,
-                            onCallClick = { viewModel.callContact(context, call.phoneNumber) }
+                            onCallClick = {
+                                pendingCallNumber = call.phoneNumber
+                                pendingCallName = call.displayName
+                            }
                         )
                     }
                 }
@@ -287,7 +318,10 @@ fun CallsScreen(
                     items(olderCalls, key = { it.id }) { call ->
                         CallLogRow(
                             item = call,
-                            onCallClick = { viewModel.callContact(context, call.phoneNumber) }
+                            onCallClick = {
+                                pendingCallNumber = call.phoneNumber
+                                pendingCallName = call.displayName
+                            }
                         )
                     }
                 }

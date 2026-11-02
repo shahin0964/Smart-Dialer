@@ -91,8 +91,10 @@ import com.smartdialer.app.data.model.ContactItem
 import com.smartdialer.app.data.model.ContactSaveDestinationType
 import com.smartdialer.app.data.model.ContactSourceFilter
 import com.smartdialer.app.data.repository.AppSettingsPreferences
+import com.smartdialer.app.telecom.CallManager
 import com.smartdialer.app.ui.components.ContactAvatar
 import com.smartdialer.app.ui.components.PermissionCard
+import com.smartdialer.app.ui.dialogs.CallAccountPickerDialog
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.DividerColor
 import com.smartdialer.app.ui.theme.PurpleBorder
@@ -111,6 +113,29 @@ fun ContactsScreen(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
+
+    var pendingCallNumber by remember { mutableStateOf<String?>(null) }
+    var pendingCallName by remember { mutableStateOf<String?>(null) }
+
+    if (pendingCallNumber != null) {
+        CallAccountPickerDialog(
+            phoneNumber = pendingCallNumber!!,
+            contactName = pendingCallName,
+            onCallSim1 = {
+                CallManager.initiateCall(context, pendingCallNumber!!, 0)
+            },
+            onCallSim2 = {
+                CallManager.initiateCall(context, pendingCallNumber!!, 1)
+            },
+            onCallIp = {
+                CallManager.initiateIpCall(context, pendingCallNumber!!)
+            },
+            onDismiss = {
+                pendingCallNumber = null
+                pendingCallName = null
+            }
+        )
+    }
 
     var hasPermission by remember {
         mutableStateOf(
@@ -477,7 +502,10 @@ fun ContactsScreen(
                         items(contactList, key = { it.id }) { contact ->
                             ContactRow(
                                 contact = contact,
-                                onCallClick = { viewModel.callContact(context, contact.phoneNumber) },
+                                onCallClick = {
+                                    pendingCallNumber = contact.phoneNumber
+                                    pendingCallName = contact.name
+                                },
                                 onRowClick = { viewModel.selectContact(contact) }
                             )
                         }
@@ -536,7 +564,10 @@ fun ContactsScreen(
         ContactDetailsDialog(
             contact = contact,
             onDismiss = { viewModel.selectContact(null) },
-            onCall = { number -> viewModel.callContact(context, number) },
+            onCall = { number ->
+                pendingCallNumber = number
+                pendingCallName = contact.name
+            },
             onSms = { number -> viewModel.sendSms(context, number) },
             onEmail = { email -> viewModel.sendEmail(context, email) },
             onEdit = { viewModel.editContact(context, contact) }
