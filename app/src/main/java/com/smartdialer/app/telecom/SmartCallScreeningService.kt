@@ -3,7 +3,7 @@ package com.smartdialer.app.telecom
 import android.os.Build
 import android.telecom.Call
 import android.telecom.CallScreeningService
-import com.smartdialer.app.data.repository.SpamAction
+import com.smartdialer.app.data.model.SpamAction
 import com.smartdialer.app.data.repository.SpamProtectionManager
 
 /**

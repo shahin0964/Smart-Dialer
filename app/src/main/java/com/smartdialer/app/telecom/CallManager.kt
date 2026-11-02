@@ -357,10 +357,10 @@ object CallManager {
                     if (targetAccount != null) {
                         putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, targetAccount)
                     }
-                    putExtra("com.android.phone.extra.slot", simSlot)
-                    putExtra("simSlot", simSlot)
-                    putExtra("phone_account_id", simSlot)
-                    putExtra("Subscription", simSlot)
+                    putInt("com.android.phone.extra.slot", simSlot)
+                    putInt("simSlot", simSlot)
+                    putInt("phone_account_id", simSlot)
+                    putInt("Subscription", simSlot)
                     putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
                     putBoolean(TelecomManager.EXTRA_START_CALL_WITH_VIDEO_STATE, false)
                 }
