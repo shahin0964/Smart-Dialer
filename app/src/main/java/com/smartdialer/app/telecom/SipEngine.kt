@@ -18,13 +18,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.Inet4Address
@@ -239,6 +245,13 @@ object SipEngine {
     private var engineWakeLock: PowerManager.WakeLock? = null
     private var engineWifiLock: WifiManager.WifiLock? = null
 
+    // Single receiver message stream for dispatching SIP responses and requests
+    private val sipMessageFlow = MutableSharedFlow<SipMessage>(
+        replay = 16,
+        extraBufferCapacity = 64,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
+
     fun isCallRunning(): Boolean = isCallActive.get()
 
     fun getLocalIp(): String {
@@ -301,6 +314,48 @@ object SipEngine {
         }
     }
 
+    private fun ensureReceiverRunning(context: Context) {
+        appContext = context.applicationContext
+        if (sipSocket == null || sipSocket!!.isClosed) {
+            try {
+                sipSocket = DatagramSocket()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+        isListening.set(true)
+        if (sipListenerJob != null && sipListenerJob?.isActive == true) return
+
+        sipListenerJob = scope.launch(Dispatchers.IO) {
+            val buffer = ByteArray(4096)
+            while (isActive && isListening.get()) {
+                val sock = sipSocket ?: break
+                val packet = DatagramPacket(buffer, buffer.size)
+                try {
+                    sock.receive(packet)
+                } catch (e: Exception) {
+                    continue
+                }
+
+                val text = String(packet.data, 0, packet.length)
+                val msg = SipMessage.parse(text) ?: continue
+
+                if (!msg.isResponse) {
+                    // Incoming SIP Requests
+                    when (msg.method) {
+                        "INVITE" -> handleIncomingInvite(msg, packet.address, packet.port)
+                        "CANCEL" -> handleIncomingCancel(msg, packet.address, packet.port)
+                        "BYE" -> handleIncomingBye(msg, packet.address, packet.port)
+                        "OPTIONS" -> handleIncomingOptions(msg, packet.address, packet.port)
+                    }
+                } else {
+                    // Forward all SIP responses to awaiting requests
+                    sipMessageFlow.emit(msg)
+                }
+            }
+        }
+    }
+
     /**
      * Initializes and starts continuous SIP background listener & registration for Incoming Calls.
      */
@@ -312,48 +367,11 @@ object SipEngine {
             return
         }
 
-        if (isListening.get() && sipSocket != null && !sipSocket!!.isClosed) {
-            return
-        }
+        ensureReceiverRunning(context)
 
-        isListening.set(true)
-        sipListenerJob?.cancel()
-        sipListenerJob = scope.launch {
-            try {
-                if (sipSocket == null || sipSocket!!.isClosed) {
-                    sipSocket = DatagramSocket()
-                }
-
-                // Initial Registration
-                registerInternal(context)
-
-                // Continuous Incoming Message Dispatcher Loop
-                val buffer = ByteArray(4096)
-                while (isActive && isListening.get()) {
-                    val sock = sipSocket ?: break
-                    val packet = DatagramPacket(buffer, buffer.size)
-                    try {
-                        sock.receive(packet)
-                    } catch (e: Exception) {
-                        continue
-                    }
-
-                    val text = String(packet.data, 0, packet.length)
-                    val msg = SipMessage.parse(text) ?: continue
-
-                    if (!msg.isResponse) {
-                        // Incoming SIP Requests
-                        when (msg.method) {
-                            "INVITE" -> handleIncomingInvite(msg, packet.address, packet.port)
-                            "CANCEL" -> handleIncomingCancel(msg, packet.address, packet.port)
-                            "BYE" -> handleIncomingBye(msg, packet.address, packet.port)
-                            "OPTIONS" -> handleIncomingOptions(msg, packet.address, packet.port)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+        // Initial Registration
+        scope.launch {
+            registerInternal(context)
         }
 
         // Start Periodic NAT Keep-Alive / Re-Registration (every 45s)
@@ -368,25 +386,55 @@ object SipEngine {
         }
     }
 
-    private suspend fun registerInternal(context: Context): Boolean {
+    fun stopListening() {
+        isListening.set(false)
+        sipListenerJob?.cancel()
+        sipListenerJob = null
+        keepAliveJob?.cancel()
+        keepAliveJob = null
+        try {
+            sipSocket?.close()
+            sipSocket = null
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        _registrationStatus.value = "Offline"
+    }
+
+    private suspend fun registerInternal(context: Context): Pair<Boolean, String> {
         val prefs = IpCallPreferences(context)
         val user = prefs.username.trim()
         val pass = prefs.password
-        val domain = if (prefs.domain.isNotBlank()) prefs.domain.trim() else prefs.outboundProxy.trim()
+        val rawDomain = if (prefs.domain.isNotBlank()) prefs.domain.trim() else prefs.outboundProxy.trim()
         val authUser = if (prefs.authName.isNotBlank()) prefs.authName.trim() else user
 
-        if (user.isBlank() || domain.isBlank()) return false
+        if (user.isBlank() || rawDomain.isBlank()) {
+            return false to "Please configure Username and SIP Domain"
+        }
+
+        ensureReceiverRunning(context)
+        val sock = sipSocket ?: return false to "Failed to open network socket"
 
         return withContext(Dispatchers.IO) {
             try {
-                val sock = sipSocket ?: DatagramSocket().also { sipSocket = it }
+                val domain = rawDomain.removePrefix("sip:").removePrefix("sips:").substringBefore(":").trim()
+                val serverPort = if (rawDomain.contains(":")) {
+                    rawDomain.substringAfterLast(":").toIntOrNull() ?: 5060
+                } else 5060
+
                 val localIp = getLocalIp()
                 val localPort = sock.localPort
                 val callId = UUID.randomUUID().toString() + "@" + localIp
                 val tag = UUID.randomUUID().toString().replace("-", "").take(8)
                 val targetAddr = InetAddress.getByName(domain)
 
-                // 1. Send initial REGISTER
+                // 1. Subscribe for 1st response BEFORE sending initial REGISTER
+                val resp1Deferred = scope.async {
+                    withTimeoutOrNull(5000) {
+                        sipMessageFlow.first { it.isResponse && it.getHeader("call-id") == callId }
+                    }
+                }
+
                 val branch1 = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
                 val reg1 = buildString {
                     append("REGISTER sip:$domain SIP/2.0\r\n")
@@ -402,20 +450,17 @@ object SipEngine {
                     append("Content-Length: 0\r\n\r\n")
                 }
 
-                sock.send(DatagramPacket(reg1.toByteArray(), reg1.length, targetAddr, 5060))
+                sock.send(DatagramPacket(reg1.toByteArray(), reg1.length, targetAddr, serverPort))
 
-                val buf = ByteArray(4096)
-                val recvPacket = DatagramPacket(buf, buf.size)
-                sock.soTimeout = 4000
-                sock.receive(recvPacket)
-                sock.soTimeout = 0 // restore non-blocking
-
-                val respText1 = String(recvPacket.data, 0, recvPacket.length)
-                val msg1 = SipMessage.parse(respText1) ?: return@withContext false
+                val msg1 = resp1Deferred.await()
+                if (msg1 == null) {
+                    _registrationStatus.value = "Offline (Timeout)"
+                    return@withContext false to "Server Connection Timeout (No response from $domain)"
+                }
 
                 if (msg1.statusCode == 200) {
                     _registrationStatus.value = "Online / Registered"
-                    return@withContext true
+                    return@withContext true to "SIP Account Connected & Registered!"
                 }
 
                 if (msg1.statusCode == 401 || msg1.statusCode == 407) {
@@ -436,7 +481,13 @@ object SipEngine {
                         }
                     }
 
-                    // 2. Authenticated REGISTER
+                    // 2. Subscribe for 2nd response BEFORE sending authenticated REGISTER
+                    val resp2Deferred = scope.async {
+                        withTimeoutOrNull(5000) {
+                            sipMessageFlow.first { it.isResponse && it.getHeader("call-id") == callId && it !== msg1 }
+                        }
+                    }
+
                     val branch2 = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
                     val reg2 = buildString {
                         append("REGISTER sip:$domain SIP/2.0\r\n")
@@ -453,28 +504,27 @@ object SipEngine {
                         append("Content-Length: 0\r\n\r\n")
                     }
 
-                    sock.send(DatagramPacket(reg2.toByteArray(), reg2.length, targetAddr, 5060))
-                    sock.soTimeout = 4000
-                    sock.receive(recvPacket)
-                    sock.soTimeout = 0
+                    sock.send(DatagramPacket(reg2.toByteArray(), reg2.length, targetAddr, serverPort))
 
-                    val respText2 = String(recvPacket.data, 0, recvPacket.length)
-                    val msg2 = SipMessage.parse(respText2)
-
+                    val msg2 = resp2Deferred.await()
                     if (msg2?.statusCode == 200) {
                         _registrationStatus.value = "Online / Registered"
-                        true
+                        true to "SIP Account Connected & Registered!"
+                    } else if (msg2 != null) {
+                        _registrationStatus.value = "Auth Failed (${msg2.statusCode})"
+                        false to "Authentication Failed: ${msg2.statusCode} ${msg2.statusReason}"
                     } else {
-                        _registrationStatus.value = "Auth Failed"
-                        false
+                        _registrationStatus.value = "Offline (Timeout)"
+                        false to "Authentication Timeout"
                     }
                 } else {
                     _registrationStatus.value = "Offline (${msg1.statusCode})"
-                    false
+                    false to "Server Error: ${msg1.statusCode} ${msg1.statusReason}"
                 }
             } catch (e: Exception) {
+                e.printStackTrace()
                 _registrationStatus.value = "Offline"
-                false
+                false to "Connection Error: ${e.localizedMessage ?: "Network error"}"
             }
         }
     }
@@ -747,18 +797,22 @@ object SipEngine {
 
         scope.launch {
             try {
-                if (sipSocket == null || sipSocket!!.isClosed) {
-                    sipSocket = DatagramSocket()
-                }
+                ensureReceiverRunning(context)
+                val sock = sipSocket ?: throw IllegalStateException("Network socket not ready")
 
                 localRtpPort = (40000..50000).random()
                 if (localRtpPort % 2 != 0) localRtpPort++
                 rtpSocket = DatagramSocket(localRtpPort)
                 rtpSocket?.soTimeout = 1000
 
+                val cleanDomain = domain.removePrefix("sip:").removePrefix("sips:").substringBefore(":").trim()
+                val serverPort = if (domain.contains(":")) {
+                    domain.substringAfterLast(":").toIntOrNull() ?: 5060
+                } else 5060
+
                 val localIp = getLocalIp()
-                val localSipPort = sipSocket?.localPort ?: 5060
-                val serverAddr = InetAddress.getByName(domain)
+                val localSipPort = sock.localPort
+                val serverAddr = InetAddress.getByName(cleanDomain)
 
                 // SDP Offer with preferred codecs (PCMA 8 first, PCMU 0 second)
                 val sdpOffer = buildString {
@@ -778,11 +832,11 @@ object SipEngine {
                 // 1. Send initial INVITE
                 val branch1 = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
                 val invite1 = buildString {
-                    append("INVITE sip:$currentDestination@$domain SIP/2.0\r\n")
+                    append("INVITE sip:$currentDestination@$cleanDomain SIP/2.0\r\n")
                     append("Via: SIP/2.0/UDP $localIp:$localSipPort;branch=$branch1;rport\r\n")
                     append("Max-Forwards: 70\r\n")
-                    append("From: <sip:$user@$domain>;tag=$fromTag\r\n")
-                    append("To: <sip:$currentDestination@$domain>\r\n")
+                    append("From: <sip:$user@$cleanDomain>;tag=$fromTag\r\n")
+                    append("To: <sip:$currentDestination@$cleanDomain>\r\n")
                     append("Call-ID: $activeCallId\r\n")
                     append("CSeq: 1 INVITE\r\n")
                     append("Contact: <sip:$user@$localIp:$localSipPort;transport=udp>\r\n")
@@ -792,148 +846,143 @@ object SipEngine {
                     append(sdpOffer)
                 }
 
-                sipSocket?.send(DatagramPacket(invite1.toByteArray(), invite1.length, serverAddr, 5060))
+                sock.send(DatagramPacket(invite1.toByteArray(), invite1.length, serverAddr, serverPort))
 
-                val buffer = ByteArray(4096)
                 var callEstablished = false
 
-                while (isActive && isCallActive.get() && !callEstablished) {
-                    val recvPacket = DatagramPacket(buffer, buffer.size)
-                    try {
-                        sipSocket?.receive(recvPacket)
-                    } catch (e: Exception) {
-                        continue
-                    }
-
-                    val respText = String(recvPacket.data, 0, recvPacket.length)
-                    val msg = SipMessage.parse(respText) ?: continue
-
-                    if (msg.isResponse) {
-                        when (msg.statusCode) {
-                            100 -> {
-                                withContext(Dispatchers.Main) {
-                                    onCallStateChanged?.invoke(CallStatus.CONNECTING, "Connecting...")
-                                }
-                            }
-                            180, 183 -> {
-                                withContext(Dispatchers.Main) {
-                                    onCallStateChanged?.invoke(CallStatus.RINGING, "Ringing...")
-                                }
-                                if (msg.body.contains("m=audio")) {
-                                    extractRemoteSdp(msg.body, domain)
-                                    startRtpAudio(context)
-                                }
-                            }
-                            401, 407 -> {
-                                // Send ACK for challenge
-                                val ackMsg = buildString {
-                                    append("ACK sip:$currentDestination@$domain SIP/2.0\r\n")
-                                    append("Via: SIP/2.0/UDP $localIp:$localSipPort;branch=$branch1;rport\r\n")
-                                    append("Max-Forwards: 70\r\n")
-                                    append("From: <sip:$user@$domain>;tag=$fromTag\r\n")
-                                    append("To: <sip:$currentDestination@$domain>\r\n")
-                                    append("Call-ID: $activeCallId\r\n")
-                                    append("CSeq: 1 ACK\r\n")
-                                    append("Content-Length: 0\r\n\r\n")
-                                }
-                                sipSocket?.send(DatagramPacket(ackMsg.toByteArray(), ackMsg.length, serverAddr, 5060))
-
-                                val authHeader = msg.getHeader("www-authenticate") ?: msg.getHeader("proxy-authenticate") ?: ""
-                                val challenge = parseAuthChallenge(authHeader)
-                                val realm = challenge["realm"] ?: domain
-                                val nonce = challenge["nonce"] ?: ""
-                                val qop = challenge["qop"]
-                                val nc = "00000001"
-                                val cnonce = UUID.randomUUID().toString().replace("-", "").take(16)
-                                val uriTarget = "sip:$currentDestination@$domain"
-                                val digest = calculateDigestResponse(authUser, realm, pass, "INVITE", uriTarget, nonce, qop, nc, cnonce)
-
-                                val authHeaderName = if (msg.statusCode == 407) "Proxy-Authorization" else "Authorization"
-                                val authValue = buildString {
-                                    append("Digest username=\"$authUser\", realm=\"$realm\", nonce=\"$nonce\", uri=\"$uriTarget\", response=\"$digest\", algorithm=MD5")
-                                    if (qop != null && qop.contains("auth")) {
-                                        append(", cnonce=\"$cnonce\", nc=$nc, qop=auth")
+                withTimeoutOrNull(45_000) {
+                    sipMessageFlow.takeWhile { !callEstablished && isCallActive.get() && isActive }.collect { msg ->
+                        if (msg.isResponse && msg.getHeader("call-id") == activeCallId) {
+                            when (msg.statusCode) {
+                                100 -> {
+                                    withContext(Dispatchers.Main) {
+                                        onCallStateChanged?.invoke(CallStatus.CONNECTING, "Connecting...")
                                     }
                                 }
-
-                                currentCSeq = 2
-                                val branch2 = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
-                                val invite2 = buildString {
-                                    append("INVITE sip:$currentDestination@$domain SIP/2.0\r\n")
-                                    append("Via: SIP/2.0/UDP $localIp:$localSipPort;branch=$branch2;rport\r\n")
-                                    append("Max-Forwards: 70\r\n")
-                                    append("From: <sip:$user@$domain>;tag=$fromTag\r\n")
-                                    append("To: <sip:$currentDestination@$domain>\r\n")
-                                    append("Call-ID: $activeCallId\r\n")
-                                    append("CSeq: 2 INVITE\r\n")
-                                    append("Contact: <sip:$user@$localIp:$localSipPort;transport=udp>\r\n")
-                                    append("$authHeaderName: $authValue\r\n")
-                                    append("User-Agent: SmartDialer/1.0\r\n")
-                                    append("Content-Type: application/sdp\r\n")
-                                    append("Content-Length: ${sdpOffer.length}\r\n\r\n")
-                                    append(sdpOffer)
+                                180, 183 -> {
+                                    withContext(Dispatchers.Main) {
+                                        onCallStateChanged?.invoke(CallStatus.RINGING, "Ringing...")
+                                    }
+                                    if (msg.body.contains("m=audio")) {
+                                        extractRemoteSdp(msg.body, cleanDomain)
+                                        startRtpAudio(context)
+                                    }
                                 }
+                                401, 407 -> {
+                                    // Send ACK for challenge
+                                    val ackMsg = buildString {
+                                        append("ACK sip:$currentDestination@$cleanDomain SIP/2.0\r\n")
+                                        append("Via: SIP/2.0/UDP $localIp:$localSipPort;branch=$branch1;rport\r\n")
+                                        append("Max-Forwards: 70\r\n")
+                                        append("From: <sip:$user@$cleanDomain>;tag=$fromTag\r\n")
+                                        append("To: <sip:$currentDestination@$cleanDomain>\r\n")
+                                        append("Call-ID: $activeCallId\r\n")
+                                        append("CSeq: 1 ACK\r\n")
+                                        append("Content-Length: 0\r\n\r\n")
+                                    }
+                                    sock.send(DatagramPacket(ackMsg.toByteArray(), ackMsg.length, serverAddr, serverPort))
 
-                                sipSocket?.send(DatagramPacket(invite2.toByteArray(), invite2.length, serverAddr, 5060))
-                            }
-                            200 -> {
-                                callEstablished = true
-                                val toHeader = msg.getHeader("to") ?: ""
-                                val tagMatch = Regex("""tag=([^;,\s]+)""").find(toHeader)
-                                toTag = tagMatch?.groupValues?.get(1)
+                                    val authHeader = msg.getHeader("www-authenticate") ?: msg.getHeader("proxy-authenticate") ?: ""
+                                    val challenge = parseAuthChallenge(authHeader)
+                                    val realm = challenge["realm"] ?: cleanDomain
+                                    val nonce = challenge["nonce"] ?: ""
+                                    val qop = challenge["qop"]
+                                    val nc = "00000001"
+                                    val cnonce = UUID.randomUUID().toString().replace("-", "").take(16)
+                                    val uriTarget = "sip:$currentDestination@$cleanDomain"
+                                    val digest = calculateDigestResponse(authUser, realm, pass, "INVITE", uriTarget, nonce, qop, nc, cnonce)
 
-                                contactUri = msg.getHeader("contact")?.let { raw ->
-                                    val match = Regex("""<([^>]+)>""").find(raw)
-                                    match?.groupValues?.get(1) ?: raw
-                                }
+                                    val authHeaderName = if (msg.statusCode == 407) "Proxy-Authorization" else "Authorization"
+                                    val authValue = buildString {
+                                        append("Digest username=\"$authUser\", realm=\"$realm\", nonce=\"$nonce\", uri=\"$uriTarget\", response=\"$digest\", algorithm=MD5")
+                                        if (qop != null && qop.contains("auth")) {
+                                            append(", cnonce=\"$cnonce\", nc=$nc, qop=auth")
+                                        }
+                                    }
 
-                                extractRemoteSdp(msg.body, domain)
+                                    currentCSeq = 2
+                                    val branch2 = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
+                                    val invite2 = buildString {
+                                        append("INVITE sip:$currentDestination@$cleanDomain SIP/2.0\r\n")
+                                        append("Via: SIP/2.0/UDP $localIp:$localSipPort;branch=$branch2;rport\r\n")
+                                        append("Max-Forwards: 70\r\n")
+                                        append("From: <sip:$user@$cleanDomain>;tag=$fromTag\r\n")
+                                        append("To: <sip:$currentDestination@$cleanDomain>\r\n")
+                                        append("Call-ID: $activeCallId\r\n")
+                                        append("CSeq: 2 INVITE\r\n")
+                                        append("Contact: <sip:$user@$localIp:$localSipPort;transport=udp>\r\n")
+                                        append("$authHeaderName: $authValue\r\n")
+                                        append("User-Agent: SmartDialer/1.0\r\n")
+                                        append("Content-Type: application/sdp\r\n")
+                                        append("Content-Length: ${sdpOffer.length}\r\n\r\n")
+                                        append(sdpOffer)
+                                    }
 
-                                // Send ACK for 200 OK
-                                val ackBranch = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
-                                val ackTarget = contactUri ?: "sip:$currentDestination@$domain"
-                                val ackMsg = buildString {
-                                    append("ACK $ackTarget SIP/2.0\r\n")
-                                    append("Via: SIP/2.0/UDP $localIp:$localSipPort;branch=$ackBranch;rport\r\n")
-                                    append("Max-Forwards: 70\r\n")
-                                    append("From: <sip:$user@$domain>;tag=$fromTag\r\n")
-                                    append("To: <sip:$currentDestination@$domain>${if (toTag != null) ";tag=$toTag" else ""}\r\n")
-                                    append("Call-ID: $activeCallId\r\n")
-                                    append("CSeq: $currentCSeq ACK\r\n")
-                                    append("Contact: <sip:$user@$localIp:$localSipPort;transport=udp>\r\n")
-                                    append("Content-Length: 0\r\n\r\n")
+                                    sock.send(DatagramPacket(invite2.toByteArray(), invite2.length, serverAddr, serverPort))
                                 }
-                                sipSocket?.send(DatagramPacket(ackMsg.toByteArray(), ackMsg.length, serverAddr, 5060))
+                                200 -> {
+                                    callEstablished = true
+                                    val toHeader = msg.getHeader("to") ?: ""
+                                    val tagMatch = Regex("""tag=([^;,\s]+)""").find(toHeader)
+                                    toTag = tagMatch?.groupValues?.get(1)
 
-                                withContext(Dispatchers.Main) {
-                                    onCallStateChanged?.invoke(CallStatus.ACTIVE, null)
-                                }
+                                    contactUri = msg.getHeader("contact")?.let { raw ->
+                                        val match = Regex("""<([^>]+)>""").find(raw)
+                                        match?.groupValues?.get(1) ?: raw
+                                    }
 
-                                startRtpAudio(context)
-                            }
-                            486 -> {
-                                withContext(Dispatchers.Main) {
-                                    onCallStateChanged?.invoke(CallStatus.DISCONNECTED, "Busy")
+                                    extractRemoteSdp(msg.body, cleanDomain)
+
+                                    // Send ACK for 200 OK
+                                    val ackBranch = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
+                                    val ackTarget = contactUri ?: "sip:$currentDestination@$cleanDomain"
+                                    val ackMsg = buildString {
+                                        append("ACK $ackTarget SIP/2.0\r\n")
+                                        append("Via: SIP/2.0/UDP $localIp:$localSipPort;branch=$ackBranch;rport\r\n")
+                                        append("Max-Forwards: 70\r\n")
+                                        append("From: <sip:$user@$cleanDomain>;tag=$fromTag\r\n")
+                                        append("To: <sip:$currentDestination@$cleanDomain>${if (toTag != null) ";tag=$toTag" else ""}\r\n")
+                                        append("Call-ID: $activeCallId\r\n")
+                                        append("CSeq: $currentCSeq ACK\r\n")
+                                        append("Contact: <sip:$user@$localIp:$localSipPort;transport=udp>\r\n")
+                                        append("Content-Length: 0\r\n\r\n")
+                                    }
+                                    sock.send(DatagramPacket(ackMsg.toByteArray(), ackMsg.length, serverAddr, serverPort))
+
+                                    withContext(Dispatchers.Main) {
+                                        onCallStateChanged?.invoke(CallStatus.ACTIVE, null)
+                                    }
+
+                                    startRtpAudio(context)
                                 }
-                                endCall()
-                                break
-                            }
-                            404 -> {
-                                withContext(Dispatchers.Main) {
-                                    onCallStateChanged?.invoke(CallStatus.DISCONNECTED, "Number not found")
+                                486 -> {
+                                    withContext(Dispatchers.Main) {
+                                        onCallStateChanged?.invoke(CallStatus.DISCONNECTED, "Busy")
+                                    }
+                                    endCall()
                                 }
-                                endCall()
-                                break
-                            }
-                            in 400..699 -> {
-                                withContext(Dispatchers.Main) {
-                                    onCallStateChanged?.invoke(CallStatus.DISCONNECTED, msg.statusReason)
+                                404 -> {
+                                    withContext(Dispatchers.Main) {
+                                        onCallStateChanged?.invoke(CallStatus.DISCONNECTED, "Number not found")
+                                    }
+                                    endCall()
                                 }
-                                endCall()
-                                break
+                                in 400..699 -> {
+                                    withContext(Dispatchers.Main) {
+                                        onCallStateChanged?.invoke(CallStatus.DISCONNECTED, msg.statusReason)
+                                    }
+                                    endCall()
+                                }
                             }
                         }
                     }
+                }
+
+                if (!callEstablished && isCallActive.get()) {
+                    withContext(Dispatchers.Main) {
+                        onCallStateChanged?.invoke(CallStatus.DISCONNECTED, "Call Timeout / No Answer")
+                    }
+                    endCall()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -1245,13 +1294,9 @@ object SipEngine {
             withContext(Dispatchers.Main) {
                 _registrationStatus.value = "Connecting..."
             }
-            val success = registerInternal(context)
+            val (success, msg) = registerInternal(context)
             withContext(Dispatchers.Main) {
-                if (success) {
-                    onResult(true, "SIP Account Connected & Registered!")
-                } else {
-                    onResult(false, "Authentication Failed or Timeout")
-                }
+                onResult(success, msg)
             }
         }
     }
@@ -1269,42 +1314,46 @@ object SipEngine {
             val target = currentDestination
 
             if (domain.isNotBlank() && !callId.isNullOrBlank() && !from.isNullOrBlank()) {
+                val cleanDomain = domain.removePrefix("sip:").removePrefix("sips:").substringBefore(":").trim()
+                val serverPort = if (domain.contains(":")) {
+                    domain.substringAfterLast(":").toIntOrNull() ?: 5060
+                } else 5060
                 val localIp = getLocalIp()
                 val localPort = sipSocket?.localPort ?: 5060
-                val serverAddr = try { InetAddress.getByName(domain) } catch (e: Exception) { null }
+                val serverAddr = try { InetAddress.getByName(cleanDomain) } catch (e: Exception) { null }
 
                 if (serverAddr != null) {
                     val branch = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
                     if (toTag != null) {
-                        val byeTarget = contactUri ?: "sip:$target@$domain"
+                        val byeTarget = contactUri ?: "sip:$target@$cleanDomain"
                         val byeMsg = buildString {
                             append("BYE $byeTarget SIP/2.0\r\n")
                             append("Via: SIP/2.0/UDP $localIp:$localPort;branch=$branch;rport\r\n")
                             append("Max-Forwards: 70\r\n")
-                            append("From: <sip:user@$domain>;tag=$from\r\n")
-                            append("To: <sip:$target@$domain>;tag=$toTag\r\n")
+                            append("From: <sip:user@$cleanDomain>;tag=$from\r\n")
+                            append("To: <sip:$target@$cleanDomain>;tag=$toTag\r\n")
                             append("Call-ID: $callId\r\n")
                             append("CSeq: ${++currentCSeq} BYE\r\n")
                             append("Content-Length: 0\r\n\r\n")
                         }
                         try {
-                            sipSocket?.send(DatagramPacket(byeMsg.toByteArray(), byeMsg.length, serverAddr, 5060))
+                            sipSocket?.send(DatagramPacket(byeMsg.toByteArray(), byeMsg.length, serverAddr, serverPort))
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
                     } else {
                         val cancelMsg = buildString {
-                            append("CANCEL sip:$target@$domain SIP/2.0\r\n")
+                            append("CANCEL sip:$target@$cleanDomain SIP/2.0\r\n")
                             append("Via: SIP/2.0/UDP $localIp:$localPort;branch=$branch;rport\r\n")
                             append("Max-Forwards: 70\r\n")
-                            append("From: <sip:user@$domain>;tag=$from\r\n")
-                            append("To: <sip:$target@$domain>\r\n")
+                            append("From: <sip:user@$cleanDomain>;tag=$from\r\n")
+                            append("To: <sip:$target@$cleanDomain>\r\n")
                             append("Call-ID: $callId\r\n")
                             append("CSeq: 1 CANCEL\r\n")
                             append("Content-Length: 0\r\n\r\n")
                         }
                         try {
-                            sipSocket?.send(DatagramPacket(cancelMsg.toByteArray(), cancelMsg.length, serverAddr, 5060))
+                            sipSocket?.send(DatagramPacket(cancelMsg.toByteArray(), cancelMsg.length, serverAddr, serverPort))
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }

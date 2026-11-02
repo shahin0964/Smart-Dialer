@@ -457,7 +457,6 @@ fun IpAccountSettingsScreen(
                             onClick = {
                                 saveAll()
                                 SipEngine.startListening(context)
-                                SipEngine.registerAccount(context) { _, _ -> }
                                 onBack()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = IpCallPurple),
@@ -480,10 +479,12 @@ fun IpAccountSettingsScreen(
                                 saveAll()
                                 isTestingConnection = true
                                 testResultText = "Testing SIP connection to server..."
-                                SipEngine.startListening(context)
                                 SipEngine.registerAccount(context) { success, msg ->
                                     isTestingConnection = false
                                     testResultText = msg
+                                    if (success) {
+                                        SipEngine.startListening(context)
+                                    }
                                 }
                             },
                             shape = RoundedCornerShape(12.dp),
@@ -512,6 +513,7 @@ fun IpAccountSettingsScreen(
                         if (ipPreferences.isConfigured) {
                             OutlinedButton(
                                 onClick = {
+                                    SipEngine.stopListening()
                                     ipPreferences.clearAccount()
                                     username = ""
                                     password = ""
@@ -522,6 +524,7 @@ fun IpAccountSettingsScreen(
                                     voicemail = ""
                                     stunServer = ""
                                     ipPrefix = ""
+                                    testResultText = null
                                 },
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier
