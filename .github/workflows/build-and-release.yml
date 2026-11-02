@@ -47,7 +47,7 @@ jobs:
           SECRET_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
-            echo "$KEYSTORE_BASE64" | base64 -d > app/release.jks
+            echo "$KEYSTORE_BASE64" | tr -d '\r\n ' | base64 -d > app/release.jks
             echo "Keystore successfully decoded to app/release.jks"
             echo "KEYSTORE_PASSWORD=${SECRET_STORE_PASS:-android}" >> $GITHUB_ENV
             echo "KEY_ALIAS=${SECRET_KEY_ALIAS:-smartdialer}" >> $GITHUB_ENV
