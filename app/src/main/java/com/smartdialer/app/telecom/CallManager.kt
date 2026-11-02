@@ -40,6 +40,7 @@ object CallManager {
 
     private var activeCall: Call? = null
     private var inCallService: CallService? = null
+    private var isIpCallActive = false
 
     private val callCallback = object : Call.Callback() {
         override fun onStateChanged(call: Call, state: Int) {
@@ -281,6 +282,18 @@ object CallManager {
     }
 
     fun disconnect() {
+        if (isIpCallActive) {
+            isIpCallActive = false
+            SipEngine.endCall()
+            stopDurationTimer()
+            appContext?.let { CallNotificationManager.dismissAll(it) }
+            _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
+            scope.launch {
+                delay(1200)
+                clearCall()
+            }
+            return
+        }
         activeCall?.disconnect()
         appContext?.let { CallNotificationManager.dismissAll(it) }
         clearCall()
@@ -288,15 +301,25 @@ object CallManager {
 
     fun toggleMute() {
         val currentMute = _currentCallState.value.isMuted
-        inCallService?.setMuted(!currentMute)
-        _currentCallState.value = _currentCallState.value.copy(isMuted = !currentMute)
+        val targetMute = !currentMute
+        if (isIpCallActive) {
+            SipEngine.setMuted(targetMute)
+        } else {
+            inCallService?.setMuted(targetMute)
+        }
+        _currentCallState.value = _currentCallState.value.copy(isMuted = targetMute)
     }
 
     fun toggleSpeaker(context: Context) {
         val currentSpeaker = _currentCallState.value.isSpeakerOn
-        val targetRoute = if (currentSpeaker) CallAudioState.ROUTE_EARPIECE else CallAudioState.ROUTE_SPEAKER
-        inCallService?.setAudioRoute(targetRoute)
-        _currentCallState.value = _currentCallState.value.copy(isSpeakerOn = !currentSpeaker)
+        val targetSpeaker = !currentSpeaker
+        if (isIpCallActive) {
+            SipEngine.setSpeaker(context, targetSpeaker)
+        } else {
+            val targetRoute = if (currentSpeaker) CallAudioState.ROUTE_EARPIECE else CallAudioState.ROUTE_SPEAKER
+            inCallService?.setAudioRoute(targetRoute)
+        }
+        _currentCallState.value = _currentCallState.value.copy(isSpeakerOn = targetSpeaker)
     }
 
     fun toggleHold() {
@@ -314,11 +337,73 @@ object CallManager {
     }
 
     fun sendDtmf(digit: Char) {
+        if (isIpCallActive) {
+            SipEngine.sendDtmf(digit)
+            return
+        }
         activeCall?.playDtmfTone(digit)
         scope.launch {
             delay(200)
             activeCall?.stopDtmfTone()
         }
+    }
+
+    fun initiateIpCall(context: Context, number: String) {
+        if (number.isBlank()) return
+        val cleanNumber = number.trim()
+        appContext = context.applicationContext
+
+        val (resolvedName, resolvedPhoto) = lookupContactInfo(context, cleanNumber)
+        val displayName = if (!resolvedName.isNullOrBlank()) resolvedName else cleanNumber
+
+        isIpCallActive = true
+        _currentCallState.value = ActiveCallInfo(
+            callId = "ip_${System.currentTimeMillis()}",
+            number = cleanNumber,
+            contactName = displayName,
+            photoUri = resolvedPhoto,
+            status = CallStatus.CONNECTING,
+            simSlot = 3,
+            isIpCall = true
+        )
+
+        // Launch CallActivity directly without any system resolver or chooser
+        val intent = Intent(context, CallActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        context.startActivity(intent)
+
+        // Start pure SIP Engine
+        SipEngine.startCall(
+            destination = cleanNumber,
+            context = context,
+            onStateChange = { status, errorReason ->
+                when (status) {
+                    CallStatus.CONNECTING -> {
+                        _currentCallState.value = _currentCallState.value.copy(status = CallStatus.CONNECTING)
+                    }
+                    CallStatus.RINGING -> {
+                        _currentCallState.value = _currentCallState.value.copy(status = CallStatus.RINGING)
+                    }
+                    CallStatus.ACTIVE -> {
+                        _currentCallState.value = _currentCallState.value.copy(status = CallStatus.ACTIVE)
+                        startDurationTimer()
+                    }
+                    CallStatus.DISCONNECTED -> {
+                        stopDurationTimer()
+                        _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
+                        isIpCallActive = false
+                        scope.launch {
+                            delay(1200)
+                            clearCall()
+                        }
+                    }
+                    else -> {}
+                }
+            }
+        )
     }
 
     fun initiateCall(context: Context, number: String, simSlot: Int = 0) {

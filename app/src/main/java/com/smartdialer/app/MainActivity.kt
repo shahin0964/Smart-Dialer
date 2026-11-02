@@ -76,7 +76,11 @@ class MainActivity : ComponentActivity() {
 
         // If launched with ACTION_CALL (from system dialer chooser or third-party app)
         if (intent.action == Intent.ACTION_CALL && !initialNumber.isNullOrBlank()) {
-            CallManager.initiateCall(this, initialNumber)
+            if (intent.data?.scheme == "sip") {
+                CallManager.initiateIpCall(this, initialNumber)
+            } else {
+                CallManager.initiateCall(this, initialNumber)
+            }
         }
 
         setContent {
@@ -95,16 +99,24 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         val number = extractDialNumber(intent)
         if (intent.action == Intent.ACTION_CALL && !number.isNullOrBlank()) {
-            CallManager.initiateCall(this, number)
+            if (intent.data?.scheme == "sip") {
+                CallManager.initiateIpCall(this, number)
+            } else {
+                CallManager.initiateCall(this, number)
+            }
         }
     }
 
     private fun extractDialNumber(intent: Intent?): String? {
         val uri: Uri? = intent?.data
-        return if (uri != null && uri.scheme == "tel") {
-            uri.schemeSpecificPart
-        } else {
-            null
+        if (uri == null) return null
+        return when (uri.scheme) {
+            "tel" -> uri.schemeSpecificPart
+            "sip" -> {
+                val part = uri.schemeSpecificPart
+                if (part.contains("@")) part.substringBefore("@") else part
+            }
+            else -> null
         }
     }
 

@@ -25,7 +25,8 @@ data class ActiveCallInfo(
     val isSpeakerOn: Boolean = false,
     val isHolding: Boolean = false,
     val isRecording: Boolean = false,
-    val simSlot: Int = 1
+    val simSlot: Int = 1,
+    val isIpCall: Boolean = false
 ) {
     val durationFormatted: String
         get() {

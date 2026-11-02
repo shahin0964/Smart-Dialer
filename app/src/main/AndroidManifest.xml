@@ -82,6 +82,14 @@
                 <data android:scheme="voicemail" />
             </intent-filter>
 
+            <intent-filter>
+                <action android:name="android.intent.action.DIAL" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="sip" />
+            </intent-filter>
+
             <!-- ACTION_CALL: Essential for handling outgoing call intents from OS and other apps -->
             <intent-filter>
                 <action android:name="android.intent.action.CALL" />
@@ -93,6 +101,12 @@
                 <action android:name="android.intent.action.CALL" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="voicemail" />
+            </intent-filter>
+
+            <intent-filter>
+                <action android:name="android.intent.action.CALL" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="sip" />
             </intent-filter>
 
             <!-- ACTION_CALL_BUTTON: Hardware / Headset / System dial button trigger -->

@@ -125,31 +125,8 @@ class IpCallPreferences(private val context: Context) {
                 } else {
                     clean
                 }
-
-                val sipHost = if (domain.isNotBlank()) domain else outboundProxy
-                val uriString = if (sipHost.isNotBlank()) {
-                    "sip:$target@$sipHost"
-                } else {
-                    "sip:$target"
-                }
-                val sipUri = Uri.parse(uriString)
-
-                try {
-                    val intent = Intent(Intent.ACTION_CALL, sipUri).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    context.startActivity(intent)
-                } catch (e: Exception) {
-                    try {
-                        val dialIntent = Intent(Intent.ACTION_DIAL, sipUri).apply {
-                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                        }
-                        context.startActivity(dialIntent)
-                    } catch (e2: Exception) {
-                        // Fallback to normal telecom dial
-                        CallManager.initiateCall(context, target, simSlot)
-                    }
-                }
+                // In-App direct SIP call via Smart Dialer's own calling engine and UI!
+                CallManager.initiateIpCall(context, target)
             }
 
             IpCallMode.PREFIX -> {

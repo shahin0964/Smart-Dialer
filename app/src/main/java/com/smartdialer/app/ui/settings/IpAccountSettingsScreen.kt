@@ -57,8 +57,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
 import com.smartdialer.app.data.repository.IpCallMode
 import com.smartdialer.app.data.repository.IpCallPreferences
+import com.smartdialer.app.telecom.SipEngine
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.IpCallPurple
@@ -78,6 +81,11 @@ fun IpAccountSettingsScreen(
     ipPreferences: IpCallPreferences,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val liveStatus by SipEngine.registrationStatus.collectAsState()
+    var testResultText by remember { mutableStateOf<String?>(null) }
+    var isTestingConnection by remember { mutableStateOf(false) }
+
     var subView by remember { mutableStateOf(IpSettingsSubView.MAIN) }
 
     // Main Credentials
@@ -178,16 +186,23 @@ fun IpAccountSettingsScreen(
 
                     // Status Badge
                     val isConfigured = username.isNotBlank() || domain.isNotBlank()
+                    val (badgeText, badgeColor) = when {
+                        liveStatus.startsWith("Online") -> "Online / Registered" to CallIncomingGreen
+                        liveStatus.startsWith("Connecting") -> "Connecting..." to Color(0xFFF59E0B)
+                        liveStatus.startsWith("Auth Failed") -> "Auth Failed" to Color(0xFFEF4444)
+                        isConfigured -> "Configured" to CallIncomingGreen
+                        else -> "Offline" to TextMuted
+                    }
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (isConfigured) CallIncomingGreen.copy(alpha = 0.15f) else Color(0xFFF1F5F9),
+                        color = badgeColor.copy(alpha = 0.15f),
                         modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Text(
-                            text = if (isConfigured) "Configured" else "Offline",
+                            text = badgeText,
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isConfigured) CallIncomingGreen else TextMuted,
+                            color = badgeColor,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
@@ -441,6 +456,7 @@ fun IpAccountSettingsScreen(
                         Button(
                             onClick = {
                                 saveAll()
+                                SipEngine.registerAccount(context) { _, _ -> }
                                 onBack()
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = IpCallPurple),
@@ -454,6 +470,40 @@ fun IpAccountSettingsScreen(
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
+                            )
+                        }
+
+                        // Test Connection Button
+                        OutlinedButton(
+                            onClick = {
+                                saveAll()
+                                isTestingConnection = true
+                                testResultText = "Testing SIP connection to server..."
+                                SipEngine.registerAccount(context) { success, msg ->
+                                    isTestingConnection = false
+                                    testResultText = msg
+                                }
+                            },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                        ) {
+                            Text(
+                                text = if (isTestingConnection) "Testing Connection..." else "Test SIP Connection",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = IpCallPurple
+                            )
+                        }
+
+                        if (!testResultText.isNullOrBlank()) {
+                            Text(
+                                text = testResultText!!,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = if (liveStatus.startsWith("Online")) CallIncomingGreen else Color(0xFFEF4444),
+                                modifier = Modifier.padding(horizontal = 4.dp)
                             )
                         }
 
