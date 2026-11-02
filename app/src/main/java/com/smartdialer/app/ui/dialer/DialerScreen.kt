@@ -61,6 +61,7 @@ import com.smartdialer.app.ui.theme.TextDark
 import com.smartdialer.app.ui.theme.TextLightGray
 import com.smartdialer.app.ui.theme.TextMuted
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun DialerScreen(
     viewModel: DialerViewModel
