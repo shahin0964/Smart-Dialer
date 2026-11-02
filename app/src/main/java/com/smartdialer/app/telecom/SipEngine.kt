@@ -38,7 +38,8 @@ import java.net.InetAddress
 import java.net.NetworkInterface
 import java.security.MessageDigest
 import java.util.UUID
-import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.max
 
@@ -232,7 +233,7 @@ object SipEngine {
     private var nsEffect: NoiseSuppressor? = null
 
     // Jitter Buffer for smooth audio playback
-    private val jitterQueue = ConcurrentLinkedQueue<ShortArray>()
+    private val jitterQueue = LinkedBlockingQueue<ShortArray>()
 
     private var sipListenerJob: Job? = null
     private var keepAliveJob: Job? = null
@@ -600,8 +601,11 @@ object SipEngine {
             // Allocate RTP socket
             localRtpPort = (40000..50000).random()
             if (localRtpPort % 2 != 0) localRtpPort++
-            rtpSocket = DatagramSocket(localRtpPort)
-            rtpSocket?.soTimeout = 1000
+            rtpSocket = DatagramSocket(localRtpPort).apply {
+                receiveBufferSize = 64 * 1024
+                sendBufferSize = 64 * 1024
+                soTimeout = 2000
+            }
 
             extractRemoteSdp(incomingRemoteSdp, serverAddr.hostAddress ?: "103.170.231.10")
 
@@ -802,8 +806,11 @@ object SipEngine {
 
                 localRtpPort = (40000..50000).random()
                 if (localRtpPort % 2 != 0) localRtpPort++
-                rtpSocket = DatagramSocket(localRtpPort)
-                rtpSocket?.soTimeout = 1000
+                rtpSocket = DatagramSocket(localRtpPort).apply {
+                    receiveBufferSize = 64 * 1024
+                    sendBufferSize = 64 * 1024
+                    soTimeout = 2000
+                }
 
                 val cleanDomain = domain.removePrefix("sip:").removePrefix("sips:").substringBefore(":").trim()
                 val serverPort = if (domain.contains(":")) {
@@ -1075,10 +1082,10 @@ object SipEngine {
             e.printStackTrace()
         }
 
-        // 2. AudioTrack with expanded buffer (prevents underruns)
+        // 2. AudioTrack with smooth jitter buffer (prevents underruns without high latency)
         val minTrackBuf = max(
-            AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT) * 4,
-            8192
+            AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2,
+            3200
         )
         try {
             audioTrack = AudioTrack(
@@ -1117,19 +1124,27 @@ object SipEngine {
 
             while (isActive && isCallActive.get()) {
                 val rec = audioRecord ?: break
-                val readCount = rec.read(pcmBuf, 0, pcmFrameSize)
-                if (readCount <= 0) continue
+                var offset = 0
+                while (offset < pcmFrameSize && isActive && isCallActive.get()) {
+                    val count = rec.read(pcmBuf, offset, pcmFrameSize - offset)
+                    if (count > 0) {
+                        offset += count
+                    } else {
+                        break
+                    }
+                }
+                if (offset < pcmFrameSize) continue
 
                 if (isMuted.get()) {
-                    for (i in 0 until readCount) pcmBuf[i] = 0
+                    for (i in 0 until pcmFrameSize) pcmBuf[i] = 0
                 }
 
                 if (negotiatedCodec == 8) {
-                    for (i in 0 until readCount) {
+                    for (i in 0 until pcmFrameSize) {
                         rtpPacketData[12 + i] = G711.linearToAlaw(pcmBuf[i])
                     }
                 } else {
-                    for (i in 0 until readCount) {
+                    for (i in 0 until pcmFrameSize) {
                         rtpPacketData[12 + i] = G711.linearToUlaw(pcmBuf[i])
                     }
                 }
@@ -1189,24 +1204,43 @@ object SipEngine {
                     continue
                 }
 
-                val isAlaw = (pt == 8) || (pt != 0 && negotiatedCodec == 8)
-                val payloadLen = packet.length - 12
+                // Parse RFC 3550 RTP Header (handles CSRC, extensions, padding)
+                val b0 = recvBuffer[0].toInt() and 0xFF
+                val cc = b0 and 0x0F
+                var headerLen = 12 + (cc * 4)
+                if (packet.length < headerLen) continue
+
+                val hasExtension = (b0 and 0x10) != 0
+                if (hasExtension && packet.length >= headerLen + 4) {
+                    val extLenWords = ((recvBuffer[headerLen + 2].toInt() and 0xFF) shl 8) or (recvBuffer[headerLen + 3].toInt() and 0xFF)
+                    headerLen += 4 + (extLenWords * 4)
+                }
+
+                var payloadLen = packet.length - headerLen
+                val hasPadding = (b0 and 0x20) != 0
+                if (hasPadding && packet.length > 0) {
+                    val padLen = recvBuffer[packet.length - 1].toInt() and 0xFF
+                    payloadLen -= padLen
+                }
+
                 if (payloadLen <= 0) continue
+
+                val isAlaw = (pt == 8) || (pt != 0 && negotiatedCodec == 8)
 
                 // Decode ALL samples in packet (supports 20ms, 30ms, 40ms packets without dropping)
                 val decodedPcm = ShortArray(payloadLen)
                 if (isAlaw) {
                     for (i in 0 until payloadLen) {
-                        decodedPcm[i] = G711.alawToLinear(recvBuffer[12 + i])
+                        decodedPcm[i] = G711.alawToLinear(recvBuffer[headerLen + i])
                     }
                 } else {
                     for (i in 0 until payloadLen) {
-                        decodedPcm[i] = G711.ulawToLinear(recvBuffer[12 + i])
+                        decodedPcm[i] = G711.ulawToLinear(recvBuffer[headerLen + i])
                     }
                 }
 
-                // Prevent excessive buffer delay (cap at 120ms max jitter backlog)
-                while (jitterQueue.size > 6) {
+                // Prevent excessive buffer delay (cap at 25 packets / 500ms jitter backlog)
+                while (jitterQueue.size > 25) {
                     jitterQueue.poll()
                 }
                 jitterQueue.offer(decodedPcm)
@@ -1215,22 +1249,16 @@ object SipEngine {
 
         // 5. Dedicated Smooth AudioTrack Playback Loop
         rtpPlayJob = scope.launch(Dispatchers.IO) {
-            // Pre-buffer 40ms (2 packets) before playing for rock-solid stability
-            while (isActive && isCallActive.get() && jitterQueue.size < 2) {
+            // Pre-buffer 3 packets (60ms) before playing for rock-solid stability
+            while (isActive && isCallActive.get() && jitterQueue.size < 3) {
                 delay(10)
             }
 
-            val comfortSilence = ShortArray(160)
-
             while (isActive && isCallActive.get()) {
                 val track = audioTrack ?: break
-                val frame = jitterQueue.poll()
+                val frame = jitterQueue.poll(60, TimeUnit.MILLISECONDS)
                 if (frame != null) {
                     track.write(frame, 0, frame.size, AudioTrack.WRITE_BLOCKING)
-                } else {
-                    // Buffer underrun protection: play comfort silence so AudioTrack never glitches
-                    track.write(comfortSilence, 0, comfortSilence.size, AudioTrack.WRITE_BLOCKING)
-                    delay(10)
                 }
             }
         }
