@@ -266,11 +266,39 @@ object CallManager {
     }
 
     fun answer() {
+        if (isIpCallActive) {
+            SipEngine.answerIncomingCall()
+            _currentCallState.value = _currentCallState.value.copy(status = CallStatus.ACTIVE)
+            startDurationTimer()
+            appContext?.let { ctx ->
+                CallNotificationManager.dismissIncomingCallNotification(ctx)
+                CallNotificationManager.showOngoingCallNotification(
+                    context = ctx,
+                    rawNumber = _currentCallState.value.number,
+                    contactName = _currentCallState.value.contactName,
+                    photoUri = _currentCallState.value.photoUri,
+                    durationFormatted = _currentCallState.value.durationFormatted
+                )
+            }
+            return
+        }
         activeCall?.answer(android.telecom.VideoProfile.STATE_AUDIO_ONLY)
         appContext?.let { CallNotificationManager.dismissIncomingCallNotification(it) }
     }
 
     fun reject() {
+        if (isIpCallActive) {
+            isIpCallActive = false
+            SipEngine.rejectIncomingCall()
+            stopDurationTimer()
+            appContext?.let { CallNotificationManager.dismissAll(it) }
+            _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
+            scope.launch {
+                delay(1200)
+                clearCall()
+            }
+            return
+        }
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
             activeCall?.reject(Call.REJECT_REASON_DECLINED)
         } else {
@@ -404,6 +432,69 @@ object CallManager {
                 }
             }
         )
+    }
+
+    fun handleIncomingIpCall(context: Context, number: String, callerDisplayName: String?) {
+        appContext = context.applicationContext
+        val (resolvedName, resolvedPhoto) = lookupContactInfo(context, number)
+        val displayName = when {
+            !resolvedName.isNullOrBlank() -> resolvedName
+            !callerDisplayName.isNullOrBlank() -> callerDisplayName
+            else -> number
+        }
+
+        val spamResult = SpamProtectionManager.checkNumber(context, number, displayName)
+        if (spamResult.isSpam && spamResult.action == SpamAction.REJECT) {
+            SipEngine.rejectIncomingCall()
+            return
+        }
+
+        isIpCallActive = true
+        _currentCallState.value = ActiveCallInfo(
+            callId = "ip_in_${System.currentTimeMillis()}",
+            number = number,
+            contactName = displayName,
+            photoUri = resolvedPhoto,
+            isSpam = spamResult.isSpam,
+            spamCategory = spamResult.category,
+            status = CallStatus.RINGING,
+            simSlot = 3,
+            isIpCall = true
+        )
+
+        // Show floating Heads-Up notification card with Answer & Decline
+        CallNotificationManager.showIncomingCallNotification(
+            context = context,
+            rawNumber = number,
+            contactName = displayName,
+            photoUri = resolvedPhoto,
+            isSpam = spamResult.isSpam,
+            spamCategory = spamResult.category
+        )
+
+        // If screen is locked, launch full-screen CallActivity
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        if (keyguardManager?.isKeyguardLocked == true) {
+            val intent = Intent(context, CallActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            context.startActivity(intent)
+        }
+    }
+
+    fun handleIncomingIpCallCancelled() {
+        if (isIpCallActive && _currentCallState.value.status == CallStatus.RINGING) {
+            isIpCallActive = false
+            stopDurationTimer()
+            appContext?.let { CallNotificationManager.dismissAll(it) }
+            _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
+            scope.launch {
+                delay(1200)
+                clearCall()
+            }
+        }
     }
 
     fun initiateCall(context: Context, number: String, simSlot: Int = 0) {

@@ -71,6 +71,10 @@ class MainActivity : ComponentActivity() {
         ipPreferences = IpCallPreferences(applicationContext)
         appSettings = AppSettingsPreferences(applicationContext)
 
+        if (ipPreferences.isConfigured) {
+            com.smartdialer.app.telecom.SipEngine.startListening(this)
+        }
+
         val initialNumber = extractDialNumber(intent)
         val initialTab = extractInitialTab(intent)
 

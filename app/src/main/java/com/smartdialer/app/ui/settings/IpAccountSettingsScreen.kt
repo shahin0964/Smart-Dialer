@@ -456,6 +456,7 @@ fun IpAccountSettingsScreen(
                         Button(
                             onClick = {
                                 saveAll()
+                                SipEngine.startListening(context)
                                 SipEngine.registerAccount(context) { _, _ -> }
                                 onBack()
                             },
@@ -479,6 +480,7 @@ fun IpAccountSettingsScreen(
                                 saveAll()
                                 isTestingConnection = true
                                 testResultText = "Testing SIP connection to server..."
+                                SipEngine.startListening(context)
                                 SipEngine.registerAccount(context) { success, msg ->
                                     isTestingConnection = false
                                     testResultText = msg
