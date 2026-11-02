@@ -13,7 +13,6 @@ import android.telecom.TelecomManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -34,6 +33,7 @@ import com.smartdialer.app.data.repository.CallLogRepository
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.data.repository.IpCallPreferences
 import com.smartdialer.app.data.repository.SimRepository
+import com.smartdialer.app.telecom.CallManager
 import com.smartdialer.app.ui.calls.CallsScreen
 import com.smartdialer.app.ui.calls.CallsViewModel
 import com.smartdialer.app.ui.components.MainTab
@@ -55,7 +55,12 @@ class MainActivity : ComponentActivity() {
     private lateinit var ipPreferences: IpCallPreferences
     private lateinit var appSettings: AppSettingsPreferences
 
-    private var defaultDialerLauncher: ActivityResultLauncher<Intent>? = null
+    // Native ActivityResultLauncher for RoleManager & Default Dialer request
+    private val defaultDialerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { _ ->
+        // Default dialer request completed
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -67,11 +72,18 @@ class MainActivity : ComponentActivity() {
         appSettings = AppSettingsPreferences(applicationContext)
 
         val initialNumber = extractDialNumber(intent)
+        val initialTab = extractInitialTab(intent)
+
+        // If launched with ACTION_CALL (from system dialer chooser or third-party app)
+        if (intent.action == Intent.ACTION_CALL && !initialNumber.isNullOrBlank()) {
+            CallManager.initiateCall(this, initialNumber)
+        }
 
         setContent {
             SmartDialerTheme(darkTheme = false) {
                 MainContent(
                     initialNumber = initialNumber,
+                    initialTab = initialTab,
                     onRequestDefaultDialer = { triggerDefaultDialerRequest() }
                 )
             }
@@ -81,6 +93,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        val number = extractDialNumber(intent)
+        if (intent.action == Intent.ACTION_CALL && !number.isNullOrBlank()) {
+            CallManager.initiateCall(this, number)
+        }
     }
 
     private fun extractDialNumber(intent: Intent?): String? {
@@ -92,18 +108,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun extractInitialTab(intent: Intent?): MainTab {
+        if (intent == null) return MainTab.DIALER
+        return when {
+            intent.type == "vnd.android.cursor.dir/calls" -> MainTab.CALLS
+            intent.type == "vnd.android.cursor.dir/contact" || intent.type == "vnd.android.cursor.dir/person" -> MainTab.CONTACTS
+            else -> MainTab.DIALER
+        }
+    }
+
     fun triggerDefaultDialerRequest() {
-        // Attempt 1: RoleManager for Android 10+ (Q)
+        // Attempt 1: RoleManager for Android 10+ (Q / 14 / 15 / 16 / 17)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             try {
                 val roleManager = getSystemService(Context.ROLE_SERVICE) as? RoleManager
                 if (roleManager != null && roleManager.isRoleAvailable(RoleManager.ROLE_DIALER)) {
                     val intent = roleManager.createRequestRoleIntent(RoleManager.ROLE_DIALER)
-                    if (defaultDialerLauncher != null) {
-                        defaultDialerLauncher?.launch(intent)
-                    } else {
-                        startActivity(intent)
-                    }
+                    defaultDialerLauncher.launch(intent)
                     return
                 }
             } catch (e: Exception) {
@@ -117,17 +138,13 @@ class MainActivity : ComponentActivity() {
             val intent = Intent(TelecomManager.ACTION_CHANGE_DEFAULT_DIALER).apply {
                 putExtra(TelecomManager.EXTRA_CHANGE_DEFAULT_DIALER_PACKAGE_NAME, packageName)
             }
-            if (defaultDialerLauncher != null) {
-                defaultDialerLauncher?.launch(intent)
-            } else {
-                startActivity(intent)
-            }
+            defaultDialerLauncher.launch(intent)
             return
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
-        // Attempt 3: Direct to Android Default Apps Settings (MIUI, HyperOS, Samsung, Oppo, Vivo)
+        // Attempt 3: Direct to Android Default Apps Settings (MIUI, HyperOS, Samsung One UI, Oppo, Vivo)
         try {
             val intent = Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
@@ -153,9 +170,10 @@ class MainActivity : ComponentActivity() {
     @Composable
     private fun MainContent(
         initialNumber: String?,
+        initialTab: MainTab,
         onRequestDefaultDialer: () -> Unit
     ) {
-        var selectedTab by remember { mutableStateOf(MainTab.DIALER) }
+        var selectedTab by remember { mutableStateOf(initialTab) }
 
         val dialerViewModel = remember {
             DialerViewModel(contactsRepository, simRepository, ipPreferences)
@@ -165,15 +183,6 @@ class MainActivity : ComponentActivity() {
         }
         val contactsViewModel = remember {
             ContactsViewModel(contactsRepository)
-        }
-
-        val roleLauncher = rememberLauncherForActivityResult(
-            contract = ActivityResultContracts.StartActivityForResult()
-        ) { _ ->
-            // Role dialog finished
-        }
-        LaunchedEffect(roleLauncher) {
-            defaultDialerLauncher = roleLauncher
         }
 
         LaunchedEffect(initialNumber) {
@@ -197,7 +206,7 @@ class MainActivity : ComponentActivity() {
         }
 
         LaunchedEffect(Unit) {
-            val required = arrayOf(
+            val permissionsList = mutableListOf(
                 Manifest.permission.CALL_PHONE,
                 Manifest.permission.READ_PHONE_STATE,
                 Manifest.permission.READ_CONTACTS,
@@ -205,7 +214,10 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.READ_CALL_LOG,
                 Manifest.permission.WRITE_CALL_LOG
             )
-            val missing = required.filter {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                permissionsList.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            val missing = permissionsList.filter {
                 ContextCompat.checkSelfPermission(applicationContext, it) != PackageManager.PERMISSION_GRANTED
             }
             if (missing.isNotEmpty()) {

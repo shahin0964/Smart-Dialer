@@ -350,6 +350,28 @@ object CallManager {
             }
         }
 
+        // 1. Direct Telecom placeCall (places call directly via default dialer without chooser popup)
+        if (telecomManager != null && hasPhonePermission) {
+            try {
+                val extras = android.os.Bundle().apply {
+                    if (targetAccount != null) {
+                        putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, targetAccount)
+                    }
+                    putExtra("com.android.phone.extra.slot", simSlot)
+                    putExtra("simSlot", simSlot)
+                    putExtra("phone_account_id", simSlot)
+                    putExtra("Subscription", simSlot)
+                    putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
+                    putBoolean(TelecomManager.EXTRA_START_CALL_WITH_VIDEO_STATE, false)
+                }
+                telecomManager.placeCall(uri, extras)
+                return
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        // 2. Fallback: ACTION_CALL or ACTION_DIAL Intent
         val action = if (hasPhonePermission) Intent.ACTION_CALL else Intent.ACTION_DIAL
         val intent = Intent(action, uri).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK
