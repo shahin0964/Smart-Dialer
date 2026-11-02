@@ -24,6 +24,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
@@ -160,6 +161,12 @@
                 <action android:name="android.telecom.InCallService" />
             </intent-filter>
         </service>
+
+        <!-- Foreground Service for pure IP Calls (ensures continuous mic & network when screen turns off) -->
+        <service
+            android:name=".telecom.IpCallService"
+            android:foregroundServiceType="phoneCall|microphone"
+            android:exported="false" />
 
         <!-- Telecom CallScreeningService for Android 10+ spam protection & screening -->
         <service

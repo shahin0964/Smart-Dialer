@@ -95,7 +95,10 @@ object CallManager {
         activeCall?.unregisterCallback(callCallback)
         activeCall = null
         stopDurationTimer()
-        appContext?.let { CallNotificationManager.dismissAll(it) }
+        appContext?.let {
+            CallNotificationManager.dismissAll(it)
+            IpCallService.stop(it)
+        }
         _currentCallState.value = ActiveCallInfo(status = CallStatus.DISCONNECTED)
     }
 
@@ -143,6 +146,12 @@ object CallManager {
         val audioState = inCallService?.callAudioState
         val isMuted = audioState?.isMuted ?: false
         val isSpeaker = (audioState?.route == CallAudioState.ROUTE_SPEAKER)
+
+        val isIncoming = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            call.details?.callDirection == Call.Details.DIRECTION_INCOMING
+        } else {
+            call.state == Call.STATE_RINGING
+        }
 
         if (status == CallStatus.ACTIVE && durationJob == null) {
             startDurationTimer()
@@ -200,21 +209,24 @@ object CallManager {
             status = status,
             isMuted = isMuted,
             isSpeakerOn = isSpeaker,
-            isHolding = (status == CallStatus.HOLDING)
+            isHolding = (status == CallStatus.HOLDING),
+            isIncoming = isIncoming
         )
 
         // Notification management for Incoming (Heads-Up) and Ongoing states
         if (context != null) {
             when (status) {
                 CallStatus.RINGING -> {
-                    CallNotificationManager.showIncomingCallNotification(
-                        context = context,
-                        rawNumber = rawNumber,
-                        contactName = contactName,
-                        photoUri = contactPhoto,
-                        isSpam = isSpam,
-                        spamCategory = spamCategory
-                    )
+                    if (isIncoming) {
+                        CallNotificationManager.showIncomingCallNotification(
+                            context = context,
+                            rawNumber = rawNumber,
+                            contactName = contactName,
+                            photoUri = contactPhoto,
+                            isSpam = isSpam,
+                            spamCategory = spamCategory
+                        )
+                    }
                 }
                 CallStatus.ACTIVE -> {
                     CallNotificationManager.dismissIncomingCallNotification(context)
@@ -272,12 +284,11 @@ object CallManager {
             startDurationTimer()
             appContext?.let { ctx ->
                 CallNotificationManager.dismissIncomingCallNotification(ctx)
-                CallNotificationManager.showOngoingCallNotification(
-                    context = ctx,
-                    rawNumber = _currentCallState.value.number,
-                    contactName = _currentCallState.value.contactName,
-                    photoUri = _currentCallState.value.photoUri,
-                    durationFormatted = _currentCallState.value.durationFormatted
+                IpCallService.start(
+                    ctx,
+                    _currentCallState.value.number,
+                    _currentCallState.value.contactName,
+                    "Call in progress"
                 )
             }
             return
@@ -291,7 +302,10 @@ object CallManager {
             isIpCallActive = false
             SipEngine.rejectIncomingCall()
             stopDurationTimer()
-            appContext?.let { CallNotificationManager.dismissAll(it) }
+            appContext?.let {
+                CallNotificationManager.dismissAll(it)
+                IpCallService.stop(it)
+            }
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
                 delay(1200)
@@ -314,7 +328,10 @@ object CallManager {
             isIpCallActive = false
             SipEngine.endCall()
             stopDurationTimer()
-            appContext?.let { CallNotificationManager.dismissAll(it) }
+            appContext?.let {
+                CallNotificationManager.dismissAll(it)
+                IpCallService.stop(it)
+            }
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
                 delay(1200)
@@ -392,7 +409,8 @@ object CallManager {
             photoUri = resolvedPhoto,
             status = CallStatus.CONNECTING,
             simSlot = 3,
-            isIpCall = true
+            isIpCall = true,
+            isIncoming = false
         )
 
         // Launch CallActivity directly without any system resolver or chooser
@@ -402,6 +420,9 @@ object CallManager {
                     Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         context.startActivity(intent)
+
+        // Start Foreground Service to keep CPU, network and microphone alive when screen turns off
+        IpCallService.start(context, cleanNumber, displayName, "Connecting...")
 
         // Start pure SIP Engine
         SipEngine.startCall(
@@ -414,15 +435,18 @@ object CallManager {
                     }
                     CallStatus.RINGING -> {
                         _currentCallState.value = _currentCallState.value.copy(status = CallStatus.RINGING)
+                        appContext?.let { IpCallService.start(it, cleanNumber, displayName, "Ringing...") }
                     }
                     CallStatus.ACTIVE -> {
                         _currentCallState.value = _currentCallState.value.copy(status = CallStatus.ACTIVE)
                         startDurationTimer()
+                        appContext?.let { IpCallService.start(it, cleanNumber, displayName, "Call in progress") }
                     }
                     CallStatus.DISCONNECTED -> {
                         stopDurationTimer()
                         _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
                         isIpCallActive = false
+                        appContext?.let { IpCallService.stop(it) }
                         scope.launch {
                             delay(1200)
                             clearCall()
@@ -459,7 +483,8 @@ object CallManager {
             spamCategory = spamResult.category,
             status = CallStatus.RINGING,
             simSlot = 3,
-            isIpCall = true
+            isIpCall = true,
+            isIncoming = true
         )
 
         // Show floating Heads-Up notification card with Answer & Decline
@@ -488,7 +513,10 @@ object CallManager {
         if (isIpCallActive && _currentCallState.value.status == CallStatus.RINGING) {
             isIpCallActive = false
             stopDurationTimer()
-            appContext?.let { CallNotificationManager.dismissAll(it) }
+            appContext?.let {
+                CallNotificationManager.dismissAll(it)
+                IpCallService.stop(it)
+            }
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
                 delay(1200)

@@ -256,6 +256,58 @@ object CallNotificationManager {
         }
     }
 
+    fun createOngoingNotification(
+        context: Context,
+        rawNumber: String,
+        contactName: String?,
+        statusText: String = "Call in progress"
+    ): android.app.Notification {
+        ensureChannelsCreated(context)
+
+        val displayName = if (!contactName.isNullOrBlank() && contactName != "Unknown") {
+            contactName
+        } else {
+            rawNumber.ifBlank { "Smart Dialer" }
+        }
+
+        val avatarBitmap = createMonogramBitmap(displayName)
+
+        val hangupIntent = Intent(context, CallActionReceiver::class.java).apply {
+            action = CallActionReceiver.ACTION_DISCONNECT_CALL
+        }
+        val hangupPendingIntent = PendingIntent.getBroadcast(
+            context,
+            201,
+            hangupIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val openCallIntent = Intent(context, CallActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+        val openCallPendingIntent = PendingIntent.getActivity(
+            context,
+            202,
+            openCallIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        return NotificationCompat.Builder(context, CHANNEL_ID_ONGOING)
+            .setSmallIcon(R.drawable.ic_notification_incoming_call)
+            .setContentTitle(displayName)
+            .setContentText(statusText)
+            .setLargeIcon(avatarBitmap)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_CALL)
+            .setContentIntent(openCallPendingIntent)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .addAction(R.drawable.ic_call_decline, "End Call", hangupPendingIntent)
+            .build()
+    }
+
     fun dismissIncomingCallNotification(context: Context) {
         try {
             val notificationManager =

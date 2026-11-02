@@ -272,7 +272,7 @@ fun OngoingCallScreen(
 
                     Text(
                         text = when (callInfo.status) {
-                            CallStatus.RINGING -> "Incoming Call..."
+                            CallStatus.RINGING -> if (callInfo.isIncoming) "Incoming Call..." else "Ringing..."
                             CallStatus.DIALING -> "Dialing..."
                             CallStatus.CONNECTING -> "Connecting..."
                             CallStatus.HOLDING -> "On Hold"
@@ -287,7 +287,7 @@ fun OngoingCallScreen(
             }
 
             // In-Call Controls or Incoming Call Controls
-            if (callInfo.status == CallStatus.RINGING) {
+            if (callInfo.status == CallStatus.RINGING && callInfo.isIncoming) {
                 // Incoming Call: Answer & Reject Buttons
                 Row(
                     modifier = Modifier

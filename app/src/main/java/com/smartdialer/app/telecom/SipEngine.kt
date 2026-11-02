@@ -9,6 +9,9 @@ import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
 import android.media.audiofx.NoiseSuppressor
+import android.net.wifi.WifiManager
+import android.os.Build
+import android.os.PowerManager
 import com.smartdialer.app.data.model.CallStatus
 import com.smartdialer.app.data.repository.IpCallPreferences
 import kotlinx.coroutines.CoroutineScope
@@ -233,6 +236,8 @@ object SipEngine {
 
     private var onCallStateChanged: ((CallStatus, String?) -> Unit)? = null
     private var appContext: Context? = null
+    private var engineWakeLock: PowerManager.WakeLock? = null
+    private var engineWifiLock: WifiManager.WifiLock? = null
 
     fun isCallRunning(): Boolean = isCallActive.get()
 
@@ -961,6 +966,35 @@ object SipEngine {
     private fun startRtpAudio(context: Context) {
         if (rtpSendJob != null && rtpSendJob?.isActive == true) return
 
+        try {
+            val pm = context.applicationContext.getSystemService(Context.POWER_SERVICE) as? PowerManager
+            if (engineWakeLock == null) {
+                engineWakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "SmartDialer:SipEngineWakeLock")?.apply {
+                    setReferenceCounted(false)
+                    acquire()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        try {
+            val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+            if (engineWifiLock == null) {
+                val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                } else {
+                    WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                }
+                engineWifiLock = wm?.createWifiLock(mode, "SmartDialer:SipEngineWifiLock")?.apply {
+                    setReferenceCounted(false)
+                    acquire()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         val sampleRate = 8000
         val pcmFrameSize = 160 // 20ms at 8kHz
 
@@ -1300,6 +1334,12 @@ object SipEngine {
 
                 rtpSocket?.close()
                 rtpSocket = null
+
+                engineWakeLock?.let { if (it.isHeld) it.release() }
+                engineWakeLock = null
+
+                engineWifiLock?.let { if (it.isHeld) it.release() }
+                engineWifiLock = null
             } catch (e: Exception) {
                 e.printStackTrace()
             }
