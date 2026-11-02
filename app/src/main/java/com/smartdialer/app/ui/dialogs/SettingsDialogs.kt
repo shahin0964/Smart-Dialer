@@ -813,8 +813,24 @@ private fun SpamLayerCard(
 // ============================================================
 @Composable
 fun AboutSmartDialerDialog(
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onCheckUpdates: () -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val currentVersion = remember {
+        try {
+            val pInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager.getPackageInfo(context.packageName, 0)
+            }
+            pInfo.versionName ?: "1.0.0"
+        } catch (e: Exception) {
+            "1.0.0"
+        }
+    }
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier
@@ -854,7 +870,7 @@ fun AboutSmartDialerDialog(
                 )
 
                 Text(
-                    text = "Version 1.0.6 (Native Jetpack Compose)",
+                    text = "Version $currentVersion (Official Release)",
                     fontSize = 12.sp,
                     color = TextMuted
                 )
@@ -871,21 +887,43 @@ fun AboutSmartDialerDialog(
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(text = "• PortSIP-Style IP Calling & VoIP", fontSize = 12.sp, color = TextDark)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "• Call Recording & Storage", fontSize = 12.sp, color = TextDark)
+                        Text(text = "• 3-Layer Spam Protection Engine", fontSize = 12.sp, color = TextDark)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "• Spam Protection & Blocked Numbers", fontSize = 12.sp, color = TextDark)
+                        Text(text = "• Heads-Up Call Notification Card", fontSize = 12.sp, color = TextDark)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "• GitHub In-App OTA Auto-Update", fontSize = 12.sp, color = TextDark)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Button(
-                    onClick = onDismiss,
-                    modifier = Modifier.fillMaxWidth().height(46.dp),
+                    onClick = {
+                        onDismiss()
+                        onCheckUpdates()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
                 ) {
-                    Text("Close", fontWeight = FontWeight.Bold, color = Color.White)
+                    Icon(
+                        imageVector = Icons.Default.Security,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Check for Updates (OTA)", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                androidx.compose.material3.OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Close", fontWeight = FontWeight.Medium, color = TextMuted, fontSize = 13.sp)
                 }
             }
         }

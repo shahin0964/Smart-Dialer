@@ -97,8 +97,12 @@ jobs:
 
       - name: Prepare Release Notes
         run: |
-          echo "# 📱 Smart Dialer - v${{ env.VERSION_NAME }}" > release_body.md
-          echo "⚡ Latest release build generated and published automatically." >> release_body.md
+          echo "## 🚀 Smart Dialer v${{ env.VERSION_NAME }}" > release_body.md
+          echo "⚡ Automated release build for Smart Dialer." >> release_body.md
+          echo "" >> release_body.md
+          echo "### 📝 What's New & Changelog" >> release_body.md
+          git log -n 5 --pretty=format:"* %s" >> release_body.md
+          echo "" >> release_body.md
           echo "" >> release_body.md
           echo "---" >> release_body.md
           echo "**Version**: \`v${{ env.VERSION_NAME }}\` (Build #${{ env.VERSION_CODE }})" >> release_body.md

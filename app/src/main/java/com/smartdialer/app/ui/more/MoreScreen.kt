@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SimCard
+import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -53,9 +54,11 @@ import androidx.compose.ui.unit.sp
 import com.smartdialer.app.data.model.SimInfo
 import com.smartdialer.app.data.repository.AppSettingsPreferences
 import com.smartdialer.app.data.repository.IpCallPreferences
+import com.smartdialer.app.data.repository.OtaUpdateManager
 import com.smartdialer.app.data.repository.SimRepository
 import com.smartdialer.app.ui.components.IpCallConfigDialog
 import com.smartdialer.app.ui.dialogs.AboutSmartDialerDialog
+import com.smartdialer.app.ui.dialogs.AppUpdateDialog
 import com.smartdialer.app.ui.dialogs.BlockedNumbersDialog
 import com.smartdialer.app.ui.dialogs.CallRecordingDialog
 import com.smartdialer.app.ui.dialogs.DualSimSettingsDialog
@@ -84,6 +87,7 @@ fun MoreScreen(
     var showSoundsHapticsDialog by remember { mutableStateOf(false) }
     var showBlockedDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
+    var showUpdateDialog by remember { mutableStateOf(false) }
 
     var refreshKey by remember { mutableStateOf(0) }
     var sims by remember { mutableStateOf<List<SimInfo>>(emptyList()) }
@@ -108,6 +112,12 @@ fun MoreScreen(
     }
 
     // Dialogs
+    if (showUpdateDialog) {
+        AppUpdateDialog(
+            onDismiss = { showUpdateDialog = false }
+        )
+    }
+
     if (showIpDialog) {
         IpCallConfigDialog(
             ipPreferences = ipPreferences,
@@ -151,7 +161,8 @@ fun MoreScreen(
 
     if (showAboutDialog) {
         AboutSmartDialerDialog(
-            onDismiss = { showAboutDialog = false }
+            onDismiss = { showAboutDialog = false },
+            onCheckUpdates = { showUpdateDialog = true }
         )
     }
 
@@ -318,11 +329,20 @@ fun MoreScreen(
             onClick = { showBlockedDialog = true }
         )
 
-        // 6. About Smart Dialer
+        // 6. App OTA Update
+        val currentVersion = remember { OtaUpdateManager.getCurrentVersion(context) }
+        MoreOptionItem(
+            icon = Icons.Default.SystemUpdate,
+            title = "App OTA Update",
+            subtitle = "Version v$currentVersion • Check GitHub updates & changelog",
+            onClick = { showUpdateDialog = true }
+        )
+
+        // 7. About Smart Dialer
         MoreOptionItem(
             icon = Icons.Default.Info,
             title = "About Smart Dialer",
-            subtitle = "Version 1.0.6 (Native Jetpack Compose)",
+            subtitle = "Smart Dialer v$currentVersion (Official Build)",
             onClick = { showAboutDialog = true }
         )
     }
