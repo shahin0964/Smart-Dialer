@@ -67,9 +67,13 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
 import com.smartdialer.app.data.model.CallType
+import com.smartdialer.app.data.repository.IpBalanceRepository
 import com.smartdialer.app.data.repository.IpCallMode
 import com.smartdialer.app.data.repository.IpCallPreferences
 import com.smartdialer.app.data.repository.IpCallStatsRepository
@@ -103,10 +107,17 @@ fun IpAccountSettingsScreen(
     var isTestingConnection by remember { mutableStateOf(false) }
 
     var subView by remember { mutableStateOf(IpSettingsSubView.DASHBOARD) }
-    var ipBalance by remember { mutableStateOf(ipPreferences.balance) }
-    var showRechargeDialog by remember { mutableStateOf(false) }
+    val liveRealBalance by IpBalanceRepository.balanceFlow.collectAsState()
+    val isBalanceFetching by IpBalanceRepository.isFetching.collectAsState()
+    val lastBalanceError by IpBalanceRepository.lastFetchError.collectAsState()
+    val displayBalance = liveRealBalance ?: ipPreferences.balance
+
     var showQuickCallDialog by remember { mutableStateOf(false) }
     var refreshStatsKey by remember { mutableStateOf(0) }
+
+    LaunchedEffect(Unit) {
+        IpBalanceRepository.fetchRealBalance(context)
+    }
 
     val historyList = remember(refreshStatsKey) { IpCallStatsRepository.getCallHistory(context) }
     val contactStats = remember(refreshStatsKey) { IpCallStatsRepository.getTalkTimeByContact(context) }
@@ -164,17 +175,7 @@ fun IpAccountSettingsScreen(
         ipPreferences.ipMode = ipMode
     }
 
-    if (showRechargeDialog) {
-        IpBalanceDialog(
-            currentBalance = ipBalance,
-            onSaveBalance = { newBal ->
-                ipPreferences.balance = newBal
-                ipBalance = newBal
-                refreshStatsKey++
-            },
-            onDismiss = { showRechargeDialog = false }
-        )
-    }
+
 
     if (showQuickCallDialog) {
         QuickIpCallDialog(
@@ -238,16 +239,7 @@ fun IpAccountSettingsScreen(
                         )
                     }
 
-                    // Settings shortcut icon when on Dashboard
-                    if (subView == IpSettingsSubView.DASHBOARD) {
-                        IconButton(onClick = { subView = IpSettingsSubView.SETTINGS }) {
-                            Icon(
-                                imageVector = Icons.Default.Settings,
-                                contentDescription = "SIP Settings",
-                                tint = PurplePrimary
-                            )
-                        }
-                    }
+
 
                     // Status Badge
                     val isConfigured = username.isNotBlank() || domain.isNotBlank()
@@ -364,13 +356,34 @@ fun IpAccountSettingsScreen(
                                 HorizontalDivider(color = Color(0xFFF1F5F9))
                                 Spacer(modifier = Modifier.height(14.dp))
 
-                                // Balance Display
-                                Text(
-                                    text = "IP Account Balance (বর্তমান ব্যালেন্স)",
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    color = TextMuted
-                                )
+                                // Real Balance Display
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "IP Account Balance (রিয়েল ব্যালেন্স)",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = TextMuted
+                                    )
+                                    if (isBalanceFetching) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(12.dp),
+                                                strokeWidth = 1.5.dp,
+                                                color = PurplePrimary
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = "আপডেট হচ্ছে...",
+                                                fontSize = 11.sp,
+                                                color = PurplePrimary
+                                            )
+                                        }
+                                    }
+                                }
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
@@ -378,25 +391,28 @@ fun IpAccountSettingsScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "৳ ${String.format(Locale.US, "%.2f", ipBalance)}",
+                                        text = "৳ ${String.format(Locale.US, "%.2f", displayBalance)}",
                                         fontSize = 28.sp,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = IpCallPurple
                                     )
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         OutlinedButton(
-                                            onClick = { showRechargeDialog = true },
+                                            onClick = {
+                                                IpBalanceRepository.fetchRealBalance(context, force = true)
+                                            },
+                                            enabled = !isBalanceFetching,
                                             shape = RoundedCornerShape(10.dp),
                                             contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Default.AccountBalanceWallet,
-                                                contentDescription = null,
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = "Check Balance",
                                                 tint = PurplePrimary,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text("Recharge", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PurplePrimary)
+                                            Text("রিফ্রেশ", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PurplePrimary)
                                         }
 
                                         Button(

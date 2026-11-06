@@ -13,6 +13,7 @@ import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.PowerManager
 import com.smartdialer.app.data.model.CallStatus
+import com.smartdialer.app.data.repository.IpBalanceRepository
 import com.smartdialer.app.data.repository.IpCallPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -461,6 +462,8 @@ object SipEngine {
 
                 if (msg1.statusCode == 200) {
                     _registrationStatus.value = "Online / Registered"
+                    extractBalanceFromHeaders(msg1, context)
+                    IpBalanceRepository.fetchRealBalance(context)
                     return@withContext true to "SIP Account Connected & Registered!"
                 }
 
@@ -510,6 +513,8 @@ object SipEngine {
                     val msg2 = resp2Deferred.await()
                     if (msg2?.statusCode == 200) {
                         _registrationStatus.value = "Online / Registered"
+                        extractBalanceFromHeaders(msg2, context)
+                        IpBalanceRepository.fetchRealBalance(context)
                         true to "SIP Account Connected & Registered!"
                     } else if (msg2 != null) {
                         _registrationStatus.value = "Auth Failed (${msg2.statusCode})"
@@ -526,6 +531,23 @@ object SipEngine {
                 e.printStackTrace()
                 _registrationStatus.value = "Offline"
                 false to "Connection Error: ${e.localizedMessage ?: "Network error"}"
+            }
+        }
+    }
+
+    private fun extractBalanceFromHeaders(msg: SipMessage?, context: Context) {
+        if (msg == null) return
+        val balanceHeader = msg.getHeader("x-balance")
+            ?: msg.getHeader("x-account-balance")
+            ?: msg.getHeader("x-credit")
+            ?: msg.getHeader("p-billing-info")
+            ?: msg.getHeader("billing-info")
+            ?: msg.getHeader("x-user-balance")
+        if (!balanceHeader.isNullOrBlank()) {
+            val match = Regex("""(\d+(\.\d+)?)""").find(balanceHeader)
+            val value = match?.value?.toDoubleOrNull()
+            if (value != null) {
+                IpBalanceRepository.updateFromSipHeader(context, value)
             }
         }
     }

@@ -252,9 +252,9 @@ fun MoreScreen(
             if (ipPreferences.username.isNotBlank()) {
                 "Account: ${ipPreferences.username} • Balance: ৳${String.format(java.util.Locale.US, "%.2f", ipPreferences.balance)}"
             } else if (ipPreferences.domain.isNotBlank()) {
-                "Domain: ${ipPreferences.domain} • Balance: ৳${String.format(java.util.Locale.US, "%.2f", ipPreferences.balance)}"
+                "Domain: ${ipPreferences.domain} • Setup SIP Account & Dashboard"
             } else {
-                "Balance: ৳${String.format(java.util.Locale.US, "%.2f", ipPreferences.balance)} • Setup SIP Account & Dashboard"
+                "Setup SIP Account & Dashboard"
             }
         }
 
