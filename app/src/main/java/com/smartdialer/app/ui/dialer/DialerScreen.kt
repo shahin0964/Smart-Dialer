@@ -37,6 +37,8 @@ import com.smartdialer.app.ui.components.IpCallConfigDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import com.smartdialer.app.data.repository.AppSettingsPreferences
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -73,7 +75,7 @@ fun DialerScreen(
     val inputNumber by viewModel.inputNumber.collectAsState()
     val matchedContacts by viewModel.matchedContacts.collectAsState()
     val showIpDialog by viewModel.showIpDialog.collectAsState()
-    val appSettings = remember { com.smartdialer.app.data.repository.AppSettingsPreferences(context) }
+    val appSettings: AppSettingsPreferences = remember { AppSettingsPreferences(context) }
 
     val pasteFromClipboard = {
         val clipData = clipboardManager.getText()?.text
@@ -274,11 +276,10 @@ fun DialerScreen(
                         viewModel.onDigitClick("2")
                     },
                     onLongClick = {
-                        appSettings.getSpeedDial(2)?.first?.let { num ->
-                            if (num.isNotBlank()) {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                CallManager.initiateCall(context, num, 0)
-                            }
+                        val sd = appSettings.getSpeedDial(2)
+                        if (sd != null && sd.first.isNotBlank()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            CallManager.initiateCall(context, sd.first, 0)
                         }
                     }
                 )
@@ -292,11 +293,10 @@ fun DialerScreen(
                         viewModel.onDigitClick("3")
                     },
                     onLongClick = {
-                        appSettings.getSpeedDial(3)?.first?.let { num ->
-                            if (num.isNotBlank()) {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                CallManager.initiateCall(context, num, 0)
-                            }
+                        val sd = appSettings.getSpeedDial(3)
+                        if (sd != null && sd.first.isNotBlank()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            CallManager.initiateCall(context, sd.first, 0)
                         }
                     }
                 )
@@ -316,11 +316,10 @@ fun DialerScreen(
                         viewModel.onDigitClick("4")
                     },
                     onLongClick = {
-                        appSettings.getSpeedDial(4)?.first?.let { num ->
-                            if (num.isNotBlank()) {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                CallManager.initiateCall(context, num, 0)
-                            }
+                        val sd = appSettings.getSpeedDial(4)
+                        if (sd != null && sd.first.isNotBlank()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            CallManager.initiateCall(context, sd.first, 0)
                         }
                     }
                 )
@@ -334,11 +333,10 @@ fun DialerScreen(
                         viewModel.onDigitClick("5")
                     },
                     onLongClick = {
-                        appSettings.getSpeedDial(5)?.first?.let { num ->
-                            if (num.isNotBlank()) {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                CallManager.initiateCall(context, num, 0)
-                            }
+                        val sd = appSettings.getSpeedDial(5)
+                        if (sd != null && sd.first.isNotBlank()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            CallManager.initiateCall(context, sd.first, 0)
                         }
                     }
                 )
@@ -352,11 +350,10 @@ fun DialerScreen(
                         viewModel.onDigitClick("6")
                     },
                     onLongClick = {
-                        appSettings.getSpeedDial(6)?.first?.let { num ->
-                            if (num.isNotBlank()) {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                CallManager.initiateCall(context, num, 0)
-                            }
+                        val sd = appSettings.getSpeedDial(6)
+                        if (sd != null && sd.first.isNotBlank()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            CallManager.initiateCall(context, sd.first, 0)
                         }
                     }
                 )
@@ -376,11 +373,10 @@ fun DialerScreen(
                         viewModel.onDigitClick("7")
                     },
                     onLongClick = {
-                        appSettings.getSpeedDial(7)?.first?.let { num ->
-                            if (num.isNotBlank()) {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                CallManager.initiateCall(context, num, 0)
-                            }
+                        val sd = appSettings.getSpeedDial(7)
+                        if (sd != null && sd.first.isNotBlank()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            CallManager.initiateCall(context, sd.first, 0)
                         }
                     }
                 )
@@ -394,11 +390,10 @@ fun DialerScreen(
                         viewModel.onDigitClick("8")
                     },
                     onLongClick = {
-                        appSettings.getSpeedDial(8)?.first?.let { num ->
-                            if (num.isNotBlank()) {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                CallManager.initiateCall(context, num, 0)
-                            }
+                        val sd = appSettings.getSpeedDial(8)
+                        if (sd != null && sd.first.isNotBlank()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            CallManager.initiateCall(context, sd.first, 0)
                         }
                     }
                 )
@@ -412,11 +407,10 @@ fun DialerScreen(
                         viewModel.onDigitClick("9")
                     },
                     onLongClick = {
-                        appSettings.getSpeedDial(9)?.first?.let { num ->
-                            if (num.isNotBlank()) {
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                CallManager.initiateCall(context, num, 0)
-                            }
+                        val sd = appSettings.getSpeedDial(9)
+                        if (sd != null && sd.first.isNotBlank()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            CallManager.initiateCall(context, sd.first, 0)
                         }
                     }
                 )
