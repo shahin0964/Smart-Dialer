@@ -51,7 +51,8 @@ data class ContactItem(
     val lookupKey: String? = null,
     val accountType: String? = null,
     val accountName: String? = null,
-    val isGoogleContact: Boolean = false
+    val isGoogleContact: Boolean = false,
+    val hasWhatsApp: Boolean = false
 ) {
     val initial: String
         get() {

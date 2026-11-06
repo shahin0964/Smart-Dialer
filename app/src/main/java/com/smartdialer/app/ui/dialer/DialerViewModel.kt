@@ -3,6 +3,8 @@ package com.smartdialer.app.ui.dialer
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.smartdialer.app.data.callerid.CallerIdResult
+import com.smartdialer.app.data.callerid.CallerIdService
 import com.smartdialer.app.data.model.ContactItem
 import com.smartdialer.app.data.model.SimInfo
 import com.smartdialer.app.data.repository.ContactsRepository
@@ -10,6 +12,8 @@ import com.smartdialer.app.data.repository.IpCallPreferences
 import com.smartdialer.app.data.repository.SimRepository
 import com.smartdialer.app.telecom.CallManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,6 +24,15 @@ class DialerViewModel(
     private val simRepository: SimRepository,
     val ipPreferences: IpCallPreferences
 ) : ViewModel() {
+
+    private val callerIdService = CallerIdService(contactsRepository.context)
+    private var callerIdJob: Job? = null
+
+    private val _callerIdResult = MutableStateFlow<CallerIdResult?>(null)
+    val callerIdResult: StateFlow<CallerIdResult?> = _callerIdResult.asStateFlow()
+
+    private val _isCallerIdLoading = MutableStateFlow(false)
+    val isCallerIdLoading: StateFlow<Boolean> = _isCallerIdLoading.asStateFlow()
 
     private val _inputNumber = MutableStateFlow("")
     val inputNumber: StateFlow<String> = _inputNumber.asStateFlow()
@@ -74,6 +87,9 @@ class DialerViewModel(
     fun onClearAll() {
         _inputNumber.value = ""
         _matchedContacts.value = emptyList()
+        callerIdJob?.cancel()
+        _callerIdResult.value = null
+        _isCallerIdLoading.value = false
     }
 
     fun setNumber(number: String) {
@@ -85,7 +101,31 @@ class DialerViewModel(
         val cleanQuery = query.trim()
         if (cleanQuery.isEmpty()) {
             _matchedContacts.value = emptyList()
+            callerIdJob?.cancel()
+            _callerIdResult.value = null
+            _isCallerIdLoading.value = false
             return
+        }
+
+        // Live Caller ID & Carrier search
+        callerIdJob?.cancel()
+        val digits = cleanQuery.filter { it.isDigit() }
+        if (digits.length >= 3) {
+            callerIdJob = viewModelScope.launch(Dispatchers.IO) {
+                delay(200) // Debounce typing
+                _isCallerIdLoading.value = true
+                try {
+                    val res = callerIdService.lookup(cleanQuery, cachedContacts)
+                    _callerIdResult.value = res
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    _isCallerIdLoading.value = false
+                }
+            }
+        } else {
+            _callerIdResult.value = null
+            _isCallerIdLoading.value = false
         }
 
         viewModelScope.launch(Dispatchers.Default) {

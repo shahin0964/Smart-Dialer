@@ -201,4 +201,19 @@ class AppSettingsPreferences(private val context: Context) {
     var appLockEnabled: Boolean
         get() = prefs.getBoolean("app_lock_enabled", false)
         set(value) = prefs.edit().putBoolean("app_lock_enabled", value).apply()
+
+    // ==========================================
+    // 10. Truecaller & Real-Time Caller ID Settings
+    // ==========================================
+    var callerIdEnabled: Boolean
+        get() = prefs.getBoolean("caller_id_enabled", true)
+        set(value) = prefs.edit().putBoolean("caller_id_enabled", value).apply()
+
+    var truecallerAuthToken: String?
+        get() = prefs.getString("truecaller_auth_token", null)
+        set(value) = prefs.edit().putString("truecaller_auth_token", value).apply()
+
+    var truecallerCustomEndpoint: String?
+        get() = prefs.getString("truecaller_custom_endpoint", null)
+        set(value) = prefs.edit().putString("truecaller_custom_endpoint", value).apply()
 }

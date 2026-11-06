@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -32,14 +33,17 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Email
@@ -50,14 +54,23 @@ import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.smartdialer.app.data.callerid.CallerIdResult
+import com.smartdialer.app.data.callerid.TelecomCarrierDetector
+import com.smartdialer.app.utils.WhatsAppHelper
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -177,6 +190,8 @@ fun ContactsScreen(
 
     val contacts by viewModel.contacts.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
+    val searchCallerIdResult by viewModel.searchCallerIdResult.collectAsState()
+    val isSearchingCallerId by viewModel.isSearchingCallerId.collectAsState()
     val activeFilter by viewModel.activeFilter.collectAsState()
     val counts by viewModel.counts.collectAsState()
     val googleAccounts by viewModel.googleAccounts.collectAsState()
@@ -473,7 +488,7 @@ fun ContactsScreen(
                     Spacer(modifier = Modifier.height(14.dp))
                     Text(
                         text = when {
-                            searchQuery.isNotEmpty() -> "No contacts matching \"$searchQuery\""
+                            searchQuery.isNotEmpty() -> "No saved contacts matching \"$searchQuery\""
                             activeFilter == ContactSourceFilter.GOOGLE -> "No Google contacts found on this device"
                             activeFilter == ContactSourceFilter.DEVICE -> "No device storage contacts found"
                             activeFilter == ContactSourceFilter.SIM -> "No SIM card contacts found"
@@ -483,6 +498,26 @@ fun ContactsScreen(
                         fontWeight = FontWeight.Medium,
                         color = TextMuted
                     )
+
+                    // Live Truecaller-style Number Search Result Card if searching unknown number
+                    if (searchQuery.isNotEmpty() && (searchCallerIdResult != null || isSearchingCallerId)) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        LiveCallerIdSearchCard(
+                            callerId = searchCallerIdResult,
+                            isLoading = isSearchingCallerId,
+                            query = searchQuery,
+                            onCall = { number ->
+                                pendingCallNumber = number
+                                pendingCallName = searchCallerIdResult?.name ?: number
+                            },
+                            onWhatsApp = { number ->
+                                WhatsAppHelper.openWhatsAppChat(context, number)
+                            },
+                            onSave = { _ ->
+                                viewModel.openAddContactDialog()
+                            }
+                        )
+                    }
 
                     if (activeFilter == ContactSourceFilter.GOOGLE) {
                         Spacer(modifier = Modifier.height(12.dp))
@@ -571,6 +606,26 @@ fun ContactsScreen(
                         .fillMaxSize()
                         .padding(end = 28.dp)
                 ) {
+                    if (searchQuery.isNotEmpty() && (searchCallerIdResult != null || isSearchingCallerId)) {
+                        item(key = "live_caller_id_search_item") {
+                            LiveCallerIdSearchCard(
+                                callerId = searchCallerIdResult,
+                                isLoading = isSearchingCallerId,
+                                query = searchQuery,
+                                onCall = { number ->
+                                    pendingCallNumber = number
+                                    pendingCallName = searchCallerIdResult?.name ?: number
+                                },
+                                onWhatsApp = { number ->
+                                    WhatsAppHelper.openWhatsAppChat(context, number)
+                                },
+                                onSave = { _ ->
+                                    viewModel.openAddContactDialog()
+                                }
+                            )
+                        }
+                    }
+
                     for ((letter, contactList) in grouped) {
                         item(key = "header_$letter") {
                             Text(
@@ -855,42 +910,98 @@ fun ContactDetailsDialog(
     onEmail: (String) -> Unit,
     onEdit: () -> Unit
 ) {
-    val avatarColors = listOf(
-        Color(0xFFDBEAFE) to Color(0xFF1D4ED8),
-        Color(0xFFFEF3C7) to Color(0xFFB45309),
-        Color(0xFFDCFCE7) to Color(0xFF15803D),
-        Color(0xFFEDE9FE) to Color(0xFF6D28D9),
-        Color(0xFFFFE4E6) to Color(0xFFBE123C)
-    )
-    val colorPair = avatarColors[Math.abs(contact.name.hashCode()) % avatarColors.size]
     val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val appSettings = remember { AppSettingsPreferences(context) }
+    var isBlocked by remember { mutableStateOf(appSettings.isBlocked(contact.phoneNumber)) }
 
-    AlertDialog(
+    val hasWhatsAppInstalled = remember { WhatsAppHelper.isWhatsAppInstalled(context) }
+    val showWhatsApp = contact.hasWhatsApp || hasWhatsAppInstalled
+
+    Dialog(
         onDismissRequest = onDismiss,
-        title = {
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = Color.White,
+            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .fillMaxHeight(0.85f)
+        ) {
             Column(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                // Top Bar with Edit and Close buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            onEdit()
+                            onDismiss()
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Edit Contact",
+                            tint = PurplePrimary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "Contact Profile",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextDark
+                    )
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = TextMuted,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Big Avatar
                 ContactAvatar(
                     name = contact.name,
                     photoUri = contact.photoUri,
                     contactId = contact.id,
-                    size = 72.dp,
+                    size = 88.dp,
                     preferHighRes = true,
-                    fontSize = 28.sp
+                    fontSize = 32.sp
                 )
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
+                // Name
                 Text(
                     text = contact.name,
-                    fontSize = 18.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = TextDark,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
                 // Account Source Badge
                 Surface(
@@ -902,7 +1013,7 @@ fun ContactDetailsDialog(
                     )
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
@@ -911,7 +1022,7 @@ fun ContactDetailsDialog(
                             tint = if (contact.isGoogleContact) Color(0xFFDC2626) else PurplePrimary,
                             modifier = Modifier.size(13.dp)
                         )
-                        Spacer(modifier = Modifier.width(4.dp))
+                        Spacer(modifier = Modifier.width(5.dp))
                         Text(
                             text = if (contact.isGoogleContact) {
                                 "Google: ${contact.accountName ?: "Synced Account"}"
@@ -924,129 +1035,308 @@ fun ContactDetailsDialog(
                         )
                     }
                 }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                // Phone Numbers
+
+                // WhatsApp Available Badge
+                if (contact.hasWhatsApp) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFECFDF5),
+                        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFFA7F3D0))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Chat,
+                                contentDescription = null,
+                                tint = Color(0xFF25D366),
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = "WhatsApp Active",
+                                fontSize = 11.sp,
+                                color = Color(0xFF065F46),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Featured Large WhatsApp Action Button
+                if (showWhatsApp && contact.phoneNumber.isNotBlank()) {
+                    Button(
+                        onClick = {
+                            WhatsAppHelper.openWhatsAppChat(context, contact.phoneNumber)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Chat,
+                            contentDescription = "WhatsApp",
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Chat on WhatsApp",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
+
+                // Quick Action Circular Buttons (Call, SMS, WhatsApp, Email, Share)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Call Action
+                    ProfileQuickActionButton(
+                        icon = Icons.Default.Call,
+                        label = "Call",
+                        color = PurplePrimary,
+                        onClick = {
+                            if (contact.phoneNumber.isNotBlank()) {
+                                onCall(contact.phoneNumber)
+                                onDismiss()
+                            }
+                        }
+                    )
+
+                    // SMS Action
+                    ProfileQuickActionButton(
+                        icon = Icons.Default.Message,
+                        label = "Message",
+                        color = Color(0xFF0284C7),
+                        onClick = {
+                            if (contact.phoneNumber.isNotBlank()) {
+                                onSms(contact.phoneNumber)
+                                onDismiss()
+                            }
+                        }
+                    )
+
+                    // WhatsApp Action
+                    ProfileQuickActionButton(
+                        icon = Icons.Default.Chat,
+                        label = "WhatsApp",
+                        color = Color(0xFF25D366),
+                        onClick = {
+                            if (contact.phoneNumber.isNotBlank()) {
+                                WhatsAppHelper.openWhatsAppChat(context, contact.phoneNumber)
+                            }
+                        }
+                    )
+
+                    // Email Action
+                    if (!contact.email.isNullOrBlank()) {
+                        ProfileQuickActionButton(
+                            icon = Icons.Default.Email,
+                            label = "Email",
+                            color = Color(0xFFEA4335),
+                            onClick = {
+                                onEmail(contact.email)
+                                onDismiss()
+                            }
+                        )
+                    }
+
+                    // Share Action
+                    ProfileQuickActionButton(
+                        icon = Icons.Default.Share,
+                        label = "Share",
+                        color = Color(0xFF6B7280),
+                        onClick = {
+                            val shareText = "Contact: ${contact.name}\nPhone: ${contact.phoneNumber}${if (!contact.email.isNullOrBlank()) "\nEmail: ${contact.email}" else ""}"
+                            val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(Intent.EXTRA_TEXT, shareText)
+                            }
+                            context.startActivity(Intent.createChooser(shareIntent, "Share Contact"))
+                        }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Phone Numbers Section
                 if (contact.phoneNumbers.isNotEmpty()) {
                     Text(
-                        text = "Phone Numbers",
+                        text = "Phone Numbers (${contact.phoneNumbers.size})",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextMuted
+                        color = TextMuted,
+                        modifier = Modifier.fillMaxWidth()
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     for (phone in contact.phoneNumbers) {
-                        Row(
+                        val carrier = TelecomCarrierDetector.detect(phone)
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFFF8FAFC), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .padding(vertical = 4.dp)
                         ) {
-                            Text(
-                                text = phone,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = TextDark,
-                                modifier = Modifier.weight(1f)
-                            )
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                IconButton(
-                                    onClick = {
-                                        onCall(phone)
-                                        onDismiss()
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Call,
-                                        contentDescription = "Call",
-                                        tint = PurplePrimary,
-                                        modifier = Modifier.size(18.dp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = phone,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextDark
+                                    )
+                                    Text(
+                                        text = "${carrier.carrierName} • ${carrier.location}",
+                                        fontSize = 11.sp,
+                                        color = TextMuted
                                     )
                                 }
-                                IconButton(
-                                    onClick = {
-                                        onSms(phone)
-                                        onDismiss()
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Message,
-                                        contentDescription = "SMS",
-                                        tint = Color(0xFF0284C7),
-                                        modifier = Modifier.size(18.dp)
-                                    )
+
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    // WhatsApp Button for this specific number
+                                    IconButton(
+                                        onClick = {
+                                            WhatsAppHelper.openWhatsAppChat(context, phone)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Chat,
+                                            contentDescription = "WhatsApp",
+                                            tint = Color(0xFF25D366),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    // Call Button
+                                    IconButton(
+                                        onClick = {
+                                            onCall(phone)
+                                            onDismiss()
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Call,
+                                            contentDescription = "Call",
+                                            tint = PurplePrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    // Copy Button
+                                    IconButton(
+                                        onClick = {
+                                            clipboardManager.setText(AnnotatedString(phone))
+                                            Toast.makeText(context, "Number copied", Toast.LENGTH_SHORT).show()
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.ContentCopy,
+                                            contentDescription = "Copy Number",
+                                            tint = Color(0xFF6B7280),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                // Emails
+                // Emails Section
                 if (contact.emails.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(14.dp))
                     Text(
                         text = "Email Addresses",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextMuted
+                        color = TextMuted,
+                        modifier = Modifier.fillMaxWidth()
                     )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
                     for (email in contact.emails) {
-                        Row(
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFF8FAFC),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFFF8FAFC), RoundedCornerShape(10.dp))
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+                                .padding(vertical = 4.dp)
                         ) {
-                            Text(
-                                text = email,
-                                fontSize = 13.sp,
-                                color = TextDark,
-                                modifier = Modifier.weight(1f)
-                            )
-                            IconButton(
-                                onClick = {
-                                    onEmail(email)
-                                    onDismiss()
-                                },
-                                modifier = Modifier.size(32.dp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Email,
-                                    contentDescription = "Send Email",
-                                    tint = Color(0xFFEA4335),
-                                    modifier = Modifier.size(18.dp)
+                                Text(
+                                    text = email,
+                                    fontSize = 13.sp,
+                                    color = TextDark,
+                                    modifier = Modifier.weight(1f)
                                 )
+                                IconButton(
+                                    onClick = {
+                                        onEmail(email)
+                                        onDismiss()
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Email,
+                                        contentDescription = "Email",
+                                        tint = Color(0xFFEA4335),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                // Block & Report Spam Action
+                // Block / Spam Action
                 if (contact.phoneNumber.isNotBlank()) {
-                    val appSettings = remember { AppSettingsPreferences(context) }
-                    var isBlocked by remember { mutableStateOf(appSettings.isBlocked(contact.phoneNumber)) }
-
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                     OutlinedButton(
                         onClick = {
                             if (isBlocked) {
                                 appSettings.removeBlockedNumber(contact.phoneNumber)
                                 appSettings.unreportSpam(contact.phoneNumber)
                                 isBlocked = false
+                                Toast.makeText(context, "Unblocked", Toast.LENGTH_SHORT).show()
                             } else {
                                 appSettings.reportSpam(contact.phoneNumber)
                                 isBlocked = true
+                                Toast.makeText(context, "Reported as spam and blocked", Toast.LENGTH_SHORT).show()
                             }
                         },
                         colors = ButtonDefaults.outlinedButtonColors(
@@ -1056,7 +1346,7 @@ fun ContactDetailsDialog(
                             1.dp,
                             if (isBlocked) Color(0xFF10B981) else Color(0xFFEF4444).copy(alpha = 0.5f)
                         ),
-                        shape = RoundedCornerShape(10.dp),
+                        shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Icon(
@@ -1072,34 +1362,195 @@ fun ContactDetailsDialog(
                         )
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Bottom Close Button
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Close", color = TextMuted, fontSize = 14.sp)
+                }
             }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onEdit()
-                    onDismiss()
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
-                shape = RoundedCornerShape(12.dp)
-            ) {
+        }
+    }
+}
+
+@Composable
+fun ProfileQuickActionButton(
+    icon: ImageVector,
+    label: String,
+    color: Color,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = color.copy(alpha = 0.12f),
+            modifier = Modifier.size(46.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = color,
+                    modifier = Modifier.size(22.dp)
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Edit Contact", fontSize = 13.sp)
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Close", color = TextMuted)
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = TextMuted,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+fun LiveCallerIdSearchCard(
+    callerId: CallerIdResult?,
+    isLoading: Boolean,
+    query: String,
+    onCall: (String) -> Unit,
+    onWhatsApp: (String) -> Unit,
+    onSave: (String) -> Unit
+) {
+    val isSpam = callerId?.isSpam == true
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = if (isSpam) Color(0xFFFEF2F2) else Color(0xFFF8FAFC)),
+        border = androidx.compose.foundation.BorderStroke(1.dp, if (isSpam) Color(0xFFFCA5A5) else PurpleBorder)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isSpam) Color(0xFFFEE2E2) else Color(0xFFEDE9FE),
+                        modifier = Modifier.size(42.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            if (isLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp,
+                                    color = PurplePrimary
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = if (isSpam) Icons.Default.Warning else Icons.Default.Person,
+                                    contentDescription = null,
+                                    tint = if (isSpam) Color(0xFFDC2626) else PurplePrimary,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = callerId?.name ?: if (isLoading) "Searching live caller data..." else "Unknown Number",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSpam) Color(0xFFDC2626) else TextDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (isSpam) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = Color(0xFFFEE2E2)
+                                ) {
+                                    Text(
+                                        text = callerId.spamCategory ?: "SPAM",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFFDC2626),
+                                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = "${callerId?.carrier ?: "Searching Operator"} • ${callerId?.location ?: "Bangladesh"}",
+                            fontSize = 12.sp,
+                            color = TextMuted
+                        )
+                        Text(
+                            text = callerId?.source ?: "Truecaller Live Search",
+                            fontSize = 10.sp,
+                            color = PurplePrimary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
-        },
-        containerColor = Color.White,
-        shape = RoundedCornerShape(20.dp)
-    )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Action Buttons Row: Call, WhatsApp, Save Contact
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Call Button
+                Button(
+                    onClick = { onCall(query) },
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Call", fontSize = 13.sp)
+                }
+
+                // WhatsApp Button (Green)
+                Button(
+                    onClick = { onWhatsApp(query) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF25D366)),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1.3f)
+                ) {
+                    Icon(Icons.Default.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("WhatsApp", fontSize = 13.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                }
+
+                // Save Contact Button
+                OutlinedButton(
+                    onClick = { onSave(query) },
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Default.PersonAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Save", fontSize = 13.sp)
+                }
+            }
+        }
+    }
 }
 
 @Composable

@@ -6,6 +6,8 @@ import android.net.Uri
 import android.provider.ContactsContract
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.smartdialer.app.data.callerid.CallerIdResult
+import com.smartdialer.app.data.callerid.CallerIdService
 import com.smartdialer.app.data.model.ContactCounts
 import com.smartdialer.app.data.model.ContactItem
 import com.smartdialer.app.data.model.ContactSaveDestination
@@ -13,6 +15,7 @@ import com.smartdialer.app.data.model.ContactSaveDestinationType
 import com.smartdialer.app.data.model.ContactSourceFilter
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.telecom.CallManager
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +25,15 @@ import kotlinx.coroutines.launch
 class ContactsViewModel(
     private val contactsRepository: ContactsRepository
 ) : ViewModel() {
+
+    private val callerIdService = CallerIdService(contactsRepository.context)
+    private var callerIdSearchJob: Job? = null
+
+    private val _searchCallerIdResult = MutableStateFlow<CallerIdResult?>(null)
+    val searchCallerIdResult: StateFlow<CallerIdResult?> = _searchCallerIdResult.asStateFlow()
+
+    private val _isSearchingCallerId = MutableStateFlow(false)
+    val isSearchingCallerId: StateFlow<Boolean> = _isSearchingCallerId.asStateFlow()
 
     private val _contacts = MutableStateFlow<List<ContactItem>>(emptyList())
     val contacts: StateFlow<List<ContactItem>> = _contacts.asStateFlow()
@@ -91,6 +103,32 @@ class ContactsViewModel(
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
         loadContacts()
+
+        callerIdSearchJob?.cancel()
+        val cleanDigits = query.filter { it.isDigit() }
+        if (cleanDigits.length >= 3) {
+            callerIdSearchJob = viewModelScope.launch {
+                delay(200) // Debounce typing
+                _isSearchingCallerId.value = true
+                try {
+                    val res = callerIdService.lookup(query, _contacts.value)
+                    _searchCallerIdResult.value = res
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                } finally {
+                    _isSearchingCallerId.value = false
+                }
+            }
+        } else {
+            _searchCallerIdResult.value = null
+            _isSearchingCallerId.value = false
+        }
+    }
+
+    fun clearCallerIdSearchResult() {
+        callerIdSearchJob?.cancel()
+        _searchCallerIdResult.value = null
+        _isSearchingCallerId.value = false
     }
 
     fun setFilter(filter: ContactSourceFilter) {

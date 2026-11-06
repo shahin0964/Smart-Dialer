@@ -21,7 +21,7 @@ import com.smartdialer.app.data.model.ContactSourceFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-class ContactsRepository(private val context: Context) {
+class ContactsRepository(val context: Context) {
 
     suspend fun getContacts(
         searchQuery: String = "",
@@ -186,6 +186,35 @@ class ContactsRepository(private val context: Context) {
             e.printStackTrace()
         }
 
+        // Step 3.5: Query WhatsApp registered profiles from ContactsContract.Data
+        val whatsappContactIds = mutableSetOf<String>()
+        try {
+            val waProjection = arrayOf(
+                ContactsContract.Data.CONTACT_ID
+            )
+            val waCursor = context.contentResolver.query(
+                ContactsContract.Data.CONTENT_URI,
+                waProjection,
+                "${ContactsContract.Data.MIMETYPE} = ? OR ${ContactsContract.Data.MIMETYPE} = ?",
+                arrayOf(
+                    "vnd.android.cursor.item/vnd.com.whatsapp.profile",
+                    "vnd.android.cursor.item/vnd.com.whatsapp.voip.call"
+                ),
+                null
+            )
+            waCursor?.use { c ->
+                val idIdx = c.getColumnIndex(ContactsContract.Data.CONTACT_ID)
+                while (c.moveToNext()) {
+                    val id = if (idIdx != -1) c.getString(idIdx) else null
+                    if (!id.isNullOrBlank()) {
+                        whatsappContactIds.add(id)
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         // Step 4: Query all Contacts from ContactsContract.Contacts
         val allContacts = mutableMapOf<String, ContactItem>()
 
@@ -241,7 +270,8 @@ class ContactsRepository(private val context: Context) {
                         lookupKey = lookup,
                         accountType = primeAccount?.type,
                         accountName = primeAccount?.name,
-                        isGoogleContact = isGoogle
+                        isGoogleContact = isGoogle,
+                        hasWhatsApp = whatsappContactIds.contains(cId)
                     )
                 }
             }
@@ -270,7 +300,8 @@ class ContactsRepository(private val context: Context) {
                 lookupKey = phoneLookups[extraId],
                 accountType = primeAccount?.type,
                 accountName = primeAccount?.name,
-                isGoogleContact = isGoogle
+                isGoogleContact = isGoogle,
+                hasWhatsApp = whatsappContactIds.contains(extraId)
             )
         }
 

@@ -1,6 +1,9 @@
 package com.smartdialer.app.ui.dialer
 
+import android.content.Intent
+import android.provider.ContactsContract
 import android.view.HapticFeedbackConstants
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,18 +25,24 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Backspace
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.SimCard
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import com.smartdialer.app.data.callerid.CallerIdResult
 import com.smartdialer.app.ui.components.IpCallConfigDialog
+import com.smartdialer.app.utils.WhatsAppHelper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -74,6 +83,8 @@ fun DialerScreen(
     val clipboardManager = LocalClipboardManager.current
     val inputNumber by viewModel.inputNumber.collectAsState()
     val matchedContacts by viewModel.matchedContacts.collectAsState()
+    val callerIdResult by viewModel.callerIdResult.collectAsState()
+    val isCallerIdLoading by viewModel.isCallerIdLoading.collectAsState()
     val showIpDialog by viewModel.showIpDialog.collectAsState()
     val appSettings: AppSettingsPreferences = remember { AppSettingsPreferences(context) }
 
@@ -235,6 +246,27 @@ fun DialerScreen(
                         }
                     }
                 }
+            } else if (inputNumber.isNotBlank() && inputNumber.length >= 3) {
+                // Live Truecaller & Operator Caller ID Banner
+                CallerIdBanner(
+                    callerId = callerIdResult,
+                    isLoading = isCallerIdLoading,
+                    inputNumber = inputNumber,
+                    onSaveContact = {
+                        try {
+                            val intent = Intent(Intent.ACTION_INSERT).apply {
+                                type = ContactsContract.Contacts.CONTENT_TYPE
+                                putExtra(ContactsContract.Intents.Insert.PHONE, inputNumber)
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    },
+                    onWhatsApp = {
+                        WhatsAppHelper.openWhatsAppChat(context, inputNumber)
+                    }
+                )
             }
         }
 
@@ -642,3 +674,126 @@ fun ContactChip(
         }
     }
 }
+
+@Composable
+fun CallerIdBanner(
+    callerId: CallerIdResult?,
+    isLoading: Boolean,
+    inputNumber: String,
+    onSaveContact: () -> Unit,
+    onWhatsApp: () -> Unit
+) {
+    val isSpam = callerId?.isSpam == true
+
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = Color(0xFFF8FAFC),
+        border = BorderStroke(1.dp, if (isSpam) Color(0xFFFCA5A5) else Color(0xFFE2E8F0)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.weight(1f)
+            ) {
+                Surface(
+                    shape = CircleShape,
+                    color = if (isSpam) Color(0xFFFEE2E2) else Color(0xFFEDE9FE),
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = PurplePrimary
+                            )
+                        } else {
+                            Icon(
+                                imageVector = if (isSpam) Icons.Default.Warning else Icons.Default.Person,
+                                contentDescription = null,
+                                tint = if (isSpam) Color(0xFFDC2626) else PurplePrimary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = callerId?.name ?: if (isLoading) "Looking up caller..." else "Unknown Number",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSpam) Color(0xFFDC2626) else TextDark,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (isSpam) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFFEE2E2)
+                            ) {
+                                Text(
+                                    text = "SPAM",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFFDC2626),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "${callerId?.carrier ?: "Searching"} • ${callerId?.location ?: "Bangladesh"}",
+                        fontSize = 11.sp,
+                        color = TextMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // Quick Actions: WhatsApp & Save Contact
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // WhatsApp Icon Button (Green)
+                IconButton(
+                    onClick = onWhatsApp,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Chat,
+                        contentDescription = "WhatsApp",
+                        tint = Color(0xFF25D366),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // Add to Contacts Button
+                IconButton(
+                    onClick = onSaveContact,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = "Save Contact",
+                        tint = PurplePrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
