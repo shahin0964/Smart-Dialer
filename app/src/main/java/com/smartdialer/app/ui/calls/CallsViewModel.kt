@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.smartdialer.app.data.model.CallLogItem
 import com.smartdialer.app.data.model.CallType
+import com.smartdialer.app.data.model.GroupedCallLog
 import com.smartdialer.app.data.repository.CallLogRepository
 import com.smartdialer.app.telecom.CallManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,6 +16,9 @@ import kotlinx.coroutines.launch
 class CallsViewModel(
     private val callLogRepository: CallLogRepository
 ) : ViewModel() {
+
+    private val _groupedCallLogs = MutableStateFlow<List<GroupedCallLog>>(emptyList())
+    val groupedCallLogs: StateFlow<List<GroupedCallLog>> = _groupedCallLogs.asStateFlow()
 
     private val _callLogs = MutableStateFlow<List<CallLogItem>>(emptyList())
     val callLogs: StateFlow<List<CallLogItem>> = _callLogs.asStateFlow()
@@ -32,7 +36,7 @@ class CallsViewModel(
         viewModelScope.launch {
             val raw = callLogRepository.getCallLogs(_activeFilter.value)
             val query = _searchQuery.value.trim().lowercase()
-            _callLogs.value = if (query.isEmpty()) {
+            val filteredRaw = if (query.isEmpty()) {
                 raw
             } else {
                 raw.filter {
@@ -40,6 +44,8 @@ class CallsViewModel(
                             it.phoneNumber.contains(query)
                 }
             }
+            _callLogs.value = filteredRaw
+            _groupedCallLogs.value = CallLogRepository.groupCallLogs(filteredRaw)
         }
     }
 
@@ -68,6 +74,24 @@ class CallsViewModel(
     fun deleteLog(id: String) {
         viewModelScope.launch {
             val success = callLogRepository.deleteCallLog(id)
+            if (success) {
+                loadCallLogs()
+            }
+        }
+    }
+
+    fun deleteLogs(ids: List<String>) {
+        viewModelScope.launch {
+            val success = callLogRepository.deleteCallLogs(ids)
+            if (success) {
+                loadCallLogs()
+            }
+        }
+    }
+
+    fun deleteLogsForNumber(number: String) {
+        viewModelScope.launch {
+            val success = callLogRepository.deleteCallLogsForNumber(number)
             if (success) {
                 loadCallLogs()
             }
