@@ -196,12 +196,8 @@ class AppSettingsPreferences(private val context: Context) {
         set(value) = prefs.edit().putString("custom_emergency_name", value).apply()
 
     // ==========================================
-    // 9. VoIP (Messenger, Telegram, Instagram) & App Lock
+    // 9. App Lock & Security
     // ==========================================
-    var voipIntegrationEnabled: Boolean
-        get() = prefs.getBoolean("voip_integration_enabled", true)
-        set(value) = prefs.edit().putBoolean("voip_integration_enabled", value).apply()
-
     var appLockEnabled: Boolean
         get() = prefs.getBoolean("app_lock_enabled", false)
         set(value) = prefs.edit().putBoolean("app_lock_enabled", value).apply()

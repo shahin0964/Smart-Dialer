@@ -21,7 +21,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
@@ -70,7 +69,6 @@ import com.smartdialer.app.ui.dialogs.CallRecordingDialog
 import com.smartdialer.app.ui.dialogs.CallingCountryDialog
 import com.smartdialer.app.ui.dialogs.DualSimSettingsDialog
 import com.smartdialer.app.ui.dialogs.EmergencySosDialog
-import com.smartdialer.app.ui.dialogs.SocialVoipCallingDialog
 import com.smartdialer.app.ui.dialogs.SoundsHapticsDialog
 import com.smartdialer.app.ui.dialogs.SpeedDialDialog
 import com.smartdialer.app.ui.dialogs.VcfExportImportDialog
@@ -98,7 +96,6 @@ fun MoreScreen(
     var showCountryDialog by remember { mutableStateOf(false) }
     var showSpeedDialDialog by remember { mutableStateOf(false) }
     var showEmergencySosDialog by remember { mutableStateOf(false) }
-    var showVoipDialog by remember { mutableStateOf(false) }
     var showVcfDialog by remember { mutableStateOf(false) }
     var showCallRecordDialog by remember { mutableStateOf(false) }
     var showSoundsHapticsDialog by remember { mutableStateOf(false) }
@@ -175,14 +172,6 @@ fun MoreScreen(
             onCallEmergency = { number ->
                 CallManager.initiateCall(context, number, 0)
             }
-        )
-    }
-
-    if (showVoipDialog) {
-        SocialVoipCallingDialog(
-            appSettings = appSettings,
-            onDismiss = { showVoipDialog = false },
-            onSaved = { refreshKey++ }
         )
     }
 
@@ -375,22 +364,7 @@ fun MoreScreen(
         // SECTION 2: SMART FEATURES & SECURITY
         SectionHeader("Smart Features & Security")
 
-        // 6. Social App Calls (Messenger, Telegram, Instagram, WhatsApp)
-        val voipSummary = remember(refreshKey, appSettings.voipIntegrationEnabled) {
-            if (appSettings.voipIntegrationEnabled) {
-                "Enabled • Receive Messenger, Telegram, Instagram & WhatsApp calls"
-            } else {
-                "Disabled • Social calls ignored"
-            }
-        }
-        MoreOptionItem(
-            icon = Icons.Default.Chat,
-            title = "Social App Calls (iPhone CallKit Style)",
-            subtitle = voipSummary,
-            onClick = { showVoipDialog = true }
-        )
-
-        // 7. Blocked Numbers & Spam Protection
+        // 6. Blocked Numbers & Spam Protection
         val blockedSummary = remember(refreshKey, appSettings.blockedNumbers.size, appSettings.spamProtectionEnabled, appSettings.spamProtectionLevel, appSettings.blockHiddenNumbers) {
             val hiddenTag = if (appSettings.blockHiddenNumbers) " • Hidden Blocked" else ""
             if (!appSettings.spamProtectionEnabled) {
