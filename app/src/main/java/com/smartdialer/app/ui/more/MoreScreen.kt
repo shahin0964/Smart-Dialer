@@ -248,13 +248,13 @@ fun MoreScreen(
 
         // Options List
         // 1. IP Calling & IP Number Settings
-        val ipSummary = remember(refreshKey) {
+        val ipSummary = remember(refreshKey, ipPreferences.balance) {
             if (ipPreferences.username.isNotBlank()) {
-                "Account: ${ipPreferences.username} (${ipPreferences.transportProtocol})"
+                "Account: ${ipPreferences.username} • Balance: ৳${String.format(java.util.Locale.US, "%.2f", ipPreferences.balance)}"
             } else if (ipPreferences.domain.isNotBlank()) {
-                "Domain: ${ipPreferences.domain} (${ipPreferences.transportProtocol})"
+                "Domain: ${ipPreferences.domain} • Balance: ৳${String.format(java.util.Locale.US, "%.2f", ipPreferences.balance)}"
             } else {
-                "Configure SIP account, proxy & network"
+                "Balance: ৳${String.format(java.util.Locale.US, "%.2f", ipPreferences.balance)} • Setup SIP Account & Dashboard"
             }
         }
 

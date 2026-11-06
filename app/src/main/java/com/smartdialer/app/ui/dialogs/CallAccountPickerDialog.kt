@@ -41,9 +41,9 @@ import com.smartdialer.app.ui.theme.Sim2Green
 fun CallAccountPickerDialog(
     phoneNumber: String,
     contactName: String? = null,
-    onCallSim1: () -> Unit,
-    onCallSim2: () -> Unit,
-    onCallIp: () -> Unit,
+    onCallSim1: (String) -> Unit,
+    onCallSim2: (String) -> Unit,
+    onCallIp: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -116,8 +116,8 @@ fun CallAccountPickerDialog(
                     icon = Icons.Default.SimCard,
                     backgroundColor = Sim1Blue,
                     onClick = {
+                        onCallSim1(phoneNumber)
                         onDismiss()
-                        onCallSim1()
                     }
                 )
 
@@ -130,8 +130,8 @@ fun CallAccountPickerDialog(
                     icon = Icons.Default.SimCard,
                     backgroundColor = Sim2Green,
                     onClick = {
+                        onCallSim2(phoneNumber)
                         onDismiss()
-                        onCallSim2()
                     }
                 )
 
@@ -144,8 +144,8 @@ fun CallAccountPickerDialog(
                     icon = Icons.Default.Language,
                     backgroundColor = IpCallPurple,
                     onClick = {
+                        onCallIp(phoneNumber)
                         onDismiss()
-                        onCallIp()
                     }
                 )
 

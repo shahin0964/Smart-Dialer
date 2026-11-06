@@ -107,6 +107,18 @@ class IpCallPreferences(private val context: Context) {
         }
         set(value) = prefs.edit().putString("ip_mode", value.name).apply()
 
+    // Account Balance (BDT)
+    var balance: Double
+        get() = prefs.getString("sip_balance", "50.00")?.toDoubleOrNull() ?: 50.00
+        set(value) {
+            prefs.edit().putString("sip_balance", String.format(java.util.Locale.US, "%.2f", value)).apply()
+        }
+
+    fun addBalance(amount: Double) {
+        val newBal = (balance + amount).coerceAtLeast(0.0)
+        balance = newBal
+    }
+
     val isConfigured: Boolean
         get() = username.isNotBlank() || domain.isNotBlank() || ipPrefix.isNotBlank()
 

@@ -88,18 +88,32 @@ fun CallsScreen(
     var pendingCallNumber by remember { mutableStateOf<String?>(null) }
     var pendingCallName by remember { mutableStateOf<String?>(null) }
 
-    if (pendingCallNumber != null) {
+    val currentPendingNumber = pendingCallNumber
+    val currentPendingName = pendingCallName
+    if (!currentPendingNumber.isNullOrBlank()) {
         CallAccountPickerDialog(
-            phoneNumber = pendingCallNumber!!,
-            contactName = pendingCallName,
-            onCallSim1 = {
-                CallManager.initiateCall(context, pendingCallNumber!!, 0)
+            phoneNumber = currentPendingNumber,
+            contactName = currentPendingName,
+            onCallSim1 = { numberToCall ->
+                try {
+                    CallManager.initiateCall(context, numberToCall, 0)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             },
-            onCallSim2 = {
-                CallManager.initiateCall(context, pendingCallNumber!!, 1)
+            onCallSim2 = { numberToCall ->
+                try {
+                    CallManager.initiateCall(context, numberToCall, 1)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             },
-            onCallIp = {
-                CallManager.initiateIpCall(context, pendingCallNumber!!)
+            onCallIp = { numberToCall ->
+                try {
+                    CallManager.initiateIpCall(context, numberToCall)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             },
             onDismiss = {
                 pendingCallNumber = null

@@ -18,7 +18,9 @@ import android.provider.ContactsContract
 import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.ActiveCallInfo
 import com.smartdialer.app.data.model.CallStatus
+import com.smartdialer.app.data.model.CallType
 import com.smartdialer.app.data.model.SpamAction
+import com.smartdialer.app.data.repository.IpCallStatsRepository
 import com.smartdialer.app.data.repository.SpamProtectionManager
 import com.smartdialer.app.ui.call.CallActivity
 import kotlinx.coroutines.CoroutineScope
@@ -300,12 +302,15 @@ object CallManager {
 
     fun reject() {
         if (isIpCallActive) {
+            val num = _currentCallState.value.number
+            val name = _currentCallState.value.contactName
             isIpCallActive = false
             SipEngine.rejectIncomingCall()
             stopDurationTimer()
-            appContext?.let {
-                CallNotificationManager.dismissAll(it)
-                IpCallService.stop(it)
+            appContext?.let { ctx ->
+                IpCallStatsRepository.recordCall(ctx, num, name, CallType.REJECTED, 0)
+                CallNotificationManager.dismissAll(ctx)
+                IpCallService.stop(ctx)
             }
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
@@ -326,12 +331,23 @@ object CallManager {
 
     fun disconnect() {
         if (isIpCallActive) {
+            val num = _currentCallState.value.number
+            val name = _currentCallState.value.contactName
+            val duration = _currentCallState.value.durationSeconds
+            val isIncoming = _currentCallState.value.isIncoming
+            val wasActive = _currentCallState.value.status == CallStatus.ACTIVE
+            val callType = when {
+                wasActive -> if (isIncoming) CallType.INCOMING else CallType.OUTGOING
+                isIncoming -> CallType.MISSED
+                else -> CallType.OUTGOING
+            }
             isIpCallActive = false
             SipEngine.endCall()
             stopDurationTimer()
-            appContext?.let {
-                CallNotificationManager.dismissAll(it)
-                IpCallService.stop(it)
+            appContext?.let { ctx ->
+                IpCallStatsRepository.recordCall(ctx, num, name, callType, duration)
+                CallNotificationManager.dismissAll(ctx)
+                IpCallService.stop(ctx)
             }
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
@@ -396,40 +412,41 @@ object CallManager {
 
     fun initiateIpCall(context: Context, number: String) {
         if (number.isBlank()) return
-        val cleanNumber = number.trim()
-        appContext = context.applicationContext
+        try {
+            val cleanNumber = number.trim()
+            appContext = context.applicationContext
 
-        val (resolvedName, resolvedPhoto) = lookupContactInfo(context, cleanNumber)
-        val displayName = if (!resolvedName.isNullOrBlank()) resolvedName else cleanNumber
+            val (resolvedName, resolvedPhoto) = lookupContactInfo(context, cleanNumber)
+            val displayName = if (!resolvedName.isNullOrBlank()) resolvedName else cleanNumber
 
-        isIpCallActive = true
-        _currentCallState.value = ActiveCallInfo(
-            callId = "ip_${System.currentTimeMillis()}",
-            number = cleanNumber,
-            contactName = displayName,
-            photoUri = resolvedPhoto,
-            status = CallStatus.CONNECTING,
-            simSlot = 3,
-            isIpCall = true,
-            isIncoming = false
-        )
+            isIpCallActive = true
+            _currentCallState.value = ActiveCallInfo(
+                callId = "ip_${System.currentTimeMillis()}",
+                number = cleanNumber,
+                contactName = displayName,
+                photoUri = resolvedPhoto,
+                status = CallStatus.CONNECTING,
+                simSlot = 3,
+                isIpCall = true,
+                isIncoming = false
+            )
 
-        // Launch CallActivity directly without any system resolver or chooser
-        val intent = Intent(context, CallActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
-        context.startActivity(intent)
+            // Launch CallActivity directly without any system resolver or chooser
+            val intent = Intent(context, CallActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            context.startActivity(intent)
 
-        // Start Foreground Service to keep CPU, network and microphone alive when screen turns off
-        IpCallService.start(context, cleanNumber, displayName, "Connecting...")
+            // Start Foreground Service to keep CPU, network and microphone alive when screen turns off
+            IpCallService.start(context, cleanNumber, displayName, "Connecting...")
 
-        // Start pure SIP Engine
-        SipEngine.startCall(
-            destination = cleanNumber,
-            context = context,
-            onStateChange = { status, errorReason ->
+            // Start pure SIP Engine
+            SipEngine.startCall(
+                destination = cleanNumber,
+                context = context,
+                onStateChange = { status, errorReason ->
                 when (status) {
                     CallStatus.CONNECTING -> {
                         _currentCallState.value = _currentCallState.value.copy(status = CallStatus.CONNECTING)
@@ -444,10 +461,14 @@ object CallManager {
                         appContext?.let { IpCallService.start(it, cleanNumber, displayName, "Call in progress") }
                     }
                     CallStatus.DISCONNECTED -> {
+                        val duration = _currentCallState.value.durationSeconds
                         stopDurationTimer()
                         _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
                         isIpCallActive = false
-                        appContext?.let { IpCallService.stop(it) }
+                        appContext?.let { ctx ->
+                            IpCallStatsRepository.recordCall(ctx, cleanNumber, displayName, CallType.OUTGOING, duration)
+                            IpCallService.stop(ctx)
+                        }
                         scope.launch {
                             delay(1200)
                             clearCall()
@@ -457,6 +478,9 @@ object CallManager {
                 }
             }
         )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun handleIncomingIpCall(context: Context, number: String, callerDisplayName: String?) {
@@ -512,11 +536,14 @@ object CallManager {
 
     fun handleIncomingIpCallCancelled() {
         if (isIpCallActive && _currentCallState.value.status == CallStatus.RINGING) {
+            val num = _currentCallState.value.number
+            val name = _currentCallState.value.contactName
             isIpCallActive = false
             stopDurationTimer()
-            appContext?.let {
-                CallNotificationManager.dismissAll(it)
-                IpCallService.stop(it)
+            appContext?.let { ctx ->
+                IpCallStatsRepository.recordCall(ctx, num, name, CallType.MISSED, 0)
+                CallNotificationManager.dismissAll(ctx)
+                IpCallService.stop(ctx)
             }
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
@@ -528,79 +555,83 @@ object CallManager {
 
     fun initiateCall(context: Context, number: String, simSlot: Int = 0) {
         if (number.isBlank()) return
-        val cleanNumber = number.replace("#", "%23")
-        val uri = Uri.parse("tel:$cleanNumber")
-        val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
-
-        val hasPhonePermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.CALL_PHONE
-        ) == PackageManager.PERMISSION_GRANTED
-
-        val hasPhoneStatePermission = ContextCompat.checkSelfPermission(
-            context,
-            Manifest.permission.READ_PHONE_STATE
-        ) == PackageManager.PERMISSION_GRANTED
-
-        // Find real PhoneAccountHandle for the requested simSlot
-        var targetAccount: PhoneAccountHandle? = null
-        if (telecomManager != null && hasPhoneStatePermission) {
-            try {
-                val callCapableAccounts: List<PhoneAccountHandle> = telecomManager.callCapablePhoneAccounts
-                if (callCapableAccounts.isNotEmpty()) {
-                    targetAccount = callCapableAccounts.getOrNull(simSlot) ?: callCapableAccounts.firstOrNull()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        // 1. Direct Telecom placeCall (places call directly via default dialer without chooser popup)
-        if (telecomManager != null && hasPhonePermission) {
-            try {
-                val extras = android.os.Bundle().apply {
-                    if (targetAccount != null) {
-                        putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, targetAccount)
-                    }
-                    putInt("com.android.phone.extra.slot", simSlot)
-                    putInt("simSlot", simSlot)
-                    putInt("phone_account_id", simSlot)
-                    putInt("Subscription", simSlot)
-                    putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
-                    putBoolean(TelecomManager.EXTRA_START_CALL_WITH_VIDEO_STATE, false)
-                }
-                telecomManager.placeCall(uri, extras)
-                return
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        // 2. Fallback: ACTION_CALL or ACTION_DIAL Intent
-        val action = if (hasPhonePermission) Intent.ACTION_CALL else Intent.ACTION_DIAL
-        val intent = Intent(action, uri).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK
-            if (targetAccount != null) {
-                putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, targetAccount)
-            }
-            putExtra("com.android.phone.extra.slot", simSlot)
-            putExtra("simSlot", simSlot)
-            putExtra("phone_account_id", simSlot)
-            putExtra("Subscription", simSlot)
-        }
-
         try {
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            // Fallback to standard ACTION_DIAL without account extra
-            try {
-                val dialFallback = Intent(Intent.ACTION_DIAL, uri).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            val cleanNumber = number.replace("#", "%23")
+            val uri = Uri.parse("tel:$cleanNumber")
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+
+            val hasPhonePermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CALL_PHONE
+            ) == PackageManager.PERMISSION_GRANTED
+
+            val hasPhoneStatePermission = ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.READ_PHONE_STATE
+            ) == PackageManager.PERMISSION_GRANTED
+
+            // Find real PhoneAccountHandle for the requested simSlot
+            var targetAccount: PhoneAccountHandle? = null
+            if (telecomManager != null && hasPhoneStatePermission) {
+                try {
+                    val callCapableAccounts: List<PhoneAccountHandle> = telecomManager.callCapablePhoneAccounts
+                    if (callCapableAccounts.isNotEmpty()) {
+                        targetAccount = callCapableAccounts.getOrNull(simSlot) ?: callCapableAccounts.firstOrNull()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-                context.startActivity(dialFallback)
-            } catch (ex: Exception) {
-                ex.printStackTrace()
             }
+
+            // 1. Direct Telecom placeCall (places call directly via default dialer without chooser popup)
+            if (telecomManager != null && hasPhonePermission) {
+                try {
+                    val extras = android.os.Bundle().apply {
+                        if (targetAccount != null) {
+                            putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, targetAccount)
+                        }
+                        putInt("com.android.phone.extra.slot", simSlot)
+                        putInt("simSlot", simSlot)
+                        putInt("phone_account_id", simSlot)
+                        putInt("Subscription", simSlot)
+                        putBoolean(TelecomManager.EXTRA_START_CALL_WITH_SPEAKERPHONE, false)
+                        putBoolean(TelecomManager.EXTRA_START_CALL_WITH_VIDEO_STATE, false)
+                    }
+                    telecomManager.placeCall(uri, extras)
+                    return
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            // 2. Fallback: ACTION_CALL or ACTION_DIAL Intent
+            val action = if (hasPhonePermission) Intent.ACTION_CALL else Intent.ACTION_DIAL
+            val intent = Intent(action, uri).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                if (targetAccount != null) {
+                    putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, targetAccount)
+                }
+                putExtra("com.android.phone.extra.slot", simSlot)
+                putExtra("simSlot", simSlot)
+                putExtra("phone_account_id", simSlot)
+                putExtra("Subscription", simSlot)
+            }
+
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                // Fallback to standard ACTION_DIAL without account extra
+                try {
+                    val dialFallback = Intent(Intent.ACTION_DIAL, uri).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                    context.startActivity(dialFallback)
+                } catch (ex: Exception) {
+                    ex.printStackTrace()
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 }

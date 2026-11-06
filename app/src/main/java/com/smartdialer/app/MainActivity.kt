@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.repository.AppSettingsPreferences
+import com.smartdialer.app.data.repository.AppUpdateNotifier
 import com.smartdialer.app.data.repository.CallLogRepository
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.data.repository.IpCallPreferences
@@ -43,6 +45,7 @@ import com.smartdialer.app.ui.contacts.ContactsScreen
 import com.smartdialer.app.ui.contacts.ContactsViewModel
 import com.smartdialer.app.ui.dialer.DialerScreen
 import com.smartdialer.app.ui.dialer.DialerViewModel
+import com.smartdialer.app.ui.dialogs.AppUpdateDialog
 import com.smartdialer.app.ui.more.MoreScreen
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.SmartDialerTheme
@@ -62,6 +65,8 @@ class MainActivity : ComponentActivity() {
         // Default dialer request completed
     }
 
+    private val triggerUpdateDialogFlow = kotlinx.coroutines.flow.MutableStateFlow(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -73,6 +78,14 @@ class MainActivity : ComponentActivity() {
 
         if (ipPreferences.isConfigured) {
             com.smartdialer.app.telecom.SipEngine.startListening(this)
+        }
+
+        // Initialize App Update Notification Channel & Check in Background
+        AppUpdateNotifier.ensureChannel(this)
+        AppUpdateNotifier.checkAndNotify(this)
+
+        if (intent.getBooleanExtra(AppUpdateNotifier.EXTRA_OPEN_UPDATE_DIALOG, false)) {
+            triggerUpdateDialogFlow.value = true
         }
 
         val initialNumber = extractDialNumber(intent)
@@ -101,6 +114,9 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.getBooleanExtra(AppUpdateNotifier.EXTRA_OPEN_UPDATE_DIALOG, false)) {
+            triggerUpdateDialogFlow.value = true
+        }
         val number = extractDialNumber(intent)
         if (intent.action == Intent.ACTION_CALL && !number.isNullOrBlank()) {
             if (intent.data?.scheme == "sip") {
@@ -190,6 +206,22 @@ class MainActivity : ComponentActivity() {
         onRequestDefaultDialer: () -> Unit
     ) {
         var selectedTab by remember { mutableStateOf(initialTab) }
+
+        val triggerUpdateDialog by triggerUpdateDialogFlow.collectAsState()
+        var showUpdateDialog by remember { mutableStateOf(false) }
+
+        LaunchedEffect(triggerUpdateDialog) {
+            if (triggerUpdateDialog) {
+                showUpdateDialog = true
+                triggerUpdateDialogFlow.value = false
+            }
+        }
+
+        if (showUpdateDialog) {
+            AppUpdateDialog(
+                onDismiss = { showUpdateDialog = false }
+            )
+        }
 
         val dialerViewModel = remember {
             DialerViewModel(contactsRepository, simRepository, ipPreferences)
