@@ -12,18 +12,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.WorkspacePremium
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -43,8 +36,6 @@ fun TopHeader(
     onSettingsClick: () -> Unit = {},
     onDefaultDialerClick: () -> Unit = {}
 ) {
-    var menuExpanded by remember { mutableStateOf(false) }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -86,7 +77,7 @@ fun TopHeader(
             )
         }
 
-        // Actions: Crown + 3 Dots Menu
+        // Actions: Crown
         Row(
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -100,41 +91,6 @@ fun TopHeader(
                     tint = CrownGold,
                     modifier = Modifier.size(24.dp)
                 )
-            }
-
-            Box {
-                IconButton(
-                    onClick = { menuExpanded = true },
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More Menu",
-                        tint = TextMuted,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { menuExpanded = false },
-                    modifier = Modifier.background(Color.White)
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Set as Default Phone App") },
-                        onClick = {
-                            menuExpanded = false
-                            onDefaultDialerClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Settings") },
-                        onClick = {
-                            menuExpanded = false
-                            onSettingsClick()
-                        }
-                    )
-                }
             }
         }
     }
