@@ -66,6 +66,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
 import com.smartdialer.app.data.model.CallType
@@ -991,8 +992,9 @@ fun IpAccountSettingsScreen(
 
                     Spacer(modifier = Modifier.height(20.dp))
                 }
+            }
 
-                IpSettingsSubView.ADVANCED -> {
+            IpSettingsSubView.ADVANCED -> {
                     // ============================================
                     // ADVANCED SETTINGS (Exact System From Video)
                     // ============================================
