@@ -38,6 +38,9 @@ class ContactsViewModel(
     private val _googleAccounts = MutableStateFlow<List<String>>(emptyList())
     val googleAccounts: StateFlow<List<String>> = _googleAccounts.asStateFlow()
 
+    private val _selectedGoogleAccount = MutableStateFlow<String?>(null)
+    val selectedGoogleAccount: StateFlow<String?> = _selectedGoogleAccount.asStateFlow()
+
     private val _isRefreshing = MutableStateFlow(false)
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
@@ -64,7 +67,12 @@ class ContactsViewModel(
             _isRefreshing.value = true
             val query = _searchQuery.value.trim()
             val filter = _activeFilter.value
-            val list = contactsRepository.getContacts(searchQuery = query, filter = filter)
+            val selGAccount = _selectedGoogleAccount.value
+            val list = contactsRepository.getContacts(
+                searchQuery = query,
+                filter = filter,
+                selectedGoogleAccount = selGAccount
+            )
             _contacts.value = list
 
             val cnts = contactsRepository.getContactCounts()
@@ -87,6 +95,15 @@ class ContactsViewModel(
 
     fun setFilter(filter: ContactSourceFilter) {
         _activeFilter.value = filter
+        if (filter != ContactSourceFilter.GOOGLE) {
+            _selectedGoogleAccount.value = null
+        }
+        loadContacts()
+    }
+
+    fun selectGoogleAccount(account: String?) {
+        _selectedGoogleAccount.value = account
+        _activeFilter.value = ContactSourceFilter.GOOGLE
         loadContacts()
     }
 

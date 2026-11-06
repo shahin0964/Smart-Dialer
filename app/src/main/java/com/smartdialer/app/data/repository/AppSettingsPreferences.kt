@@ -123,11 +123,86 @@ class AppSettingsPreferences(private val context: Context) {
 
     fun isBlocked(number: String): Boolean {
         val clean = number.trim().replace(" ", "").replace("-", "")
-        if (clean.isBlank()) return false
+        if (clean.isBlank()) return blockHiddenNumbers
         if (blockUnknownNumbers && clean.all { it.isDigit() } && clean.length < 5) return true
         return blockedNumbers.any { blocked ->
             val bClean = blocked.trim().replace(" ", "").replace("-", "")
             clean.endsWith(bClean) || bClean.endsWith(clean)
         }
     }
+
+    // ==========================================
+    // 5. Calling Country & Voicemail
+    // ==========================================
+    var callingCountryCode: String
+        get() = prefs.getString("calling_country_code", "+880") ?: "+880"
+        set(value) = prefs.edit().putString("calling_country_code", value).apply()
+
+    var callingCountryName: String
+        get() = prefs.getString("calling_country_name", "Bangladesh") ?: "Bangladesh"
+        set(value) = prefs.edit().putString("calling_country_name", value).apply()
+
+    var voicemailNumber: String
+        get() = prefs.getString("voicemail_number", "*121#") ?: "*121#"
+        set(value) = prefs.edit().putString("voicemail_number", value).apply()
+
+    // ==========================================
+    // 6. Speed Dial (1-9)
+    // ==========================================
+    fun getSpeedDial(digit: Int): Pair<String, String>? {
+        val number = prefs.getString("speed_dial_${digit}_number", null) ?: return null
+        val name = prefs.getString("speed_dial_${digit}_name", "Speed Dial $digit") ?: "Speed Dial $digit"
+        return number to name
+    }
+
+    fun setSpeedDial(digit: Int, number: String, name: String) {
+        prefs.edit()
+            .putString("speed_dial_${digit}_number", number.trim())
+            .putString("speed_dial_${digit}_name", name.trim())
+            .apply()
+    }
+
+    fun removeSpeedDial(digit: Int) {
+        prefs.edit()
+            .remove("speed_dial_${digit}_number")
+            .remove("speed_dial_${digit}_name")
+            .apply()
+    }
+
+    fun getAllSpeedDials(): Map<Int, Pair<String, String>> {
+        val map = mutableMapOf<Int, Pair<String, String>>()
+        for (i in 1..9) {
+            getSpeedDial(i)?.let { map[i] = it }
+        }
+        return map
+    }
+
+    // ==========================================
+    // 7. Advanced Privacy & Blocking
+    // ==========================================
+    var blockHiddenNumbers: Boolean
+        get() = prefs.getBoolean("block_hidden_numbers", false)
+        set(value) = prefs.edit().putBoolean("block_hidden_numbers", value).apply()
+
+    // ==========================================
+    // 8. Emergency SOS Settings
+    // ==========================================
+    var customEmergencyNumber: String?
+        get() = prefs.getString("custom_emergency_number", null)
+        set(value) = prefs.edit().putString("custom_emergency_number", value).apply()
+
+    var customEmergencyName: String?
+        get() = prefs.getString("custom_emergency_name", null)
+        set(value) = prefs.edit().putString("custom_emergency_name", value).apply()
+
+    // ==========================================
+    // 9. VoIP (Messenger, Telegram, Instagram) & App Lock
+    // ==========================================
+    var voipIntegrationEnabled: Boolean
+        get() = prefs.getBoolean("voip_integration_enabled", true)
+        set(value) = prefs.edit().putBoolean("voip_integration_enabled", value).apply()
+
+    var appLockEnabled: Boolean
+        get() = prefs.getBoolean("app_lock_enabled", false)
+        set(value) = prefs.edit().putBoolean("app_lock_enabled", value).apply()
 }

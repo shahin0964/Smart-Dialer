@@ -180,6 +180,7 @@ fun ContactsScreen(
     val activeFilter by viewModel.activeFilter.collectAsState()
     val counts by viewModel.counts.collectAsState()
     val googleAccounts by viewModel.googleAccounts.collectAsState()
+    val selectedGoogleAccount by viewModel.selectedGoogleAccount.collectAsState()
     val isRefreshing by viewModel.isRefreshing.collectAsState()
     val selectedContact by viewModel.selectedContact.collectAsState()
     val showDeletedDialog by viewModel.showDeletedDialog.collectAsState()
@@ -337,6 +338,72 @@ fun ContactsScreen(
             }
         }
 
+        // Specific Google Account sub-filter chips (when Google filter is selected)
+        AnimatedVisibility(
+            visible = activeFilter == ContactSourceFilter.GOOGLE && googleAccounts.isNotEmpty()
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // "All Google Accounts" chip
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (selectedGoogleAccount == null) Color(0xFFEA4335) else Color.White,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (selectedGoogleAccount == null) Color(0xFFEA4335) else Color(0xFFE2E8F0)
+                    ),
+                    modifier = Modifier.clickable { viewModel.selectGoogleAccount(null) }
+                ) {
+                    Text(
+                        text = "All Google (${counts.google})",
+                        fontSize = 11.sp,
+                        fontWeight = if (selectedGoogleAccount == null) FontWeight.Bold else FontWeight.Medium,
+                        color = if (selectedGoogleAccount == null) Color.White else TextDark,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+
+                // Individual Google Accounts
+                for (acc in googleAccounts) {
+                    val accCount = counts.googleAccountsMap[acc] ?: 0
+                    val isSelected = selectedGoogleAccount == acc
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = if (isSelected) Color(0xFF1A73E8) else Color.White,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            if (isSelected) Color(0xFF1A73E8) else Color(0xFFE2E8F0)
+                        ),
+                        modifier = Modifier.clickable { viewModel.selectGoogleAccount(acc) }
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = acc,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else TextDark
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "($accCount)",
+                                fontSize = 10.sp,
+                                color = if (isSelected) Color.White.copy(alpha = 0.85f) else TextMuted
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         // Sync Status Message Banner
         AnimatedVisibility(
             visible = !syncMessage.isNullOrBlank(),
@@ -476,7 +543,11 @@ fun ContactsScreen(
                     )
                     if (activeFilter == ContactSourceFilter.GOOGLE && googleAccounts.isNotEmpty()) {
                         Text(
-                            text = googleAccounts.firstOrNull() ?: "",
+                            text = if (selectedGoogleAccount != null) {
+                                "Account: $selectedGoogleAccount"
+                            } else {
+                                "Accounts (${googleAccounts.size}): ${googleAccounts.joinToString(", ")}"
+                            },
                             fontSize = 11.sp,
                             color = PurplePrimary,
                             fontWeight = FontWeight.Medium
@@ -734,9 +805,10 @@ fun ContactRow(
                                     fontWeight = FontWeight.Black,
                                     color = Color(0xFFDC2626)
                                 )
+                                val accLabel = contact.accountName?.substringBefore("@") ?: "Google"
                                 Spacer(modifier = Modifier.width(2.dp))
                                 Text(
-                                    text = "Google",
+                                    text = accLabel,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = Color(0xFFB91C1C)

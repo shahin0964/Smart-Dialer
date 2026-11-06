@@ -36,7 +36,8 @@ data class ContactCounts(
     val total: Int = 0,
     val google: Int = 0,
     val device: Int = 0,
-    val sim: Int = 0
+    val sim: Int = 0,
+    val googleAccountsMap: Map<String, Int> = emptyMap()
 )
 
 data class ContactItem(

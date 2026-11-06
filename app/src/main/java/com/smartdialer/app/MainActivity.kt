@@ -303,6 +303,7 @@ class MainActivity : ComponentActivity() {
                         ipPreferences = ipPreferences,
                         simRepository = simRepository,
                         appSettings = appSettings,
+                        contactsRepository = contactsRepository,
                         onRequestDefaultDialer = onRequestDefaultDialer
                     )
                 }

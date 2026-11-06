@@ -44,6 +44,8 @@ object CallManager {
     private var activeCall: Call? = null
     private var inCallService: CallService? = null
     private var isIpCallActive = false
+    private var voipAnswerIntent: android.app.PendingIntent? = null
+    private var voipDeclineIntent: android.app.PendingIntent? = null
 
     private val callCallback = object : Call.Callback() {
         override fun onStateChanged(call: Call, state: Int) {
@@ -103,6 +105,48 @@ object CallManager {
             IpCallService.stop(it)
         }
         _currentCallState.value = ActiveCallInfo(status = CallStatus.DISCONNECTED)
+    }
+
+    fun setIncomingVoipCall(
+        context: Context,
+        callerName: String,
+        appName: String,
+        answerIntent: android.app.PendingIntent?,
+        declineIntent: android.app.PendingIntent?
+    ) {
+        if (activeCall != null || isIpCallActive) return
+        appContext = context.applicationContext
+        voipAnswerIntent = answerIntent
+        voipDeclineIntent = declineIntent
+
+        _currentCallState.value = ActiveCallInfo(
+            callId = "voip_${System.currentTimeMillis()}",
+            number = appName,
+            contactName = callerName,
+            status = CallStatus.RINGING,
+            isIncoming = true,
+            isVoipCall = true,
+            voipAppName = appName
+        )
+
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        val isLocked = keyguardManager?.isKeyguardLocked == true
+        if (isLocked) {
+            val intent = Intent(context, CallActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                        Intent.FLAG_ACTIVITY_CLEAR_TOP
+            }
+            context.startActivity(intent)
+        }
+    }
+
+    fun clearIncomingVoipCall() {
+        if (_currentCallState.value.isVoipCall) {
+            voipAnswerIntent = null
+            voipDeclineIntent = null
+            clearCall()
+        }
     }
 
     private fun lookupContactInfo(context: Context, number: String): Pair<String?, String?> {
@@ -281,6 +325,17 @@ object CallManager {
     }
 
     fun answer() {
+        if (_currentCallState.value.isVoipCall) {
+            try {
+                voipAnswerIntent?.send()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            _currentCallState.value = _currentCallState.value.copy(status = CallStatus.ACTIVE)
+            startDurationTimer()
+            appContext?.let { CallNotificationManager.dismissIncomingCallNotification(it) }
+            return
+        }
         if (isIpCallActive) {
             SipEngine.answerIncomingCall()
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.ACTIVE)
@@ -301,6 +356,18 @@ object CallManager {
     }
 
     fun reject() {
+        if (_currentCallState.value.isVoipCall) {
+            try {
+                voipDeclineIntent?.send()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            voipAnswerIntent = null
+            voipDeclineIntent = null
+            appContext?.let { CallNotificationManager.dismissAll(it) }
+            clearCall()
+            return
+        }
         if (isIpCallActive) {
             val num = _currentCallState.value.number
             val name = _currentCallState.value.contactName
@@ -330,6 +397,18 @@ object CallManager {
     }
 
     fun disconnect() {
+        if (_currentCallState.value.isVoipCall) {
+            try {
+                voipDeclineIntent?.send()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            voipAnswerIntent = null
+            voipDeclineIntent = null
+            appContext?.let { CallNotificationManager.dismissAll(it) }
+            clearCall()
+            return
+        }
         if (isIpCallActive) {
             val num = _currentCallState.value.number
             val name = _currentCallState.value.contactName

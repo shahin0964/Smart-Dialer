@@ -25,7 +25,8 @@ class ContactsRepository(private val context: Context) {
 
     suspend fun getContacts(
         searchQuery: String = "",
-        filter: ContactSourceFilter = ContactSourceFilter.ALL
+        filter: ContactSourceFilter = ContactSourceFilter.ALL,
+        selectedGoogleAccount: String? = null
     ): List<ContactItem> = withContext(Dispatchers.IO) {
         if (ContextCompat.checkSelfPermission(context, android.Manifest.permission.READ_CONTACTS)
             != PackageManager.PERMISSION_GRANTED
@@ -277,7 +278,18 @@ class ContactsRepository(private val context: Context) {
         var resultList = allContacts.values.toList()
         resultList = when (filter) {
             ContactSourceFilter.ALL -> resultList
-            ContactSourceFilter.GOOGLE -> resultList.filter { it.isGoogleContact }
+            ContactSourceFilter.GOOGLE -> {
+                if (!selectedGoogleAccount.isNullOrBlank()) {
+                    resultList.filter {
+                        it.isGoogleContact && (
+                            it.accountName.equals(selectedGoogleAccount, ignoreCase = true) ||
+                            accountMap[it.id]?.any { acc -> acc.name.equals(selectedGoogleAccount, ignoreCase = true) } == true
+                        )
+                    }
+                } else {
+                    resultList.filter { it.isGoogleContact }
+                }
+            }
             ContactSourceFilter.DEVICE -> resultList.filter { !it.isGoogleContact && !simContactIds.contains(it.id) }
             ContactSourceFilter.SIM -> resultList.filter { simContactIds.contains(it.id) }
         }
@@ -302,11 +314,25 @@ class ContactsRepository(private val context: Context) {
         val google = all.count { it.isGoogleContact }
         val sim = all.count { it.accountType?.contains("sim", true) == true || it.accountType?.contains("icc", true) == true }
         val device = (all.size - google - sim).coerceAtLeast(0)
+
+        val gAccounts = getGoogleAccounts()
+        val gMap = mutableMapOf<String, Int>()
+        for (gAcc in gAccounts) {
+            gMap[gAcc] = all.count { c ->
+                c.isGoogleContact && (
+                    c.accountName.equals(gAcc, ignoreCase = true) ||
+                    c.email?.equals(gAcc, ignoreCase = true) == true ||
+                    c.emails.any { it.equals(gAcc, ignoreCase = true) }
+                )
+            }
+        }
+
         ContactCounts(
             total = all.size,
             google = google,
             device = device,
-            sim = sim
+            sim = sim,
+            googleAccountsMap = gMap
         )
     }
 

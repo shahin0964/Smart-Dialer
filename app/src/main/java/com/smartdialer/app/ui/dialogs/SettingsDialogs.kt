@@ -1,7 +1,10 @@
 package com.smartdialer.app.ui.dialogs
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -17,6 +20,18 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.core.app.NotificationManagerCompat
+import com.smartdialer.app.data.repository.ContactsRepository
+import com.smartdialer.app.data.repository.VcfManager
+import com.smartdialer.app.telecom.CallManager
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -480,6 +495,7 @@ fun BlockedNumbersDialog(
     onDismiss: () -> Unit,
     onSaved: () -> Unit
 ) {
+    var blockHidden by remember { mutableStateOf(appSettings.blockHiddenNumbers) }
     var blockUnknown by remember { mutableStateOf(appSettings.blockUnknownNumbers) }
     var silenceUnknown by remember { mutableStateOf(appSettings.silenceUnknownCallers) }
     var spamProtection by remember { mutableStateOf(appSettings.spamProtectionEnabled) }
@@ -574,6 +590,13 @@ fun BlockedNumbersDialog(
                 ToggleSettingRow(
                     title = "Block Hidden & Private Calls",
                     subtitle = "Auto-reject calls without caller ID",
+                    checked = blockHidden,
+                    onCheckedChange = { blockHidden = it }
+                )
+
+                ToggleSettingRow(
+                    title = "Block Unknown / Unsaved Callers",
+                    subtitle = "Auto-reject calls from numbers not saved in contacts",
                     checked = blockUnknown,
                     onCheckedChange = { blockUnknown = it }
                 )
@@ -697,6 +720,7 @@ fun BlockedNumbersDialog(
 
                 Button(
                     onClick = {
+                        appSettings.blockHiddenNumbers = blockHidden
                         appSettings.blockUnknownNumbers = blockUnknown
                         appSettings.silenceUnknownCallers = silenceUnknown
                         appSettings.spamProtectionEnabled = spamProtection
@@ -1012,3 +1036,816 @@ private fun ToggleSettingRow(
         )
     }
 }
+
+// ============================================================
+// 6. CALLING COUNTRY & VOICEMAIL DIALOG
+// ============================================================
+@Composable
+fun CallingCountryDialog(
+    appSettings: AppSettingsPreferences,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit
+) {
+    val countries = listOf(
+        Pair("Bangladesh", "+880"),
+        Pair("United States", "+1"),
+        Pair("United Kingdom", "+44"),
+        Pair("India", "+91"),
+        Pair("Saudi Arabia", "+966"),
+        Pair("United Arab Emirates", "+971"),
+        Pair("Malaysia", "+60"),
+        Pair("Singapore", "+65"),
+        Pair("Canada", "+1"),
+        Pair("Australia", "+61")
+    )
+    var selectedCode by remember { mutableStateOf(appSettings.callingCountryCode) }
+    var selectedName by remember { mutableStateOf(appSettings.callingCountryName) }
+    var voicemailInput by remember { mutableStateOf(appSettings.voicemailNumber) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                DialogHeader(
+                    title = "Country & Voicemail",
+                    icon = Icons.Default.Language,
+                    iconTint = PurplePrimary,
+                    onDismiss = onDismiss
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Default Country Code",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
+                )
+                Text(
+                    text = "Used to format local phone numbers for dialing",
+                    fontSize = 11.sp,
+                    color = TextMuted
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    for ((name, code) in countries) {
+                        val isSelected = (selectedCode == code && selectedName == name)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    selectedCode = code
+                                    selectedName = name
+                                }
+                                .padding(vertical = 6.dp, horizontal = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = {
+                                    selectedCode = code
+                                    selectedName = name
+                                },
+                                colors = RadioButtonDefaults.colors(selectedColor = PurplePrimary)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "$name ($code)",
+                                fontSize = 14.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                color = TextDark
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Voicemail Number",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
+                )
+                Text(
+                    text = "Operator voicemail shortcut (e.g. *121#)",
+                    fontSize = 11.sp,
+                    color = TextMuted
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = voicemailInput,
+                    onValueChange = { voicemailInput = it },
+                    singleLine = true,
+                    placeholder = { Text("*121#", color = TextLightGray) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Button(
+                    onClick = {
+                        appSettings.callingCountryCode = selectedCode
+                        appSettings.callingCountryName = selectedName
+                        appSettings.voicemailNumber = voicemailInput.trim()
+                        onSaved()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                ) {
+                    Text("Save Settings", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// ============================================================
+// 7. SPEED DIAL (KEYPAD 1-9) DIALOG
+// ============================================================
+@Composable
+fun SpeedDialDialog(
+    appSettings: AppSettingsPreferences,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit
+) {
+    var speedDials by remember { mutableStateOf(appSettings.getAllSpeedDials()) }
+    var editingDigit by remember { mutableStateOf<Int?>(null) }
+    var editName by remember { mutableStateOf("") }
+    var editNumber by remember { mutableStateOf("") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                DialogHeader(
+                    title = "Speed Dial (১-৯)",
+                    icon = Icons.Default.Star,
+                    iconTint = Color(0xFFF59E0B),
+                    onDismiss = onDismiss
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "ডায়ালপ্যাডের কী লং-প্রেস করে সরাসরি কল করার জন্য নাম্বার সেট করুন:",
+                    fontSize = 12.sp,
+                    color = TextMuted
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Digit 1 is Voicemail
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .background(PurpleUltraLight, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("1", fontWeight = FontWeight.Bold, color = PurplePrimary, fontSize = 15.sp)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Voicemail", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextDark)
+                                Text(appSettings.voicemailNumber, fontSize = 12.sp, color = TextMuted)
+                            }
+                        }
+                    }
+                }
+
+                // Digits 2 to 9
+                for (digit in 2..9) {
+                    val entry = speedDials[digit]
+                    val isEditingThis = editingDigit == digit
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, if (entry != null) PurplePrimary.copy(alpha = 0.4f) else Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .background(if (entry != null) PurplePrimary else Color(0xFFCBD5E1), CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("$digit", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                                    }
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = entry?.second ?: "Unassigned (ফাঁকা)",
+                                            fontWeight = FontWeight.SemiBold,
+                                            fontSize = 13.sp,
+                                            color = if (entry != null) TextDark else TextLightGray
+                                        )
+                                        if (entry != null) {
+                                            Text(entry.first, fontSize = 11.sp, color = TextMuted)
+                                        }
+                                    }
+                                }
+
+                                Row {
+                                    if (entry != null) {
+                                        IconButton(
+                                            onClick = {
+                                                appSettings.removeSpeedDial(digit)
+                                                speedDials = appSettings.getAllSpeedDials()
+                                                onSaved()
+                                            },
+                                            modifier = Modifier.size(32.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.DeleteOutline,
+                                                contentDescription = "Remove",
+                                                tint = Color(0xFFEF4444),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            if (isEditingThis) {
+                                                editingDigit = null
+                                            } else {
+                                                editingDigit = digit
+                                                editName = entry?.second ?: ""
+                                                editNumber = entry?.first ?: ""
+                                            }
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isEditingThis) Icons.Default.Close else Icons.Default.Add,
+                                            contentDescription = "Set",
+                                            tint = PurplePrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (isEditingThis) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedTextField(
+                                    value = editName,
+                                    onValueChange = { editName = it },
+                                    label = { Text("Name", fontSize = 11.sp) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedTextField(
+                                    value = editNumber,
+                                    onValueChange = { editNumber = it },
+                                    label = { Text("Phone Number", fontSize = 11.sp) },
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Button(
+                                    onClick = {
+                                        if (editNumber.isNotBlank()) {
+                                            val nameToSave = if (editName.isBlank()) "Speed Dial $digit" else editName
+                                            appSettings.setSpeedDial(digit, editNumber, nameToSave)
+                                            speedDials = appSettings.getAllSpeedDials()
+                                            editingDigit = null
+                                            onSaved()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Assign to Key $digit", fontSize = 12.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Close", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// ============================================================
+// 8. EMERGENCY SOS (999 BANGLADESH) DIALOG
+// ============================================================
+@Composable
+fun EmergencySosDialog(
+    appSettings: AppSettingsPreferences,
+    onDismiss: () -> Unit,
+    onCallEmergency: (String) -> Unit
+) {
+    var customNumber by remember { mutableStateOf(appSettings.customEmergencyNumber ?: "") }
+    var customName by remember { mutableStateOf(appSettings.customEmergencyName ?: "") }
+    var isEditingCustom by remember { mutableStateOf(false) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                DialogHeader(
+                    title = "Emergency SOS (জরুরি সেবা)",
+                    icon = Icons.Default.Warning,
+                    iconTint = Color(0xFFDC2626),
+                    onDismiss = onDismiss
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // National Emergency 999 Banner
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFFEF2F2),
+                    border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .background(Color(0xFFDC2626), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(imageVector = Icons.Default.Phone, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("National Emergency (999)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF991B1B))
+                                Text("Police • Fire Service • Ambulance", fontSize = 11.sp, color = Color(0xFFB91C1C))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                onCallEmergency("999")
+                                onDismiss()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth().height(42.dp)
+                        ) {
+                            Text("Call 999 Now", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Other Helplines
+                Text(
+                    text = "Official National Helplines",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.weight(1f).clickable {
+                            onCallEmergency("109")
+                            onDismiss()
+                        }
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("109", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = PurplePrimary)
+                            Text("Women & Child Help", fontSize = 11.sp, color = TextMuted)
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.weight(1f).clickable {
+                            onCallEmergency("1090")
+                            onDismiss()
+                        }
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text("1090", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0284C7))
+                            Text("Disaster Helpline", fontSize = 11.sp, color = TextMuted)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Custom Emergency Contact
+                Text(
+                    text = "Personal Emergency Contact",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                if (appSettings.customEmergencyNumber.isNullOrBlank() || isEditingCustom) {
+                    OutlinedTextField(
+                        value = customName,
+                        onValueChange = { customName = it },
+                        label = { Text("Contact Name (e.g. Mom)", fontSize = 11.sp) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = customNumber,
+                        onValueChange = { customNumber = it },
+                        label = { Text("Emergency Phone Number", fontSize = 11.sp) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(
+                        onClick = {
+                            if (customNumber.isNotBlank()) {
+                                appSettings.customEmergencyNumber = customNumber.trim()
+                                appSettings.customEmergencyName = if (customName.isBlank()) "Emergency Contact" else customName.trim()
+                                isEditingCustom = false
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Save Emergency Contact", fontSize = 13.sp)
+                    }
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(appSettings.customEmergencyName ?: "Emergency Contact", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                Text(appSettings.customEmergencyNumber ?: "", fontSize = 12.sp, color = TextMuted)
+                            }
+                            Row {
+                                IconButton(
+                                    onClick = {
+                                        appSettings.customEmergencyNumber?.let { onCallEmergency(it) }
+                                        onDismiss()
+                                    },
+                                    modifier = Modifier.size(34.dp)
+                                ) {
+                                    Icon(imageVector = Icons.Default.Phone, contentDescription = "Call", tint = CallIncomingGreen, modifier = Modifier.size(20.dp))
+                                }
+                                IconButton(onClick = { isEditingCustom = true }, modifier = Modifier.size(34.dp)) {
+                                    Icon(imageVector = Icons.Default.Add, contentDescription = "Edit", tint = TextMuted, modifier = Modifier.size(18.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Close", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// ============================================================
+// 9. SOCIAL VOIP CALLING (MESSENGER, TELEGRAM, INSTAGRAM) DIALOG
+// ============================================================
+@Composable
+fun SocialVoipCallingDialog(
+    appSettings: AppSettingsPreferences,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit
+) {
+    val context = LocalContext.current
+    var voipEnabled by remember { mutableStateOf(appSettings.voipIntegrationEnabled) }
+    val isNotificationAccessGranted = remember {
+        NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                DialogHeader(
+                    title = "Social App VoIP Calling",
+                    icon = Icons.Default.Chat,
+                    iconTint = Color(0xFF0284C7),
+                    onDismiss = onDismiss
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                ToggleSettingRow(
+                    title = "Receive Social App Calls",
+                    subtitle = "Messenger, Telegram, Instagram & WhatsApp calls integrate into Smart Dialer",
+                    checked = voipEnabled,
+                    onCheckedChange = {
+                        voipEnabled = it
+                        appSettings.voipIntegrationEnabled = it
+                        onSaved()
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isNotificationAccessGranted) Color(0xFFECFDF5) else Color(0xFFFFFBEB),
+                    border = BorderStroke(1.dp, if (isNotificationAccessGranted) Color(0xFFA7F3D0) else Color(0xFFFDE68A)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = if (isNotificationAccessGranted) "✓ Notification Access Active" else "⚠️ Permission Required for Social Calls",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = if (isNotificationAccessGranted) Color(0xFF065F46) else Color(0xFF92400E)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isNotificationAccessGranted) {
+                                "Smart Dialer will automatically show full-screen incoming alerts and answer/decline controls when you get a call on Messenger, Telegram, WhatsApp, or Instagram."
+                            } else {
+                                "To detect incoming calls from Messenger, Telegram, WhatsApp, and Instagram, Android requires Notification Access permission."
+                            },
+                            fontSize = 11.sp,
+                            color = if (isNotificationAccessGranted) Color(0xFF047857) else Color(0xFFB45309)
+                        )
+
+                        if (!isNotificationAccessGranted) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Button(
+                                onClick = {
+                                    try {
+                                        val intent = Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                                        }
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Grant Notification Access", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Done", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// ============================================================
+// 10. VCF CONTACTS IMPORT & EXPORT DIALOG
+// ============================================================
+@Composable
+fun VcfExportImportDialog(
+    contactsRepository: ContactsRepository,
+    onDismiss: () -> Unit,
+    onImportFinished: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var statusMessage by remember { mutableStateOf<String?>(null) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+        if (uri != null) {
+            isLoading = true
+            coroutineScope.launch {
+                val res = VcfManager.importContactsFromVcf(context, uri)
+                isLoading = false
+                if (res.isSuccess) {
+                    statusMessage = "Successfully imported ${res.getOrNull()} contacts!"
+                    onImportFinished()
+                } else {
+                    statusMessage = "Import failed: ${res.exceptionOrNull()?.localizedMessage}"
+                }
+            }
+        }
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+            shape = RoundedCornerShape(22.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                DialogHeader(
+                    title = "Contacts Backup (.vcf)",
+                    icon = Icons.Default.Share,
+                    iconTint = PurplePrimary,
+                    onDismiss = onDismiss
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Export Card
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.FileUpload, contentDescription = null, tint = PurplePrimary, modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Export Contacts (.vcf)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                Text("Backup all your contacts to a file or share", fontSize = 11.sp, color = TextMuted)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = {
+                                isLoading = true
+                                coroutineScope.launch {
+                                    val all = contactsRepository.getContacts()
+                                    val res = VcfManager.exportContactsToVcf(context, all)
+                                    isLoading = false
+                                    if (res.isSuccess) {
+                                        res.getOrNull()?.let { file ->
+                                            VcfManager.shareVcfFile(context, file)
+                                        }
+                                    } else {
+                                        statusMessage = "Export failed"
+                                    }
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isLoading
+                        ) {
+                            Text("Export & Share .vcf", fontSize = 13.sp)
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Import Card
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(24.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text("Import Contacts (.vcf)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
+                                Text("Restore contacts from a .vcf file on your phone", fontSize = 11.sp, color = TextMuted)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Button(
+                            onClick = {
+                                importLauncher.launch("text/x-vcard")
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF059669)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isLoading
+                        ) {
+                            Text("Select .vcf File to Import", fontSize = 13.sp)
+                        }
+                    }
+                }
+
+                statusMessage?.let { msg ->
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(text = msg, fontSize = 12.sp, color = PurplePrimary, fontWeight = FontWeight.Medium)
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth().height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Close", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
