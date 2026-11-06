@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SimCard
@@ -33,6 +34,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
+import com.smartdialer.app.ui.dialogs.CallerIdSettingsDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -102,6 +104,7 @@ fun MoreScreen(
     var showBlockedDialog by remember { mutableStateOf(false) }
     var showAboutDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
+    var showCallerIdDialog by remember { mutableStateOf(false) }
 
     var refreshKey by remember { mutableStateOf(0) }
     var sims by remember { mutableStateOf<List<SimInfo>>(emptyList()) }
@@ -126,6 +129,14 @@ fun MoreScreen(
     }
 
     // Dialogs
+    if (showCallerIdDialog) {
+        CallerIdSettingsDialog(
+            appSettings = appSettings,
+            onDismiss = { showCallerIdDialog = false },
+            onSaved = { refreshKey++ }
+        )
+    }
+
     if (showUpdateDialog) {
         AppUpdateDialog(
             onDismiss = { showUpdateDialog = false }
@@ -383,6 +394,24 @@ fun MoreScreen(
             title = "3-Layer Spam & Block Protection",
             subtitle = blockedSummary,
             onClick = { showBlockedDialog = true }
+        )
+
+        // 7. Caller ID & Truecaller Setup
+        val callerIdSummary = remember(refreshKey, appSettings.callerIdEnabled, appSettings.truecallerAuthToken) {
+            if (!appSettings.callerIdEnabled) {
+                "Real-time identification disabled"
+            } else if (!appSettings.truecallerAuthToken.isNullOrBlank()) {
+                "Active • Truecaller Token Connected"
+            } else {
+                "Active • Operator & Directory (Add Token for Live Names)"
+            }
+        }
+
+        MoreOptionItem(
+            icon = Icons.Default.Search,
+            title = "Caller ID & Truecaller Setup",
+            subtitle = callerIdSummary,
+            onClick = { showCallerIdDialog = true }
         )
 
         // 8. Call Recording

@@ -65,6 +65,12 @@ class ContactsViewModel(
     private val _showAddContactDialog = MutableStateFlow(false)
     val showAddContactDialog: StateFlow<Boolean> = _showAddContactDialog.asStateFlow()
 
+    private val _initialContactName = MutableStateFlow("")
+    val initialContactName: StateFlow<String> = _initialContactName.asStateFlow()
+
+    private val _initialContactPhone = MutableStateFlow("")
+    val initialContactPhone: StateFlow<String> = _initialContactPhone.asStateFlow()
+
     private val _availableDestinations = MutableStateFlow<List<ContactSaveDestination>>(emptyList())
     val availableDestinations: StateFlow<List<ContactSaveDestination>> = _availableDestinations.asStateFlow()
 
@@ -145,7 +151,9 @@ class ContactsViewModel(
         loadContacts()
     }
 
-    fun openAddContactDialog() {
+    fun openAddContactDialog(initialName: String = "", initialPhone: String = "") {
+        _initialContactName.value = initialName
+        _initialContactPhone.value = initialPhone
         viewModelScope.launch {
             val destinations = contactsRepository.getAvailableSaveDestinations()
             _availableDestinations.value = destinations

@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.smartdialer.app.data.callerid.CallerIdResult
 import com.smartdialer.app.data.callerid.CallerIdService
 import com.smartdialer.app.data.model.ContactItem
+import com.smartdialer.app.data.model.ContactSaveDestination
 import com.smartdialer.app.data.model.SimInfo
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.data.repository.IpCallPreferences
@@ -45,6 +46,21 @@ class DialerViewModel(
 
     private val _showIpDialog = MutableStateFlow(false)
     val showIpDialog: StateFlow<Boolean> = _showIpDialog.asStateFlow()
+
+    private val _showAddContactDialog = MutableStateFlow(false)
+    val showAddContactDialog: StateFlow<Boolean> = _showAddContactDialog.asStateFlow()
+
+    private val _availableDestinations = MutableStateFlow<List<ContactSaveDestination>>(emptyList())
+    val availableDestinations: StateFlow<List<ContactSaveDestination>> = _availableDestinations.asStateFlow()
+
+    private val _addContactInitialName = MutableStateFlow("")
+    val addContactInitialName: StateFlow<String> = _addContactInitialName.asStateFlow()
+
+    private val _addContactInitialPhone = MutableStateFlow("")
+    val addContactInitialPhone: StateFlow<String> = _addContactInitialPhone.asStateFlow()
+
+    private val _isSavingContact = MutableStateFlow(false)
+    val isSavingContact: StateFlow<Boolean> = _isSavingContact.asStateFlow()
 
     private var cachedContacts: List<ContactItem> = emptyList()
 
@@ -236,5 +252,48 @@ class DialerViewModel(
 
     fun dismissIpDialog() {
         _showIpDialog.value = false
+    }
+
+    fun openAddContactDialog(initialName: String = "", initialPhone: String = "") {
+        _addContactInitialName.value = initialName
+        _addContactInitialPhone.value = initialPhone
+        viewModelScope.launch {
+            _availableDestinations.value = contactsRepository.getAvailableSaveDestinations()
+            _showAddContactDialog.value = true
+        }
+    }
+
+    fun closeAddContactDialog() {
+        _showAddContactDialog.value = false
+    }
+
+    fun saveContact(
+        name: String,
+        phoneNumber: String,
+        secondaryNumber: String?,
+        email: String?,
+        company: String?,
+        destination: ContactSaveDestination,
+        onComplete: (Boolean, String?) -> Unit = { _, _ -> }
+    ) {
+        viewModelScope.launch {
+            _isSavingContact.value = true
+            val result = contactsRepository.saveNewContact(
+                name = name,
+                phoneNumber = phoneNumber,
+                secondaryNumber = secondaryNumber,
+                email = email,
+                company = company,
+                destination = destination
+            )
+            _isSavingContact.value = false
+            if (result.isSuccess) {
+                _showAddContactDialog.value = false
+                loadContactsCache()
+                onComplete(true, null)
+            } else {
+                onComplete(false, result.exceptionOrNull()?.localizedMessage ?: "Failed to save contact")
+            }
+        }
     }
 }

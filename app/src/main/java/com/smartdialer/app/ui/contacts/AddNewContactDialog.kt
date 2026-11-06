@@ -79,6 +79,8 @@ import com.smartdialer.app.ui.theme.TextMuted
 fun AddNewContactDialog(
     destinations: List<ContactSaveDestination>,
     initialDestinationType: ContactSaveDestinationType = ContactSaveDestinationType.GOOGLE,
+    initialName: String = "",
+    initialPhone: String = "",
     isSaving: Boolean,
     onDismiss: () -> Unit,
     onSave: (
@@ -105,8 +107,8 @@ fun AddNewContactDialog(
         mutableStateOf(fallbackDestination)
     }
 
-    var name by remember { mutableStateOf("") }
-    var phoneNumber by remember { mutableStateOf("") }
+    var name by remember(initialName) { mutableStateOf(initialName) }
+    var phoneNumber by remember(initialPhone) { mutableStateOf(initialPhone) }
     var secondaryNumber by remember { mutableStateOf("") }
     var showSecondaryNumber by remember { mutableStateOf(false) }
     var email by remember { mutableStateOf("") }

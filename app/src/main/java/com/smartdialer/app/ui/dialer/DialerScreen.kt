@@ -1,7 +1,5 @@
 package com.smartdialer.app.ui.dialer
 
-import android.content.Intent
-import android.provider.ContactsContract
 import android.view.HapticFeedbackConstants
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -42,6 +40,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import com.smartdialer.app.data.callerid.CallerIdResult
 import com.smartdialer.app.ui.components.IpCallConfigDialog
+import com.smartdialer.app.ui.contacts.AddNewContactDialog
 import com.smartdialer.app.utils.WhatsAppHelper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -86,6 +85,11 @@ fun DialerScreen(
     val callerIdResult by viewModel.callerIdResult.collectAsState()
     val isCallerIdLoading by viewModel.isCallerIdLoading.collectAsState()
     val showIpDialog by viewModel.showIpDialog.collectAsState()
+    val showAddContactDialog by viewModel.showAddContactDialog.collectAsState()
+    val availableDestinations by viewModel.availableDestinations.collectAsState()
+    val addContactInitialName by viewModel.addContactInitialName.collectAsState()
+    val addContactInitialPhone by viewModel.addContactInitialPhone.collectAsState()
+    val isSavingContact by viewModel.isSavingContact.collectAsState()
     val appSettings: AppSettingsPreferences = remember { AppSettingsPreferences(context) }
 
     val pasteFromClipboard = {
@@ -253,15 +257,10 @@ fun DialerScreen(
                     isLoading = isCallerIdLoading,
                     inputNumber = inputNumber,
                     onSaveContact = {
-                        try {
-                            val intent = Intent(Intent.ACTION_INSERT).apply {
-                                type = ContactsContract.Contacts.CONTENT_TYPE
-                                putExtra(ContactsContract.Intents.Insert.PHONE, inputNumber)
-                            }
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
+                        viewModel.openAddContactDialog(
+                            initialName = callerIdResult?.name ?: "",
+                            initialPhone = inputNumber
+                        )
                     },
                     onWhatsApp = {
                         WhatsAppHelper.openWhatsAppChat(context, inputNumber)
@@ -537,6 +536,27 @@ fun DialerScreen(
             )
         }
     }
+
+    // In-App Built-in Add Contact Dialog (Phone, SIM, or Google Account)
+    if (showAddContactDialog) {
+        AddNewContactDialog(
+            destinations = availableDestinations,
+            initialName = addContactInitialName,
+            initialPhone = addContactInitialPhone,
+            isSaving = isSavingContact,
+            onDismiss = { viewModel.closeAddContactDialog() },
+            onSave = { name, phone, secPhone, email, company, dest ->
+                viewModel.saveContact(
+                    name = name,
+                    phoneNumber = phone,
+                    secondaryNumber = secPhone,
+                    email = email,
+                    company = company,
+                    destination = dest
+                )
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -731,8 +751,9 @@ fun CallerIdBanner(
 
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        val hasName = !callerId?.name.isNullOrBlank()
                         Text(
-                            text = callerId?.name ?: if (isLoading) "Looking up caller..." else "Unknown Number",
+                            text = if (hasName) callerId!!.name!! else if (isLoading) "Looking up caller..." else "${callerId?.carrier ?: "Mobile"} Subscriber",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isSpam) Color(0xFFDC2626) else TextDark,
@@ -750,6 +771,20 @@ fun CallerIdBanner(
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = Color(0xFFDC2626),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                                )
+                            }
+                        } else if (callerId?.isVerified == true) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = Color(0xFFDCFCE7)
+                            ) {
+                                Text(
+                                    text = "VERIFIED",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF16A34A),
                                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                                 )
                             }

@@ -21,12 +21,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalClipboardManager
+import com.smartdialer.app.data.callerid.CallerIdResult
+import com.smartdialer.app.data.callerid.CallerIdService
 import androidx.core.app.NotificationManagerCompat
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.data.repository.VcfManager
@@ -1738,4 +1745,315 @@ fun VcfExportImportDialog(
         }
     }
 }
+
+// ============================================================
+// 12. CALLER ID & TRUECALLER SETTINGS DIALOG
+// ============================================================
+@Composable
+fun CallerIdSettingsDialog(
+    appSettings: AppSettingsPreferences,
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit
+) {
+    val context = LocalContext.current
+    val clipboardManager = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
+
+    var isEnabled by remember { mutableStateOf(appSettings.callerIdEnabled) }
+    var token by remember { mutableStateOf(appSettings.truecallerAuthToken ?: "") }
+    var endpoint by remember { mutableStateOf(appSettings.truecallerCustomEndpoint ?: "") }
+
+    var testNumber by remember { mutableStateOf("") }
+    var isTesting by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<CallerIdResult?>(null) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                // Header
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(Color(0xFFEDE9FE)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = null,
+                            tint = PurplePrimary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Caller ID & Truecaller",
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                        Text(
+                            text = "Real-time caller name & spam lookup",
+                            fontSize = 11.sp,
+                            color = TextMuted
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Toggle Card
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Real-Time Caller ID",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark
+                            )
+                            Text(
+                                text = "Identify unknown numbers when typing or searching",
+                                fontSize = 11.sp,
+                                color = TextMuted
+                            )
+                        }
+                        Switch(
+                            checked = isEnabled,
+                            onCheckedChange = { isEnabled = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = PurplePrimary
+                            )
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Truecaller Token Card
+                Text(
+                    text = "Truecaller Live Integration",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = TextDark
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+
+                OutlinedTextField(
+                    value = token,
+                    onValueChange = { token = it },
+                    label = { Text("Truecaller Auth Token") },
+                    placeholder = { Text("Paste Truecaller Token") },
+                    trailingIcon = {
+                        IconButton(
+                            onClick = {
+                                val clip = clipboardManager.getText()?.text
+                                if (!clip.isNullOrBlank()) {
+                                    token = clip.trim()
+                                }
+                            }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentPaste,
+                                contentDescription = "Paste",
+                                tint = PurplePrimary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFF8FAFC),
+                        unfocusedContainerColor = Color(0xFFF8FAFC),
+                        focusedIndicatorColor = PurplePrimary,
+                        unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Paste your Truecaller token here to fetch real live names, avatars, and spam ratings directly from Truecaller's servers.",
+                    fontSize = 11.sp,
+                    color = TextMuted,
+                    lineHeight = 15.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Custom Gateway URL (Optional)
+                OutlinedTextField(
+                    value = endpoint,
+                    onValueChange = { endpoint = it },
+                    label = { Text("Custom Gateway URL (Optional)") },
+                    placeholder = { Text("https://my-proxy.com/api/lookup") },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    singleLine = true,
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color(0xFFF8FAFC),
+                        unfocusedContainerColor = Color(0xFFF8FAFC),
+                        focusedIndicatorColor = PurplePrimary,
+                        unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                    )
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Test Lookup Tool
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFF1F5F9),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Test Number Lookup",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextDark
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            OutlinedTextField(
+                                value = testNumber,
+                                onValueChange = { testNumber = it },
+                                placeholder = { Text("017... or 16247") },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                singleLine = true,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    focusedIndicatorColor = PurplePrimary,
+                                    unfocusedIndicatorColor = Color(0xFFCBD5E1)
+                                )
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Button(
+                                onClick = {
+                                    if (testNumber.isNotBlank()) {
+                                        isTesting = true
+                                        testResult = null
+                                        appSettings.truecallerAuthToken = token.trim().ifBlank { null }
+                                        appSettings.truecallerCustomEndpoint = endpoint.trim().ifBlank { null }
+                                        scope.launch {
+                                            val service = CallerIdService(context)
+                                            val res = service.lookup(testNumber)
+                                            testResult = res
+                                            isTesting = false
+                                        }
+                                    }
+                                },
+                                shape = RoundedCornerShape(8.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                                enabled = !isTesting && testNumber.isNotBlank()
+                            ) {
+                                if (isTesting) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                } else {
+                                    Text("Test", fontSize = 12.sp)
+                                }
+                            }
+                        }
+
+                        // Test Result Preview
+                        testResult?.let { res ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color.White,
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.padding(10.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.CheckCircle,
+                                            contentDescription = null,
+                                            tint = Color(0xFF16A34A),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text(
+                                            text = res.name ?: "${res.carrier} User",
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp,
+                                            color = TextDark
+                                        )
+                                    }
+                                    Text(
+                                        text = "${res.carrier} • ${res.location} • Source: ${res.source}",
+                                        fontSize = 11.sp,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Save Button
+                Button(
+                    onClick = {
+                        appSettings.callerIdEnabled = isEnabled
+                        appSettings.truecallerAuthToken = token.trim().ifBlank { null }
+                        appSettings.truecallerCustomEndpoint = endpoint.trim().ifBlank { null }
+                        onSaved()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Save Settings", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
 
