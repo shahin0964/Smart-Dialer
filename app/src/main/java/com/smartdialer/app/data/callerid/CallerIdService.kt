@@ -133,7 +133,7 @@ class CallerIdService(private val context: Context) {
                     connectTimeout = 3500
                     readTimeout = 3500
                     requestMethod = "GET"
-                    setRequestProperty("User-Agent", "Truecaller/11.75.5 (Android;10)")
+                    setRequestProperty("User-Agent", "Truecaller/14.16.6 (Android;14)")
                     setRequestProperty("Authorization", "Bearer $token")
                     setRequestProperty("Accept", "application/json")
                 }

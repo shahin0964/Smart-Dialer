@@ -49,8 +49,18 @@ class TruecallerAuthService(private val context: Context) {
             val parsed = parsePhoneNumber(rawNumber)
                 ?: return@withContext Result.failure(Exception("Invalid phone number format. Please check the number."))
 
-            val device = DEVICE_LIST[Random.nextInt(DEVICE_LIST.size)]
-            val deviceId = (1..16).map { "0123456789abcdef".random() }.joinToString("")
+            val deviceId = try {
+                android.provider.Settings.Secure.getString(
+                    context.contentResolver,
+                    android.provider.Settings.Secure.ANDROID_ID
+                ) ?: (1..16).map { "0123456789abcdef".random() }.joinToString("")
+            } catch (e: Exception) {
+                (1..16).map { "0123456789abcdef".random() }.joinToString("")
+            }
+
+            val manufacturer = android.os.Build.MANUFACTURER.ifBlank { "Samsung" }
+            val model = android.os.Build.MODEL.ifBlank { "SM-G998B" }
+            val osVersion = android.os.Build.VERSION.RELEASE.ifBlank { "13" }
 
             val payload = JSONObject().apply {
                 put("countryCode", parsed.countryCode)
@@ -69,10 +79,10 @@ class TruecallerAuthService(private val context: Context) {
                     put("device", JSONObject().apply {
                         put("deviceId", deviceId)
                         put("language", "en")
-                        put("manufacturer", device.first)
-                        put("model", device.second)
+                        put("manufacturer", manufacturer)
+                        put("model", model)
                         put("osName", "Android")
-                        put("osVersion", "10")
+                        put("osVersion", osVersion)
                         put("mobileServices", JSONArray().put("GMS"))
                     })
                     put("language", "en")
@@ -100,10 +110,13 @@ class TruecallerAuthService(private val context: Context) {
             if (responseCode in 200..299) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(body)
+                val status = json.optInt("status", -1)
+                val message = json.optString("message", "")
                 val requestId = json.optString("requestId")
                 val tokenTtl = json.optInt("tokenTtl", 300)
 
-                if (requestId.isNotBlank()) {
+                // Status 1 or 9 means OTP was truly sent by Truecaller server
+                if ((status == 1 || status == 9 || message.equals("Sent", ignoreCase = true)) && requestId.isNotBlank()) {
                     val session = TruecallerOtpSession(
                         fullPhoneNumber = parsed.fullFormatted,
                         dialingCode = parsed.dialingCode,
@@ -113,9 +126,28 @@ class TruecallerAuthService(private val context: Context) {
                         tokenTtl = tokenTtl
                     )
                     Result.success(session)
+                } else if (status == 3 && json.has("installationId")) {
+                    val installationId = json.getString("installationId")
+                    appSettings.truecallerAuthToken = installationId
+                    appSettings.truecallerPhoneNumber = parsed.fullFormatted
+                    appSettings.callerIdEnabled = true
+                    Result.success(
+                        TruecallerOtpSession(
+                            fullPhoneNumber = parsed.fullFormatted,
+                            dialingCode = parsed.dialingCode,
+                            countryCode = parsed.countryCode,
+                            significantNumber = parsed.significantNumber,
+                            requestId = "ALREADY_LOGGED_IN",
+                            tokenTtl = 0
+                        )
+                    )
                 } else {
-                    val msg = json.optString("message", "Unable to request OTP from Truecaller")
-                    Result.failure(Exception(msg))
+                    val errDesc = when (status) {
+                        20003 -> "Truecaller সার্ভার অটোমেটিক SMS ব্লক করেছে (Security Error 20003)। অনুগ্রহ করে নিচের 'Truecaller Web Login' বা 'Manual Token' ব্যবহার করুন।"
+                        5, 6 -> "খুব বেশিবার চেষ্টা করা হয়েছে (Rate Limit)। অনুগ্রহ করে ১ ঘণ্টা পর আবার চেষ্টা করুন।"
+                        else -> if (message.isNotBlank()) "Truecaller: $message" else "Truecaller সার্ভার OTP পাঠায়নি (Status: $status)"
+                    }
+                    Result.failure(Exception(errDesc))
                 }
             } else {
                 val errBody = conn.errorStream?.bufferedReader()?.use { it.readText() }
@@ -163,10 +195,11 @@ class TruecallerAuthService(private val context: Context) {
             if (responseCode in 200..299) {
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
                 val json = JSONObject(body)
+                val status = json.optInt("status", -1)
                 val installationId = json.optString("installationId")
                 val userId = if (json.has("userId")) json.optLong("userId") else null
 
-                if (installationId.isNotBlank()) {
+                if (installationId.isNotBlank() && (status == 2 || status == -1)) {
                     appSettings.truecallerAuthToken = installationId
                     appSettings.truecallerPhoneNumber = session.fullPhoneNumber
                     appSettings.callerIdEnabled = true
@@ -178,6 +211,12 @@ class TruecallerAuthService(private val context: Context) {
                             message = "Connected to Truecaller successfully!"
                         )
                     )
+                } else if (status == 17) {
+                    completeOnboarding(session, cleanOtp)
+                } else if (status == 11 || status == 40101) {
+                    Result.failure(Exception("ভুল OTP কোড। অনুগ্রহ করে সঠিক কোড দিন।"))
+                } else if (status == 7) {
+                    Result.failure(Exception("OTP চেষ্টার সীমা শেষ (Limit Exceeded)। অনুগ্রহ করে কিছুক্ষণ পর চেষ্টা করুন।"))
                 } else {
                     val msg = json.optString("message", "Verification failed. Please try again.")
                     Result.failure(Exception(msg))
@@ -190,6 +229,65 @@ class TruecallerAuthService(private val context: Context) {
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    private suspend fun completeOnboarding(session: TruecallerOtpSession, otp: String): Result<TruecallerLoginResult> = withContext(Dispatchers.IO) {
+        try {
+            val payload = JSONObject().apply {
+                put("countryCode", session.countryCode)
+                put("dialingCode", session.dialingCode)
+                put("phoneNumber", session.significantNumber)
+                put("requestId", session.requestId)
+                put("token", otp)
+                put("name", JSONObject().apply {
+                    put("first", "Smart")
+                    put("last", "Dialer")
+                })
+            }
+
+            val url = URL("https://account-noneu.truecaller.com/v1/completeOnboarding")
+            val conn = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 8000
+                readTimeout = 8000
+                requestMethod = "POST"
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                setRequestProperty("Accept", "application/json")
+                setRequestProperty("User-Agent", USER_AGENT)
+                setRequestProperty("clientsecret", CLIENT_SECRET)
+            }
+
+            conn.outputStream.use { os ->
+                os.write(payload.toString().toByteArray(Charsets.UTF_8))
+                os.flush()
+            }
+
+            if (conn.responseCode in 200..299) {
+                val body = conn.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(body)
+                val instId = json.optString("installationId")
+                if (instId.isNotBlank()) {
+                    appSettings.truecallerAuthToken = instId
+                    appSettings.truecallerPhoneNumber = session.fullPhoneNumber
+                    appSettings.callerIdEnabled = true
+                    Result.success(TruecallerLoginResult(instId, null, "Connected to Truecaller successfully!"))
+                } else {
+                    Result.failure(Exception("Could not obtain installationId from signup"))
+                }
+            } else {
+                Result.failure(Exception("Complete signup rejected by server (HTTP ${conn.responseCode})"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    fun saveToken(token: String, phoneNumber: String? = null) {
+        appSettings.truecallerAuthToken = token.trim()
+        if (!phoneNumber.isNullOrBlank()) {
+            appSettings.truecallerPhoneNumber = phoneNumber.trim()
+        }
+        appSettings.callerIdEnabled = true
     }
 
     fun logout() {
