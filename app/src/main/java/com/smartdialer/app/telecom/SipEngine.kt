@@ -8,7 +8,6 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
-import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -235,17 +234,21 @@ object SipEngine {
 
     private var aecEffect: AcousticEchoCanceler? = null
     private var nsEffect: NoiseSuppressor? = null
-    private var agcEffect: AutomaticGainControl? = null
 
-    // Adaptive Sequence-Aware Jitter Buffer with G.711 PLC
-    private val jitterBuffer = RtpJitterBuffer()
+    // Audio jitter queue for zero-jitter, smooth audio playback
+    private val jitterQueue = LinkedBlockingQueue<ShortArray>()
+
+    // Passive RTP statistics for Live Network Quality Badge
+    @Volatile private var rtpPacketsReceived = 0L
+    @Volatile private var rtpPacketsLost = 0L
+    @Volatile private var rtpEstimatedJitterMs = 0.0
+    private var rtpLastSeq = -1
+    private var rtpLastTimestamp = 0L
+    private var rtpLastTransit = 0L
 
     // Live Network Quality StateFlow
     private val _networkQuality = MutableStateFlow(NetworkQualityInfo())
     val networkQuality: StateFlow<NetworkQualityInfo> = _networkQuality.asStateFlow()
-
-    // Software Mic Boost Gain factor (1.35x for crystal-clear microphone sensitivity)
-    var micBoostGain: Float = 1.35f
 
     private var sipListenerJob: Job? = null
     private var keepAliveJob: Job? = null
@@ -1088,7 +1091,14 @@ object SipEngine {
         val sampleRate = 8000
         val pcmFrameSize = 160 // 20ms at 8kHz
 
-        jitterBuffer.clear()
+        jitterQueue.clear()
+        rtpPacketsReceived = 0L
+        rtpPacketsLost = 0L
+        rtpEstimatedJitterMs = 0.0
+        rtpLastSeq = -1
+        rtpLastTimestamp = 0L
+        rtpLastTransit = 0L
+        _networkQuality.value = NetworkQualityInfo(label = "Connecting...", qualityLevel = 2)
 
         // Configure Audio Manager for VoIP Communication
         try {
@@ -1098,7 +1108,7 @@ object SipEngine {
             e.printStackTrace()
         }
 
-        // 1. AudioRecord (Hardware AEC, NS & AGC)
+        // 1. AudioRecord (Hardware AEC & NS)
         val minRecBuf = max(
             AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2,
             2560
@@ -1118,22 +1128,19 @@ object SipEngine {
                 if (NoiseSuppressor.isAvailable()) {
                     nsEffect = NoiseSuppressor.create(rec.audioSessionId)?.apply { enabled = true }
                 }
-                if (AutomaticGainControl.isAvailable()) {
-                    agcEffect = AutomaticGainControl.create(rec.audioSessionId)?.apply { enabled = true }
-                }
                 rec.startRecording()
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
-        // 2. AudioTrack with shared audioSessionId for hardware AEC synchronization
+        // 2. AudioTrack with smooth jitter queue (prevents underruns without high latency)
+        // Must use AudioManager.AUDIO_SESSION_ID_GENERATE so HAL does not route playback through mic AEC/NS
         val minTrackBuf = max(
             AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2,
             3200
         )
         try {
-            val sessionId = audioRecord?.audioSessionId ?: AudioManager.AUDIO_SESSION_ID_GENERATE
             audioTrack = AudioTrack(
                 AudioAttributes.Builder()
                     .setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION)
@@ -1146,14 +1153,14 @@ object SipEngine {
                     .build(),
                 minTrackBuf,
                 AudioTrack.MODE_STREAM,
-                sessionId
+                AudioManager.AUDIO_SESSION_ID_GENERATE
             )
             audioTrack?.play()
         } catch (e: Exception) {
             e.printStackTrace()
         }
 
-        // 3. RTP Transmission Loop with Realtime Audio Thread Priority & Software Mic Boost
+        // 3. RTP Transmission Loop (Mic -> PCMA/PCMU -> Remote)
         rtpSendJob = scope.launch(Dispatchers.IO) {
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
 
@@ -1185,12 +1192,6 @@ object SipEngine {
 
                 if (isMuted.get()) {
                     for (i in 0 until pcmFrameSize) pcmBuf[i] = 0
-                } else if (micBoostGain != 1.0f) {
-                    // Apply software mic boost with saturation clipping
-                    for (i in 0 until pcmFrameSize) {
-                        val amplified = (pcmBuf[i] * micBoostGain).toInt()
-                        pcmBuf[i] = amplified.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
-                    }
                 }
 
                 if (negotiatedCodec == 8) {
@@ -1230,7 +1231,7 @@ object SipEngine {
             }
         }
 
-        // 4. Dedicated RTP Network Reception Loop -> Sequence-sorted Jitter Buffer Insertion
+        // 4. Dedicated RTP Network Reception Loop -> Direct Jitter Queue
         rtpRecvJob = scope.launch(Dispatchers.IO) {
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
             val recvBuffer = ByteArray(1500)
@@ -1294,34 +1295,55 @@ object SipEngine {
                     }
                 }
 
+                // Non-destructive RTP statistics calculation
+                val arrivalTime = System.currentTimeMillis()
                 val seq = ((recvBuffer[2].toInt() and 0xFF) shl 8) or (recvBuffer[3].toInt() and 0xFF)
                 val timestamp = ((recvBuffer[4].toLong() and 0xFF) shl 24) or
                         ((recvBuffer[5].toLong() and 0xFF) shl 16) or
                         ((recvBuffer[6].toLong() and 0xFF) shl 8) or
                         (recvBuffer[7].toLong() and 0xFF)
 
-                jitterBuffer.insert(seq, timestamp, decodedPcm, System.currentTimeMillis())
+                rtpPacketsReceived++
+                if (rtpLastSeq != -1) {
+                    val diff = (seq - rtpLastSeq) and 0xFFFF
+                    if (diff in 2..500) {
+                        rtpPacketsLost += (diff - 1)
+                    }
+                    val arrivalDiff = (arrivalTime - rtpLastTransit).toDouble()
+                    val sendDiff = ((timestamp - rtpLastTimestamp) / 8.0)
+                    if (sendDiff in 0.0..1000.0) {
+                        val d = kotlin.math.abs(arrivalDiff - sendDiff)
+                        rtpEstimatedJitterMs += (d - rtpEstimatedJitterMs) / 16.0
+                    }
+                }
+                rtpLastSeq = seq
+                rtpLastTransit = arrivalTime
+                rtpLastTimestamp = timestamp
+
+                // Prevent excessive buffer delay (cap at 25 packets / 500ms jitter backlog)
+                while (jitterQueue.size > 25) {
+                    jitterQueue.poll()
+                }
+                jitterQueue.offer(decodedPcm)
             }
         }
 
-        // 5. Dedicated Smooth AudioTrack Playback Loop with G.711 PLC
+        // 5. Dedicated Smooth AudioTrack Playback Loop
         rtpPlayJob = scope.launch(Dispatchers.IO) {
             Process.setThreadPriority(Process.THREAD_PRIORITY_URGENT_AUDIO)
 
             // Pre-buffer 3 packets (60ms) before playing for rock-solid stability
             var prebufferWaits = 0
-            while (isActive && isCallActive.get() && jitterBuffer.size() < 3 && prebufferWaits < 15) {
+            while (isActive && isCallActive.get() && jitterQueue.size < 3 && prebufferWaits < 15) {
                 delay(10)
                 prebufferWaits++
             }
 
             while (isActive && isCallActive.get()) {
                 val track = audioTrack ?: break
-                val frame = jitterBuffer.pollNextFrame(prebufferThreshold = 3)
+                val frame = jitterQueue.poll(60, TimeUnit.MILLISECONDS)
                 if (frame != null) {
                     track.write(frame, 0, frame.size, AudioTrack.WRITE_BLOCKING)
-                } else {
-                    delay(10)
                 }
             }
         }
@@ -1330,11 +1352,13 @@ object SipEngine {
         qualityMonitorJob = scope.launch(Dispatchers.IO) {
             while (isActive && isCallActive.get()) {
                 delay(1000)
-                val total = jitterBuffer.receivedPackets + jitterBuffer.lostPackets
+                val rec = rtpPacketsReceived
+                val lost = rtpPacketsLost
+                val total = rec + lost
                 val lossPct = if (total > 0) {
-                    (jitterBuffer.lostPackets.toFloat() / total) * 100f
+                    (lost.toFloat() / total) * 100f
                 } else 0f
-                val jitter = jitterBuffer.estimatedJitterMs.toInt().coerceAtLeast(0)
+                val jitter = rtpEstimatedJitterMs.toInt().coerceAtLeast(0)
                 val estRtt = (jitter * 2 + 25).coerceIn(20, 600)
 
                 val (label, level) = when {
@@ -1487,14 +1511,12 @@ object SipEngine {
                 rtpSendJob?.cancel()
                 rtpRecvJob?.cancel()
                 rtpPlayJob?.cancel()
-                jitterBuffer.clear()
+                jitterQueue.clear()
 
                 aecEffect?.release()
                 aecEffect = null
                 nsEffect?.release()
                 nsEffect = null
-                agcEffect?.release()
-                agcEffect = null
 
                 audioRecord?.stop()
                 audioRecord?.release()
