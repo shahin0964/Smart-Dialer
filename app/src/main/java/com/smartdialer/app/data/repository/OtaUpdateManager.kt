@@ -76,83 +76,174 @@ object OtaUpdateManager {
      */
     suspend fun checkForUpdates(context: Context): UpdateStatus = withContext(Dispatchers.IO) {
         val currentVersion = getCurrentVersion(context)
+        
+        // 1. Try GitHub REST API first (provides rich data, changelog, and asset details)
+        var releaseInfo: AppReleaseInfo? = fetchReleaseFromApi()
+
+        // 2. If API fails (e.g. HTTP 403 Rate Limited on cellular CGNAT), fallback to GitHub Web Redirect (Zero rate limits)
+        if (releaseInfo == null) {
+            releaseInfo = fetchReleaseFromWeb()
+        }
+
+        // 3. If web redirect also fails, try Fastly CDN Raw version.json (Zero rate limits)
+        if (releaseInfo == null) {
+            releaseInfo = fetchReleaseFromRaw()
+        }
+
+        if (releaseInfo == null) {
+            return@withContext UpdateStatus.Error("আপডেট চেক করা সম্ভব হয়নি। অনুগ্রহ করে ইন্টারনেট সংযোগ পরীক্ষা করুন।")
+        }
+
+        val hasUpdate = isNewerVersion(releaseInfo.tagName, currentVersion)
+        if (hasUpdate) {
+            UpdateStatus.UpdateAvailable(currentVersion, releaseInfo)
+        } else {
+            UpdateStatus.UpToDate(currentVersion, releaseInfo)
+        }
+    }
+
+    private fun fetchReleaseFromApi(): AppReleaseInfo? {
         var connection: HttpURLConnection? = null
         try {
             val url = URL(GITHUB_LATEST_RELEASE_API)
             connection = (url.openConnection() as HttpURLConnection).apply {
-                connectTimeout = 15000
-                readTimeout = 20000
+                connectTimeout = 8000
+                readTimeout = 10000
                 requestMethod = "GET"
                 setRequestProperty("Accept", "application/vnd.github.v3+json")
                 setRequestProperty("User-Agent", "SmartDialer-Android")
             }
 
             val responseCode = connection.responseCode
-            if (responseCode != HttpURLConnection.HTTP_OK) {
-                return@withContext UpdateStatus.Error("GitHub API returned error: HTTP $responseCode")
-            }
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                val reader = BufferedReader(InputStreamReader(connection.inputStream))
+                val responseString = reader.use { it.readText() }
+                val json = JSONObject(responseString)
 
-            val reader = BufferedReader(InputStreamReader(connection.inputStream))
-            val responseString = reader.use { it.readText() }
-            val json = JSONObject(responseString)
+                val tagName = json.optString("tag_name", "").trim()
+                if (tagName.isNotBlank()) {
+                    val releaseName = json.optString("name", tagName)
+                    val releaseBody = json.optString("body", "No release notes provided.").trim()
+                    val publishedAt = json.optString("published_at", "")
+                    val htmlUrl = json.optString("html_url", "")
 
-            val tagName = json.optString("tag_name", "").trim()
-            val releaseName = json.optString("name", tagName)
-            val releaseBody = json.optString("body", "No release notes provided.").trim()
-            val publishedAt = json.optString("published_at", "")
-            val htmlUrl = json.optString("html_url", "")
+                    var apkUrl = ""
+                    var apkName = ""
+                    var apkSize = 0L
 
-            // Parse APK asset
-            var apkUrl = ""
-            var apkName = ""
-            var apkSize = 0L
-
-            val assets = json.optJSONArray("assets")
-            if (assets != null) {
-                for (i in 0 until assets.length()) {
-                    val asset = assets.getJSONObject(i)
-                    val name = asset.optString("name", "")
-                    if (name.endsWith(".apk", ignoreCase = true)) {
-                        apkUrl = asset.optString("browser_download_url", "")
-                        apkName = name
-                        apkSize = asset.optLong("size", 0L)
-                        // Prefer the canonical SmartDialer-latest.apk
-                        if (name.equals("SmartDialer-latest.apk", ignoreCase = true)) {
-                            break
+                    val assets = json.optJSONArray("assets")
+                    if (assets != null) {
+                        for (i in 0 until assets.length()) {
+                            val asset = assets.getJSONObject(i)
+                            val name = asset.optString("name", "")
+                            if (name.endsWith(".apk", ignoreCase = true)) {
+                                apkUrl = asset.optString("browser_download_url", "")
+                                apkName = name
+                                apkSize = asset.optLong("size", 0L)
+                                if (name.equals("SmartDialer-latest.apk", ignoreCase = true)) {
+                                    break
+                                }
+                            }
                         }
                     }
+
+                    if (apkUrl.isBlank()) {
+                        apkUrl = "https://github.com/$GITHUB_REPO_OWNER/$GITHUB_REPO_NAME/releases/download/$tagName/SmartDialer-latest.apk"
+                        apkName = "SmartDialer-$tagName.apk"
+                    }
+
+                    return AppReleaseInfo(
+                        tagName = tagName,
+                        name = releaseName,
+                        body = releaseBody,
+                        apkUrl = apkUrl,
+                        apkName = apkName,
+                        apkSize = apkSize,
+                        publishedAt = publishedAt,
+                        htmlUrl = htmlUrl
+                    )
                 }
-            }
-
-            if (apkUrl.isBlank()) {
-                // Fallback default APK download URL if assets list not populated
-                apkUrl = "https://github.com/$GITHUB_REPO_OWNER/$GITHUB_REPO_NAME/releases/download/$tagName/SmartDialer-latest.apk"
-                apkName = "SmartDialer-$tagName.apk"
-            }
-
-            val releaseInfo = AppReleaseInfo(
-                tagName = tagName,
-                name = releaseName,
-                body = releaseBody,
-                apkUrl = apkUrl,
-                apkName = apkName,
-                apkSize = apkSize,
-                publishedAt = publishedAt,
-                htmlUrl = htmlUrl
-            )
-
-            val hasUpdate = isNewerVersion(tagName, currentVersion)
-            if (hasUpdate) {
-                UpdateStatus.UpdateAvailable(currentVersion, releaseInfo)
-            } else {
-                UpdateStatus.UpToDate(currentVersion, releaseInfo)
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            UpdateStatus.Error("Failed to check for updates: ${e.localizedMessage ?: "Network error"}")
         } finally {
             connection?.disconnect()
         }
+        return null
+    }
+
+    private fun fetchReleaseFromWeb(): AppReleaseInfo? {
+        var connection: HttpURLConnection? = null
+        try {
+            val url = URL("https://github.com/$GITHUB_REPO_OWNER/$GITHUB_REPO_NAME/releases/latest")
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                connectTimeout = 8000
+                readTimeout = 8000
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36")
+            }
+
+            val location = connection.getHeaderField("Location") ?: connection.url.toString()
+            if (location.isNotBlank() && location.contains("/releases/tag/")) {
+                val tag = location.trimEnd('/').substringAfterLast("/").trim()
+                if (tag.isNotBlank()) {
+                    val apkUrl = "https://github.com/$GITHUB_REPO_OWNER/$GITHUB_REPO_NAME/releases/download/$tag/SmartDialer-latest.apk"
+                    return AppReleaseInfo(
+                        tagName = tag,
+                        name = "Smart Dialer $tag",
+                        body = "Official release $tag from GitHub repository.",
+                        apkUrl = apkUrl,
+                        apkName = "SmartDialer-latest.apk",
+                        apkSize = 0L,
+                        publishedAt = "",
+                        htmlUrl = location
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            connection?.disconnect()
+        }
+        return null
+    }
+
+    private fun fetchReleaseFromRaw(): AppReleaseInfo? {
+        var connection: HttpURLConnection? = null
+        try {
+            val url = URL("https://raw.githubusercontent.com/$GITHUB_REPO_OWNER/$GITHUB_REPO_NAME/main/version.json")
+            connection = (url.openConnection() as HttpURLConnection).apply {
+                connectTimeout = 6000
+                readTimeout = 6000
+                requestMethod = "GET"
+                setRequestProperty("User-Agent", "SmartDialer-Android")
+            }
+
+            if (connection.responseCode == HttpURLConnection.HTTP_OK) {
+                val responseString = connection.inputStream.bufferedReader().use { it.readText() }
+                val json = JSONObject(responseString)
+                val tagName = json.optString("tagName", "").trim()
+                if (tagName.isNotBlank()) {
+                    val apkUrl = json.optString("apkUrl", "https://github.com/$GITHUB_REPO_OWNER/$GITHUB_REPO_NAME/releases/download/$tagName/SmartDialer-latest.apk")
+                    return AppReleaseInfo(
+                        tagName = tagName,
+                        name = json.optString("name", "Smart Dialer $tagName"),
+                        body = json.optString("body", "Official release $tagName from GitHub."),
+                        apkUrl = apkUrl,
+                        apkName = "SmartDialer-latest.apk",
+                        apkSize = 0L,
+                        publishedAt = "",
+                        htmlUrl = "https://github.com/$GITHUB_REPO_OWNER/$GITHUB_REPO_NAME/releases/tag/$tagName"
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            connection?.disconnect()
+        }
+        return null
     }
 
     /**

@@ -88,6 +88,7 @@ jobs:
           if [ -n "$APK_FILE" ] && [ -f "$APK_FILE" ]; then
             cp "$APK_FILE" release-artifacts/SmartDialer-latest.apk
             cp "$APK_FILE" "release-artifacts/SmartDialer-v${{ env.VERSION_NAME }}.apk"
+            echo "{\"versionCode\": ${{ env.VERSION_CODE }}, \"versionName\": \"${{ env.VERSION_NAME }}\", \"tagName\": \"v${{ env.VERSION_NAME }}\", \"name\": \"Smart Dialer v${{ env.VERSION_NAME }}\", \"apkUrl\": \"https://github.com/${{ github.repository }}/releases/download/v${{ env.VERSION_NAME }}/SmartDialer-latest.apk\"}" > release-artifacts/version.json
             echo "Successfully prepared release artifacts"
             ls -lh release-artifacts/
           else
