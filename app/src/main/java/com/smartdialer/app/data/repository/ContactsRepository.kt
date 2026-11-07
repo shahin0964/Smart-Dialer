@@ -3,6 +3,7 @@ package com.smartdialer.app.data.repository
 import android.accounts.AccountManager
 import android.content.ContentProviderOperation
 import android.content.ContentResolver
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -18,6 +19,8 @@ import com.smartdialer.app.data.model.ContactItem
 import com.smartdialer.app.data.model.ContactSaveDestination
 import com.smartdialer.app.data.model.ContactSaveDestinationType
 import com.smartdialer.app.data.model.ContactSourceFilter
+import com.smartdialer.app.data.model.DuplicateContactGroup
+import com.smartdialer.app.utils.WhatsAppHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -740,5 +743,87 @@ class ContactsRepository(val context: Context) {
                 pClean == clean || (clean.length >= 7 && pClean.endsWith(clean.takeLast(7)))
             }
         }
+    }
+
+    /**
+     * Identifies duplicate contacts by matching normalized phone numbers or identical names.
+     */
+    suspend fun findDuplicates(): List<DuplicateContactGroup> = withContext(Dispatchers.IO) {
+        val all = getContacts(filter = ContactSourceFilter.ALL)
+        if (all.size < 2) return@withContext emptyList()
+
+        val groups = mutableMapOf<String, MutableList<ContactItem>>()
+
+        for (c in all) {
+            val norm = WhatsAppHelper.normalizeForWhatsApp(c.phoneNumber)
+            if (norm.length >= 7) {
+                // Match last 10 digits to link local and international versions (017... vs 88017...)
+                val shortKey = norm.takeLast(10)
+                groups.getOrPut("phone_$shortKey") { mutableListOf() }.add(c)
+            } else if (c.name.isNotBlank()) {
+                val nameKey = c.name.trim().lowercase()
+                groups.getOrPut("name_$nameKey") { mutableListOf() }.add(c)
+            }
+        }
+
+        val result = mutableListOf<DuplicateContactGroup>()
+        val seenContactIds = mutableSetOf<String>()
+
+        for ((key, list) in groups) {
+            val distinctContacts = list.distinctBy { it.id }.filter { it.id !in seenContactIds }
+            if (distinctContacts.size > 1) {
+                // Determine primary contact: prefer Google account contact, then one with email/phone numbers
+                val primary = distinctContacts.maxByOrNull { c ->
+                    (if (c.isGoogleContact) 10 else 0) +
+                    (if (!c.email.isNullOrBlank()) 2 else 0) +
+                    c.phoneNumbers.size
+                } ?: distinctContacts.first()
+
+                val duplicates = distinctContacts.filter { it.id != primary.id }
+                if (duplicates.isNotEmpty()) {
+                    result.add(DuplicateContactGroup(key = key, primaryContact = primary, duplicateContacts = duplicates))
+                    distinctContacts.forEach { seenContactIds.add(it.id) }
+                }
+            }
+        }
+
+        result
+    }
+
+    /**
+     * Merges a single duplicate group by removing redundant secondary contacts.
+     */
+    suspend fun mergeDuplicateGroup(group: DuplicateContactGroup): Result<Int> = withContext(Dispatchers.IO) {
+        try {
+            var mergedCount = 0
+            for (dup in group.duplicateContacts) {
+                val contactUri = ContentUris.withAppendedId(
+                    ContactsContract.Contacts.CONTENT_URI,
+                    dup.id.toLongOrNull() ?: continue
+                )
+                val rows = context.contentResolver.delete(contactUri, null, null)
+                if (rows > 0) {
+                    mergedCount++
+                }
+            }
+            Result.success(mergedCount)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Batch merges all detected duplicate contact groups.
+     */
+    suspend fun mergeAllDuplicates(groups: List<DuplicateContactGroup>): Result<Int> = withContext(Dispatchers.IO) {
+        var totalMerged = 0
+        for (group in groups) {
+            val res = mergeDuplicateGroup(group)
+            if (res.isSuccess) {
+                totalMerged += res.getOrDefault(0)
+            }
+        }
+        Result.success(totalMerged)
     }
 }

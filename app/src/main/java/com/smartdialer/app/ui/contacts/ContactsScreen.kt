@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -71,6 +72,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.smartdialer.app.data.callerid.CallerIdResult
 import com.smartdialer.app.data.callerid.TelecomCarrierDetector
 import com.smartdialer.app.utils.WhatsAppHelper
+import com.smartdialer.app.utils.TelegramHelper
 import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -205,6 +207,9 @@ fun ContactsScreen(
     val initialContactPhone by viewModel.initialContactPhone.collectAsState()
     val availableDestinations by viewModel.availableDestinations.collectAsState()
     val isSavingContact by viewModel.isSavingContact.collectAsState()
+    val duplicateGroups by viewModel.duplicateGroups.collectAsState()
+    val showDuplicatesDialog by viewModel.showDuplicatesDialog.collectAsState()
+    val isMergingDuplicates by viewModel.isMergingDuplicates.collectAsState()
 
     // Group contacts alphabetically
     val grouped = remember(contacts) {
@@ -275,6 +280,28 @@ fun ContactsScreen(
                     modifier = Modifier.size(26.dp)
                 )
             }
+
+            IconButton(
+                onClick = { viewModel.scanDuplicates(openDialogWhenDone = true) },
+                modifier = Modifier.size(42.dp)
+            ) {
+                Box(contentAlignment = Alignment.TopEnd) {
+                    Icon(
+                        imageVector = Icons.Default.Sync,
+                        contentDescription = "Merge Duplicates",
+                        tint = if (duplicateGroups.isNotEmpty()) Color(0xFFD97706) else PurplePrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    if (duplicateGroups.isNotEmpty()) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFEF4444))
+                        )
+                    }
+                }
+            }
         }
 
         // Account Filter Chips Row (All, Google/Gmail, Device, SIM, Sync)
@@ -286,6 +313,34 @@ fun ContactsScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            if (duplicateGroups.isNotEmpty()) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = Color(0xFFFEF3C7),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B)),
+                    modifier = Modifier.clickable { viewModel.setShowDuplicatesDialog(true) }
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Sync,
+                            contentDescription = null,
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Merge Duplicates (${duplicateGroups.size})",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF92400E)
+                        )
+                    }
+                }
+            }
+
             AccountFilterChip(
                 label = "All",
                 count = counts.total,
@@ -764,6 +819,17 @@ fun ContactsScreen(
             }
         )
     }
+
+    // Duplicate Contacts Cleaner Dialog
+    if (showDuplicatesDialog) {
+        DuplicateContactsDialog(
+            groups = duplicateGroups,
+            isMerging = isMergingDuplicates,
+            onMergeGroup = { viewModel.mergeDuplicateGroup(it) },
+            onMergeAll = { viewModel.mergeAllDuplicates() },
+            onDismiss = { viewModel.setShowDuplicatesDialog(false) }
+        )
+    }
 }
 
 @Composable
@@ -1151,6 +1217,18 @@ fun ContactDetailsDialog(
                         }
                     )
 
+                    // Telegram Action
+                    ProfileQuickActionButton(
+                        icon = Icons.Default.Send,
+                        label = "Telegram",
+                        color = Color(0xFF229ED9),
+                        onClick = {
+                            if (contact.phoneNumber.isNotBlank()) {
+                                TelegramHelper.openTelegramChat(context, contact.phoneNumber)
+                            }
+                        }
+                    )
+
                     // Email Action
                     if (!contact.email.isNullOrBlank()) {
                         ProfileQuickActionButton(
@@ -1238,6 +1316,21 @@ fun ContactDetailsDialog(
                                             imageVector = Icons.Default.Chat,
                                             contentDescription = "WhatsApp",
                                             tint = Color(0xFF25D366),
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    // Telegram Button for this specific number
+                                    IconButton(
+                                        onClick = {
+                                            TelegramHelper.openTelegramChat(context, phone)
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Send,
+                                            contentDescription = "Telegram",
+                                            tint = Color(0xFF229ED9),
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }

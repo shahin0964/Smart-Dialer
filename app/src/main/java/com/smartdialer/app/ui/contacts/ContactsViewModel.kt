@@ -13,6 +13,7 @@ import com.smartdialer.app.data.model.ContactItem
 import com.smartdialer.app.data.model.ContactSaveDestination
 import com.smartdialer.app.data.model.ContactSaveDestinationType
 import com.smartdialer.app.data.model.ContactSourceFilter
+import com.smartdialer.app.data.model.DuplicateContactGroup
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.telecom.CallManager
 import kotlinx.coroutines.Job
@@ -80,6 +81,19 @@ class ContactsViewModel(
     private val _syncMessage = MutableStateFlow<String?>(null)
     val syncMessage: StateFlow<String?> = _syncMessage.asStateFlow()
 
+    // Duplicate Contacts Management
+    private val _duplicateGroups = MutableStateFlow<List<DuplicateContactGroup>>(emptyList())
+    val duplicateGroups: StateFlow<List<DuplicateContactGroup>> = _duplicateGroups.asStateFlow()
+
+    private val _isScanningDuplicates = MutableStateFlow(false)
+    val isScanningDuplicates: StateFlow<Boolean> = _isScanningDuplicates.asStateFlow()
+
+    private val _isMergingDuplicates = MutableStateFlow(false)
+    val isMergingDuplicates: StateFlow<Boolean> = _isMergingDuplicates.asStateFlow()
+
+    private val _showDuplicatesDialog = MutableStateFlow(false)
+    val showDuplicatesDialog: StateFlow<Boolean> = _showDuplicatesDialog.asStateFlow()
+
     fun loadContacts() {
         viewModelScope.launch {
             _isRefreshing.value = true
@@ -103,6 +117,63 @@ class ContactsViewModel(
             _availableDestinations.value = destinations
 
             _isRefreshing.value = false
+
+            // Scan duplicates in background
+            try {
+                val dups = contactsRepository.findDuplicates()
+                _duplicateGroups.value = dups
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun scanDuplicates(openDialogWhenDone: Boolean = true) {
+        viewModelScope.launch {
+            _isScanningDuplicates.value = true
+            val duplicates = contactsRepository.findDuplicates()
+            _duplicateGroups.value = duplicates
+            _isScanningDuplicates.value = false
+            if (openDialogWhenDone) {
+                _showDuplicatesDialog.value = true
+            }
+        }
+    }
+
+    fun setShowDuplicatesDialog(show: Boolean) {
+        _showDuplicatesDialog.value = show
+    }
+
+    fun mergeDuplicateGroup(group: DuplicateContactGroup) {
+        viewModelScope.launch {
+            _isMergingDuplicates.value = true
+            val res = contactsRepository.mergeDuplicateGroup(group)
+            _isMergingDuplicates.value = false
+            if (res.isSuccess) {
+                _duplicateGroups.value = _duplicateGroups.value.filter { it.key != group.key }
+                loadContacts()
+                _syncMessage.value = "Merged duplicate contact successfully!"
+                delay(2500)
+                _syncMessage.value = null
+            }
+        }
+    }
+
+    fun mergeAllDuplicates() {
+        viewModelScope.launch {
+            _isMergingDuplicates.value = true
+            val groups = _duplicateGroups.value
+            val res = contactsRepository.mergeAllDuplicates(groups)
+            _isMergingDuplicates.value = false
+            if (res.isSuccess) {
+                val count = res.getOrDefault(0)
+                _duplicateGroups.value = emptyList()
+                _showDuplicatesDialog.value = false
+                loadContacts()
+                _syncMessage.value = "Cleaned and merged $count duplicate contacts!"
+                delay(3000)
+                _syncMessage.value = null
+            }
         }
     }
 

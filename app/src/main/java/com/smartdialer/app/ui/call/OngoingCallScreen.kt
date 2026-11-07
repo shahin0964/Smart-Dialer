@@ -22,8 +22,16 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Dialpad
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import com.smartdialer.app.telecom.FloatingCallHeadManager
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.MicOff
 import androidx.compose.material.icons.filled.Block
@@ -127,16 +135,46 @@ fun OngoingCallScreen(
                     )
                 }
 
-                IconButton(
-                    onClick = { /* Info */ },
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Info,
-                        contentDescription = "Call Info",
-                        tint = Color.White.copy(alpha = 0.8f),
-                        modifier = Modifier.size(22.dp)
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+                                try {
+                                    val intent = Intent(
+                                        Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                                        Uri.parse("package:${context.packageName}")
+                                    ).apply { flags = Intent.FLAG_ACTIVITY_NEW_TASK }
+                                    context.startActivity(intent)
+                                    Toast.makeText(context, "Please allow 'Display over other apps' to use Floating Bubble", Toast.LENGTH_LONG).show()
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            } else {
+                                FloatingCallHeadManager.show(context)
+                                (context as? Activity)?.moveTaskToBack(true)
+                            }
+                        },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.KeyboardArrowDown,
+                            contentDescription = "Minimize to Floating Bubble",
+                            tint = Color.White.copy(alpha = 0.9f),
+                            modifier = Modifier.size(26.dp)
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { /* Info */ },
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Call Info",
+                            tint = Color.White.copy(alpha = 0.8f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
                 }
             }
 
@@ -233,20 +271,42 @@ fun OngoingCallScreen(
 
                 if (callInfo.isIpCall || callInfo.simSlot == 3) {
                     Spacer(modifier = Modifier.height(6.dp))
+                    val quality = callInfo.networkQuality
+                    val dotColor = when (quality?.qualityLevel) {
+                        3 -> Color(0xFF10B981) // Green
+                        2 -> Color(0xFF34D399) // Light Green
+                        1 -> Color(0xFFF59E0B) // Amber
+                        0 -> Color(0xFFEF4444) // Red
+                        else -> Color(0xFF10B981)
+                    }
+
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF8B5CF6).copy(alpha = 0.25f),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA78BFA).copy(alpha = 0.5f))
+                        color = Color(0xFF8B5CF6).copy(alpha = 0.22f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA78BFA).copy(alpha = 0.45f))
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp)
+                                    .clip(CircleShape)
+                                    .background(dotColor)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            val qualityText = if (quality != null && callInfo.status == CallStatus.ACTIVE) {
+                                val lossText = if (quality.packetLossPct >= 1.0f) " • Loss ${quality.packetLossPct.toInt()}%" else ""
+                                "🌐 IP Call • ${quality.label} • ${quality.rttMs}ms$lossText"
+                            } else {
+                                "🌐 IP Call • HD Audio"
+                            }
                             Text(
-                                text = "🌐 IP Call • HD Audio",
+                                text = qualityText,
                                 color = Color(0xFFE9D5FF),
                                 fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }

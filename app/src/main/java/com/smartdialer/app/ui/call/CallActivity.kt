@@ -23,6 +23,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.lifecycleScope
 import com.smartdialer.app.data.model.CallStatus
 import com.smartdialer.app.telecom.CallManager
+import com.smartdialer.app.telecom.FloatingCallHeadManager
 import com.smartdialer.app.ui.theme.SmartDialerTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -201,6 +202,7 @@ class CallActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        FloatingCallHeadManager.dismiss()
         val state = CallManager.currentCallState.value
         if (!state.isSpeakerOn && state.status != CallStatus.DISCONNECTED && state.status != CallStatus.IDLE) {
             acquireProximityLock()
@@ -209,13 +211,20 @@ class CallActivity : ComponentActivity() {
 
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
-        // User switched apps or pressed home; pause proximity blanking while out of call screen
+        // User switched apps or pressed home; pause proximity blanking and show floating bubble
         releaseProximityLock()
+        if (CallManager.currentCallState.value.status == CallStatus.ACTIVE) {
+            FloatingCallHeadManager.show(this)
+        }
     }
 
     override fun onDestroy() {
         releaseProximityLock()
         sensorManager?.unregisterListener(sensorEventListener)
+        if (CallManager.currentCallState.value.status == CallStatus.DISCONNECTED ||
+            CallManager.currentCallState.value.status == CallStatus.IDLE) {
+            FloatingCallHeadManager.dismiss()
+        }
         super.onDestroy()
     }
 }

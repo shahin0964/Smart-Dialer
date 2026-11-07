@@ -71,3 +71,11 @@ data class ContactItem(
             else -> "No phone number"
         }
 }
+
+data class DuplicateContactGroup(
+    val key: String,
+    val primaryContact: ContactItem,
+    val duplicateContacts: List<ContactItem>
+) {
+    val totalCount: Int get() = 1 + duplicateContacts.size
+}

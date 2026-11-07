@@ -10,6 +10,14 @@ enum class CallStatus {
     DISCONNECTED
 }
 
+data class NetworkQualityInfo(
+    val rttMs: Int = 0,
+    val packetLossPct: Float = 0f,
+    val jitterMs: Int = 0,
+    val label: String = "HD Voice",
+    val qualityLevel: Int = 3 // 3 = HD/Excellent, 2 = Good, 1 = Fair, 0 = Poor
+)
+
 data class ActiveCallInfo(
     val callId: String = "",
     val number: String = "",
@@ -27,7 +35,8 @@ data class ActiveCallInfo(
     val isRecording: Boolean = false,
     val simSlot: Int = 1,
     val isIpCall: Boolean = false,
-    val isIncoming: Boolean = false
+    val isIncoming: Boolean = false,
+    val networkQuality: NetworkQualityInfo? = null
 ) {
     val durationFormatted: String
         get() {

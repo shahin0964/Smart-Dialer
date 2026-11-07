@@ -258,7 +258,11 @@ object CallManager {
             while (isActive) {
                 delay(1000)
                 seconds++
-                val updatedState = _currentCallState.value.copy(durationSeconds = seconds)
+                val quality = if (isIpCallActive) SipEngine.networkQuality.value else null
+                val updatedState = _currentCallState.value.copy(
+                    durationSeconds = seconds,
+                    networkQuality = quality
+                )
                 _currentCallState.value = updatedState
                 if (seconds % 5 == 0L) {
                     appContext?.let { ctx ->

@@ -42,6 +42,8 @@ import com.smartdialer.app.data.callerid.CallerIdResult
 import com.smartdialer.app.ui.components.IpCallConfigDialog
 import com.smartdialer.app.ui.contacts.AddNewContactDialog
 import com.smartdialer.app.utils.WhatsAppHelper
+import com.smartdialer.app.utils.TelegramHelper
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -264,6 +266,9 @@ fun DialerScreen(
                     },
                     onWhatsApp = {
                         WhatsAppHelper.openWhatsAppChat(context, inputNumber)
+                    },
+                    onTelegram = {
+                        TelegramHelper.openTelegramChat(context, inputNumber)
                     }
                 )
             }
@@ -701,7 +706,8 @@ fun CallerIdBanner(
     isLoading: Boolean,
     inputNumber: String,
     onSaveContact: () -> Unit,
-    onWhatsApp: () -> Unit
+    onWhatsApp: () -> Unit,
+    onTelegram: () -> Unit
 ) {
     val isSpam = callerId?.isSpam == true
 
@@ -800,7 +806,7 @@ fun CallerIdBanner(
                 }
             }
 
-            // Quick Actions: WhatsApp & Save Contact
+            // Quick Actions: WhatsApp, Telegram & Save Contact
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // WhatsApp Icon Button (Green)
                 IconButton(
@@ -811,6 +817,19 @@ fun CallerIdBanner(
                         imageVector = Icons.Default.Chat,
                         contentDescription = "WhatsApp",
                         tint = Color(0xFF25D366),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+
+                // Telegram Icon Button (Telegram Blue)
+                IconButton(
+                    onClick = onTelegram,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Send,
+                        contentDescription = "Telegram",
+                        tint = Color(0xFF229ED9),
                         modifier = Modifier.size(18.dp)
                     )
                 }
