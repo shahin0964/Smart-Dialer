@@ -213,6 +213,14 @@ class AppSettingsPreferences(private val context: Context) {
         get() = prefs.getString("truecaller_auth_token", null)
         set(value) = prefs.edit().putString("truecaller_auth_token", value).apply()
 
+    var truecallerPhoneNumber: String?
+        get() = prefs.getString("truecaller_phone_number", null)
+        set(value) = prefs.edit().putString("truecaller_phone_number", value).apply()
+
+    var truecallerUserName: String?
+        get() = prefs.getString("truecaller_user_name", null)
+        set(value) = prefs.edit().putString("truecaller_user_name", value).apply()
+
     var truecallerCustomEndpoint: String?
         get() = prefs.getString("truecaller_custom_endpoint", null)
         set(value) = prefs.edit().putString("truecaller_custom_endpoint", value).apply()

@@ -27,13 +27,18 @@ import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalClipboardManager
 import com.smartdialer.app.data.callerid.CallerIdResult
 import com.smartdialer.app.data.callerid.CallerIdService
+import com.smartdialer.app.data.callerid.TruecallerAuthService
+import com.smartdialer.app.data.callerid.TruecallerOtpSession
 import androidx.core.app.NotificationManagerCompat
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.data.repository.VcfManager
@@ -1758,11 +1763,25 @@ fun CallerIdSettingsDialog(
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
+    val authService = remember { TruecallerAuthService(context) }
 
     var isEnabled by remember { mutableStateOf(appSettings.callerIdEnabled) }
     var token by remember { mutableStateOf(appSettings.truecallerAuthToken ?: "") }
     var endpoint by remember { mutableStateOf(appSettings.truecallerCustomEndpoint ?: "") }
+    var connectedPhone by remember { mutableStateOf(appSettings.truecallerPhoneNumber ?: "") }
+    var isConnected by remember { mutableStateOf(!appSettings.truecallerAuthToken.isNullOrBlank()) }
 
+    // OTP Flow State
+    var phoneInput by remember { mutableStateOf("") }
+    var otpSession by remember { mutableStateOf<TruecallerOtpSession?>(null) }
+    var otpInput by remember { mutableStateOf("") }
+    var isSendingOtp by remember { mutableStateOf(false) }
+    var isVerifyingOtp by remember { mutableStateOf(false) }
+    var authError by remember { mutableStateOf<String?>(null) }
+    var authSuccess by remember { mutableStateOf<String?>(null) }
+    var showAdvanced by remember { mutableStateOf(false) }
+
+    // Test Search State
     var testNumber by remember { mutableStateOf("") }
     var isTesting by remember { mutableStateOf(false) }
     var testResult by remember { mutableStateOf<CallerIdResult?>(null) }
@@ -1860,74 +1879,344 @@ fun CallerIdSettingsDialog(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Truecaller Token Card
-                Text(
-                    text = "Truecaller Live Integration",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TextDark
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-
-                OutlinedTextField(
-                    value = token,
-                    onValueChange = { token = it },
-                    label = { Text("Truecaller Auth Token") },
-                    placeholder = { Text("Paste Truecaller Token") },
-                    trailingIcon = {
-                        IconButton(
-                            onClick = {
-                                val clip = clipboardManager.getText()?.text
-                                if (!clip.isNullOrBlank()) {
-                                    token = clip.trim()
-                                }
-                            }
+                // Auth Success Message
+                authSuccess?.let { msg ->
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFECFDF5),
+                        border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
-                                imageVector = Icons.Default.ContentPaste,
-                                contentDescription = "Paste",
-                                tint = PurplePrimary,
-                                modifier = Modifier.size(20.dp)
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF16A34A),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = msg,
+                                fontSize = 12.sp,
+                                color = Color(0xFF065F46),
+                                fontWeight = FontWeight.Medium
                             )
                         }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedContainerColor = Color(0xFFF8FAFC),
-                        focusedIndicatorColor = PurplePrimary,
-                        unfocusedIndicatorColor = Color(0xFFE2E8F0)
-                    )
-                )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Paste your Truecaller token here to fetch real live names, avatars, and spam ratings directly from Truecaller's servers.",
-                    fontSize = 11.sp,
-                    color = TextMuted,
-                    lineHeight = 15.sp
-                )
+                // Auth Error Message
+                authError?.let { err ->
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFFFEF2F2),
+                        border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFDC2626),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = err,
+                                fontSize = 12.sp,
+                                color = Color(0xFF991B1B),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                // CONNECTED STATE
+                if (isConnected) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFF0FDF4),
+                        border = BorderStroke(1.dp, Color(0xFF86EFAC)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = Color(0xFF16A34A),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = "Truecaller Connected",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = Color(0xFF14532D)
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFDCFCE7))
+                                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = "LIVE",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF15803D)
+                                    )
+                                }
+                            }
 
-                // Custom Gateway URL (Optional)
-                OutlinedTextField(
-                    value = endpoint,
-                    onValueChange = { endpoint = it },
-                    label = { Text("Custom Gateway URL (Optional)") },
-                    placeholder = { Text("https://my-proxy.com/api/lookup") },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    singleLine = true,
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedContainerColor = Color(0xFFF8FAFC),
-                        focusedIndicatorColor = PurplePrimary,
-                        unfocusedIndicatorColor = Color(0xFFE2E8F0)
-                    )
-                )
+                            if (connectedPhone.isNotBlank()) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Account: $connectedPhone",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF166534),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "Real-time caller name, profile photo, and community spam ratings are active on dialer and contacts search.",
+                                fontSize = 11.sp,
+                                color = Color(0xFF15803D),
+                                lineHeight = 15.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    authService.logout()
+                                    token = ""
+                                    connectedPhone = ""
+                                    isConnected = false
+                                    authSuccess = "Truecaller disconnected."
+                                    authError = null
+                                    onSaved()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(8.dp),
+                                border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = Color(0xFFDC2626)
+                                )
+                            ) {
+                                Text(
+                                    text = "Disconnect / Log out",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    // NOT CONNECTED STATE - OTP LOGIN
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFFF8FAFC),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp)) {
+                            Text(
+                                text = "Truecaller Login (SMS OTP)",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextDark
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "আপনার মোবাইল নম্বর দিন। সরাসরি Truecaller থেকে SMS OTP আসবে এবং স্বয়ংক্রিয়ভাবে কানেক্ট হয়ে যাবে।",
+                                fontSize = 11.sp,
+                                color = TextMuted,
+                                lineHeight = 15.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            val currentSession = otpSession
+                            if (currentSession == null) {
+                                // Step 1: Phone input
+                                OutlinedTextField(
+                                    value = phoneInput,
+                                    onValueChange = { phoneInput = it },
+                                    label = { Text("Mobile Number") },
+                                    placeholder = { Text("017XXXXXXXX বা +88017...") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.White,
+                                        unfocusedContainerColor = Color.White,
+                                        focusedIndicatorColor = PurplePrimary,
+                                        unfocusedIndicatorColor = Color(0xFFCBD5E1)
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Button(
+                                    onClick = {
+                                        if (phoneInput.isNotBlank()) {
+                                            isSendingOtp = true
+                                            authError = null
+                                            authSuccess = null
+                                            scope.launch {
+                                                val res = authService.sendOtp(phoneInput)
+                                                if (res.isSuccess) {
+                                                    otpSession = res.getOrNull()
+                                                    authSuccess = "OTP sent to ${otpSession?.fullPhoneNumber}. Please check SMS."
+                                                } else {
+                                                    authError = res.exceptionOrNull()?.message ?: "Failed to send OTP"
+                                                }
+                                                isSendingOtp = false
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                                    enabled = !isSendingOtp && phoneInput.isNotBlank()
+                                ) {
+                                    if (isSendingOtp) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color.White
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Sending OTP...", fontSize = 13.sp, color = Color.White)
+                                    } else {
+                                        Text("Send Login OTP (কোড পাঠান)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            } else {
+                                // Step 2: OTP verification
+                                Surface(
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFFEFF6FF),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(bottom = 10.dp)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = "OTP sent to: ${currentSession.fullPhoneNumber}",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF1E40AF)
+                                            )
+                                            Text(
+                                                text = "SMS ইনবক্সে আসা ৬ সংখ্যার কোড লিখুন",
+                                                fontSize = 10.sp,
+                                                color = Color(0xFF3B82F6)
+                                            )
+                                        }
+                                        TextButton(
+                                            onClick = {
+                                                otpSession = null
+                                                otpInput = ""
+                                                authError = null
+                                            }
+                                        ) {
+                                            Text("Change", fontSize = 11.sp, color = PurplePrimary)
+                                        }
+                                    }
+                                }
+
+                                OutlinedTextField(
+                                    value = otpInput,
+                                    onValueChange = { if (it.length <= 8) otpInput = it },
+                                    label = { Text("SMS OTP Code") },
+                                    placeholder = { Text("e.g. 123456") },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(10.dp),
+                                    singleLine = true,
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.White,
+                                        unfocusedContainerColor = Color.White,
+                                        focusedIndicatorColor = PurplePrimary,
+                                        unfocusedIndicatorColor = Color(0xFFCBD5E1)
+                                    )
+                                )
+
+                                Spacer(modifier = Modifier.height(10.dp))
+
+                                Button(
+                                    onClick = {
+                                        if (otpInput.isNotBlank()) {
+                                            isVerifyingOtp = true
+                                            authError = null
+                                            authSuccess = null
+                                            scope.launch {
+                                                val res = authService.verifyOtp(currentSession, otpInput)
+                                                if (res.isSuccess) {
+                                                    val loginRes = res.getOrNull()!!
+                                                    token = loginRes.installationId
+                                                    connectedPhone = currentSession.fullPhoneNumber
+                                                    isConnected = true
+                                                    otpSession = null
+                                                    otpInput = ""
+                                                    authSuccess = "Truecaller Connected successfully!"
+                                                    onSaved()
+                                                } else {
+                                                    authError = res.exceptionOrNull()?.message ?: "OTP Verification failed"
+                                                }
+                                                isVerifyingOtp = false
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp),
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF16A34A)),
+                                    enabled = !isVerifyingOtp && otpInput.isNotBlank()
+                                ) {
+                                    if (isVerifyingOtp) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp,
+                                            color = Color.White
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Verifying...", fontSize = 13.sp, color = Color.White)
+                                    } else {
+                                        Text("Verify & Connect (যাচাই করুন)", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
@@ -1944,7 +2233,12 @@ fun CallerIdSettingsDialog(
                             fontWeight = FontWeight.Bold,
                             color = TextDark
                         )
-                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "যেকোনো নম্বর লিখে রিয়েল ডাটা পরীক্ষা করুন",
+                            fontSize = 10.sp,
+                            color = TextMuted
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth()
@@ -2010,7 +2304,7 @@ fun CallerIdSettingsDialog(
                                         Icon(
                                             imageVector = Icons.Default.CheckCircle,
                                             contentDescription = null,
-                                            tint = Color(0xFF16A34A),
+                                            tint = if (res.isSpam) Color(0xFFDC2626) else Color(0xFF16A34A),
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
@@ -2018,7 +2312,7 @@ fun CallerIdSettingsDialog(
                                             text = res.name ?: "${res.carrier} User",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
-                                            color = TextDark
+                                            color = if (res.isSpam) Color(0xFFDC2626) else TextDark
                                         )
                                     }
                                     Text(
@@ -2026,20 +2320,114 @@ fun CallerIdSettingsDialog(
                                         fontSize = 11.sp,
                                         color = TextMuted
                                     )
+                                    if (res.isSpam) {
+                                        Text(
+                                            text = "⚠️ ${res.spamCategory ?: "Spam Warning"}",
+                                            fontSize = 10.sp,
+                                            color = Color(0xFFDC2626),
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Advanced Settings Toggle (Manual Token / Proxy URL)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { showAdvanced = !showAdvanced }
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Advanced: Custom Token / Proxy Gateway",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextMuted
+                    )
+                    Icon(
+                        imageVector = Icons.Default.ArrowDropDown,
+                        contentDescription = null,
+                        tint = TextMuted
+                    )
+                }
+
+                if (showAdvanced) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = token,
+                        onValueChange = { 
+                            token = it 
+                            isConnected = it.isNotBlank()
+                        },
+                        label = { Text("Manual Auth Token") },
+                        placeholder = { Text("Paste Truecaller Token") },
+                        trailingIcon = {
+                            IconButton(
+                                onClick = {
+                                    val clip = clipboardManager.getText()?.text
+                                    if (!clip.isNullOrBlank()) {
+                                        token = clip.trim()
+                                        isConnected = token.isNotBlank()
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentPaste,
+                                    contentDescription = "Paste",
+                                    tint = PurplePrimary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFFF8FAFC),
+                            unfocusedContainerColor = Color(0xFFF8FAFC),
+                            focusedIndicatorColor = PurplePrimary,
+                            unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = endpoint,
+                        onValueChange = { endpoint = it },
+                        label = { Text("Custom Gateway URL (Optional)") },
+                        placeholder = { Text("https://my-proxy.com/api/lookup") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        singleLine = true,
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color(0xFFF8FAFC),
+                            unfocusedContainerColor = Color(0xFFF8FAFC),
+                            focusedIndicatorColor = PurplePrimary,
+                            unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                        )
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Save Button
+                // Save & Close Button
                 Button(
                     onClick = {
                         appSettings.callerIdEnabled = isEnabled
                         appSettings.truecallerAuthToken = token.trim().ifBlank { null }
                         appSettings.truecallerCustomEndpoint = endpoint.trim().ifBlank { null }
+                        if (connectedPhone.isNotBlank()) {
+                            appSettings.truecallerPhoneNumber = connectedPhone
+                        }
                         onSaved()
                         onDismiss()
                     },
@@ -2049,7 +2437,7 @@ fun CallerIdSettingsDialog(
                     colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text("Save Settings", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Done (সংরক্ষণ করুন)", fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }

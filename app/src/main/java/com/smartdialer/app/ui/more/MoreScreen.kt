@@ -397,13 +397,14 @@ fun MoreScreen(
         )
 
         // 7. Caller ID & Truecaller Setup
-        val callerIdSummary = remember(refreshKey, appSettings.callerIdEnabled, appSettings.truecallerAuthToken) {
+        val callerIdSummary = remember(refreshKey, appSettings.callerIdEnabled, appSettings.truecallerAuthToken, appSettings.truecallerPhoneNumber) {
             if (!appSettings.callerIdEnabled) {
                 "Real-time identification disabled"
             } else if (!appSettings.truecallerAuthToken.isNullOrBlank()) {
-                "Active • Truecaller Token Connected"
+                val phone = appSettings.truecallerPhoneNumber
+                if (!phone.isNullOrBlank()) "Active • Connected ($phone)" else "Active • Truecaller Connected"
             } else {
-                "Active • Operator & Directory (Add Token for Live Names)"
+                "Active • Operator & Directory (Tap to Login with OTP)"
             }
         }
 
