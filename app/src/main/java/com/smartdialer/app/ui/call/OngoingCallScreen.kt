@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Dialpad
@@ -439,10 +440,14 @@ fun OngoingCallScreen(
                             }
                         )
 
+                        val audioIcon = if (callInfo.isBluetoothOn) Icons.Default.Bluetooth else Icons.Default.VolumeUp
+                        val audioLabel = if (callInfo.isBluetoothOn) "Bluetooth" else "Speaker"
+                        val audioActive = callInfo.isSpeakerOn || callInfo.isBluetoothOn
+
                         InCallCircleButton(
-                            icon = Icons.Default.VolumeUp,
-                            label = "Speaker",
-                            isActive = callInfo.isSpeakerOn,
+                            icon = audioIcon,
+                            label = audioLabel,
+                            isActive = audioActive,
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 CallManager.toggleSpeaker(context)

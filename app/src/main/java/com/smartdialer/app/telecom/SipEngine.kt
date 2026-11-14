@@ -234,6 +234,7 @@ object SipEngine {
 
     private var aecEffect: AcousticEchoCanceler? = null
     private var nsEffect: NoiseSuppressor? = null
+    private var audioRouteManager: CallAudioRouteManager? = null
 
     // Audio jitter queue for zero-jitter, smooth audio playback
     private val jitterQueue = LinkedBlockingQueue<ShortArray>()
@@ -1100,10 +1101,16 @@ object SipEngine {
         rtpLastTransit = 0L
         _networkQuality.value = NetworkQualityInfo(label = "Connecting...", qualityLevel = 2)
 
-        // Configure Audio Manager for VoIP Communication
+        // Initialize & start CallAudioRouteManager (Bluetooth Headsets, Wired Headsets, Earpiece, Speaker)
         try {
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            audioManager?.mode = AudioManager.MODE_IN_COMMUNICATION
+            audioRouteManager?.stop()
+            audioRouteManager = CallAudioRouteManager(context.applicationContext).apply {
+                onRouteChanged = { isSpeaker, isBt ->
+                    isSpeakerOn.set(isSpeaker)
+                    CallManager.updateIpAudioRoute(isSpeaker, isBt)
+                }
+                start()
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -1425,9 +1432,10 @@ object SipEngine {
 
     fun setSpeaker(context: Context, speaker: Boolean) {
         isSpeakerOn.set(speaker)
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-        audioManager?.isSpeakerphoneOn = speaker
+        audioRouteManager?.setSpeaker(speaker)
     }
+
+    fun isBluetoothActive(): Boolean = audioRouteManager?.isBluetoothOn() ?: false
 
     /**
      * Tests SIP Registration manually (from Settings Screen).
@@ -1530,8 +1538,8 @@ object SipEngine {
                 rtpSocket = null
 
                 try {
-                    val am = appContext?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-                    am?.mode = AudioManager.MODE_NORMAL
+                    audioRouteManager?.stop()
+                    audioRouteManager = null
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }

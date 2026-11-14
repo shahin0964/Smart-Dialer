@@ -31,6 +31,7 @@ data class ActiveCallInfo(
     val durationSeconds: Long = 0L,
     val isMuted: Boolean = false,
     val isSpeakerOn: Boolean = false,
+    val isBluetoothOn: Boolean = false,
     val isHolding: Boolean = false,
     val isRecording: Boolean = false,
     val simSlot: Int = 1,

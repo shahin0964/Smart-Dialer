@@ -260,8 +260,12 @@ class MainActivity : ComponentActivity() {
                 Manifest.permission.READ_CONTACTS,
                 Manifest.permission.WRITE_CONTACTS,
                 Manifest.permission.READ_CALL_LOG,
-                Manifest.permission.WRITE_CALL_LOG
+                Manifest.permission.WRITE_CALL_LOG,
+                Manifest.permission.RECORD_AUDIO
             )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                permissionsList.add(Manifest.permission.BLUETOOTH_CONNECT)
+            }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                 permissionsList.add(Manifest.permission.POST_NOTIFICATIONS)
             }

@@ -23,6 +23,7 @@ import com.smartdialer.app.data.model.SpamAction
 import com.smartdialer.app.data.repository.IpCallStatsRepository
 import com.smartdialer.app.data.repository.SpamProtectionManager
 import com.smartdialer.app.ui.call.CallActivity
+import com.smartdialer.app.utils.VibrationHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -54,7 +55,15 @@ object CallManager {
     fun updateAudioState(audioState: CallAudioState) {
         _currentCallState.value = _currentCallState.value.copy(
             isMuted = audioState.isMuted,
-            isSpeakerOn = (audioState.route == CallAudioState.ROUTE_SPEAKER)
+            isSpeakerOn = (audioState.route == CallAudioState.ROUTE_SPEAKER),
+            isBluetoothOn = (audioState.route == CallAudioState.ROUTE_BLUETOOTH)
+        )
+    }
+
+    fun updateIpAudioRoute(isSpeaker: Boolean, isBluetooth: Boolean) {
+        _currentCallState.value = _currentCallState.value.copy(
+            isSpeakerOn = isSpeaker,
+            isBluetoothOn = isBluetooth
         )
     }
 
@@ -132,6 +141,7 @@ object CallManager {
     }
 
     private fun updateFromCall(call: Call) {
+        val previousStatus = _currentCallState.value.status
         val handle = call.details?.handle
         val rawNumber = handle?.schemeSpecificPart ?: ""
         val callerName = call.details?.callerDisplayName ?: ""
@@ -149,6 +159,7 @@ object CallManager {
         val audioState = inCallService?.callAudioState
         val isMuted = audioState?.isMuted ?: false
         val isSpeaker = (audioState?.route == CallAudioState.ROUTE_SPEAKER)
+        val isBluetooth = (audioState?.route == CallAudioState.ROUTE_BLUETOOTH)
 
         val isIncoming = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             call.details?.callDirection == Call.Details.DIRECTION_INCOMING
@@ -212,9 +223,19 @@ object CallManager {
             status = status,
             isMuted = isMuted,
             isSpeakerOn = isSpeaker,
+            isBluetoothOn = isBluetooth,
             isHolding = (status == CallStatus.HOLDING),
             isIncoming = isIncoming
         )
+
+        // Tactile vibration feedback on call connect and disconnect for SIM calls
+        if (context != null) {
+            if (previousStatus != CallStatus.ACTIVE && status == CallStatus.ACTIVE) {
+                VibrationHelper.vibrateCallConnected(context)
+            } else if (previousStatus != CallStatus.DISCONNECTED && status == CallStatus.DISCONNECTED) {
+                VibrationHelper.vibrateCallEnded(context)
+            }
+        }
 
         // Notification management for Incoming (Heads-Up) and Ongoing states
         if (context != null) {
@@ -297,6 +318,7 @@ object CallManager {
                     _currentCallState.value.contactName,
                     "Call in progress"
                 )
+                VibrationHelper.vibrateCallConnected(ctx)
             }
             return
         }
@@ -315,6 +337,7 @@ object CallManager {
                 IpCallStatsRepository.recordCall(ctx, num, name, CallType.REJECTED, 0)
                 CallNotificationManager.dismissAll(ctx)
                 IpCallService.stop(ctx)
+                VibrationHelper.vibrateCallEnded(ctx)
             }
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
@@ -352,6 +375,7 @@ object CallManager {
                 IpCallStatsRepository.recordCall(ctx, num, name, callType, duration)
                 CallNotificationManager.dismissAll(ctx)
                 IpCallService.stop(ctx)
+                VibrationHelper.vibrateCallEnded(ctx)
             }
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
@@ -381,11 +405,15 @@ object CallManager {
         val targetSpeaker = !currentSpeaker
         if (isIpCallActive) {
             SipEngine.setSpeaker(context, targetSpeaker)
+            _currentCallState.value = _currentCallState.value.copy(
+                isSpeakerOn = targetSpeaker,
+                isBluetoothOn = if (targetSpeaker) false else SipEngine.isBluetoothActive()
+            )
         } else {
             val targetRoute = if (currentSpeaker) CallAudioState.ROUTE_EARPIECE else CallAudioState.ROUTE_SPEAKER
             inCallService?.setAudioRoute(targetRoute)
+            _currentCallState.value = _currentCallState.value.copy(isSpeakerOn = targetSpeaker)
         }
-        _currentCallState.value = _currentCallState.value.copy(isSpeakerOn = targetSpeaker)
     }
 
     fun toggleHold() {
@@ -462,7 +490,10 @@ object CallManager {
                     CallStatus.ACTIVE -> {
                         _currentCallState.value = _currentCallState.value.copy(status = CallStatus.ACTIVE)
                         startDurationTimer()
-                        appContext?.let { IpCallService.start(it, cleanNumber, displayName, "Call in progress") }
+                        appContext?.let {
+                            IpCallService.start(it, cleanNumber, displayName, "Call in progress")
+                            VibrationHelper.vibrateCallConnected(it)
+                        }
                     }
                     CallStatus.DISCONNECTED -> {
                         val duration = _currentCallState.value.durationSeconds
@@ -472,6 +503,7 @@ object CallManager {
                         appContext?.let { ctx ->
                             IpCallStatsRepository.recordCall(ctx, cleanNumber, displayName, CallType.OUTGOING, duration)
                             IpCallService.stop(ctx)
+                            VibrationHelper.vibrateCallEnded(ctx)
                         }
                         scope.launch {
                             delay(1200)
@@ -548,6 +580,7 @@ object CallManager {
                 IpCallStatsRepository.recordCall(ctx, num, name, CallType.MISSED, 0)
                 CallNotificationManager.dismissAll(ctx)
                 IpCallService.stop(ctx)
+                VibrationHelper.vibrateCallEnded(ctx)
             }
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
