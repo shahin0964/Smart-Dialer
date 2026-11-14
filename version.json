@@ -1,8 +1,8 @@
 {
-  "versionCode": 42,
-  "versionName": "1.0.42",
-  "tagName": "v1.0.42",
-  "name": "Smart Dialer v1.0.42",
-  "body": "Fixed IP call vibration on connect and disconnect, and added Bluetooth headphones/headset audio routing support for IP calls.",
-  "apkUrl": "https://github.com/shahin0964/Smart-Dialer/releases/download/v1.0.42/SmartDialer-latest.apk"
+  "versionCode": 43,
+  "versionName": "1.0.43",
+  "tagName": "v1.0.43",
+  "name": "Smart Dialer v1.0.43",
+  "body": "Fixed audio routing to seamlessly switch back and forth between Bluetooth headphones/headset and Speaker during calls.",
+  "apkUrl": "https://github.com/shahin0964/Smart-Dialer/releases/download/v1.0.43/SmartDialer-latest.apk"
 }

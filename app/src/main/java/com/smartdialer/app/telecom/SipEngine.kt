@@ -1437,6 +1437,8 @@ object SipEngine {
 
     fun isBluetoothActive(): Boolean = audioRouteManager?.isBluetoothOn() ?: false
 
+    fun isBluetoothConnected(): Boolean = audioRouteManager?.isBluetoothConnected() ?: false
+
     /**
      * Tests SIP Registration manually (from Settings Screen).
      */

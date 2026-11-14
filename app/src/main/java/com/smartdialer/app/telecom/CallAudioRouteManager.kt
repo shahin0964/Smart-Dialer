@@ -60,15 +60,31 @@ class CallAudioRouteManager(private val context: Context) {
 
     fun isBluetoothOn(): Boolean = isBluetoothActive
 
+    fun isBluetoothConnected(): Boolean {
+        val am = audioManager ?: return false
+        return try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                am.availableCommunicationDevices.any { isBluetoothDevice(it) } ||
+                am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { isBluetoothDevice(it) }
+            } else {
+                @Suppress("DEPRECATION")
+                am.isBluetoothScoAvailableOffCall || am.isBluetoothA2dpOn ||
+                am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { isBluetoothDevice(it) }
+            }
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     fun applyAudioRoute() {
         val am = audioManager ?: return
         if (!isAudioRoutingActive) return
 
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                val available = am.availableCommunicationDevices
-
                 if (isSpeakerEnabled) {
+                    am.clearCommunicationDevice()
+                    val available = am.availableCommunicationDevices
                     val speaker = available.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
                     if (speaker != null) {
                         am.setCommunicationDevice(speaker)
@@ -78,13 +94,45 @@ class CallAudioRouteManager(private val context: Context) {
                     isBluetoothActive = false
                     notifyRouteChanged(isSpeaker = true, isBluetooth = false)
                 } else {
-                    // 1. Look for Bluetooth Headset (SCO / BLE / A2DP)
+                    am.clearCommunicationDevice()
+                    am.isSpeakerphoneOn = false
+                    val available = am.availableCommunicationDevices
+
+                    // 1. Look for Bluetooth Headset (SCO / BLE / A2DP / Hearing Aid)
                     val btDevice = available.firstOrNull { isBluetoothDevice(it) }
                     if (btDevice != null) {
                         val routed = am.setCommunicationDevice(btDevice)
                         isBluetoothActive = routed
                         notifyRouteChanged(isSpeaker = false, isBluetooth = isBluetoothActive)
+                        if (!routed) {
+                            // Retry after short delay for HAL transition
+                            mainHandler.postDelayed({
+                                if (!isSpeakerEnabled && isAudioRoutingActive) {
+                                    val retryBt = am.availableCommunicationDevices.firstOrNull { isBluetoothDevice(it) }
+                                    if (retryBt != null) {
+                                        val retrySuccess = am.setCommunicationDevice(retryBt)
+                                        isBluetoothActive = retrySuccess
+                                        notifyRouteChanged(isSpeaker = false, isBluetooth = retrySuccess)
+                                    }
+                                }
+                            }, 120)
+                        }
                     } else {
+                        // Check if Bluetooth is connected according to getDevices, and schedule retry if so
+                        val hasBtConnected = am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { isBluetoothDevice(it) }
+                        if (hasBtConnected) {
+                            mainHandler.postDelayed({
+                                if (!isSpeakerEnabled && isAudioRoutingActive) {
+                                    val retryBt = am.availableCommunicationDevices.firstOrNull { isBluetoothDevice(it) }
+                                    if (retryBt != null) {
+                                        val retrySuccess = am.setCommunicationDevice(retryBt)
+                                        isBluetoothActive = retrySuccess
+                                        notifyRouteChanged(isSpeaker = false, isBluetooth = retrySuccess)
+                                    }
+                                }
+                            }, 150)
+                        }
+
                         isBluetoothActive = false
                         // 2. Look for Wired Headset
                         val wired = available.firstOrNull {
@@ -118,10 +166,13 @@ class CallAudioRouteManager(private val context: Context) {
                     notifyRouteChanged(isSpeaker = true, isBluetooth = false)
                 } else {
                     am.isSpeakerphoneOn = false
-                    val hasBt = am.isBluetoothScoAvailableOffCall || am.isBluetoothA2dpOn
+                    val hasBt = am.isBluetoothScoAvailableOffCall || am.isBluetoothA2dpOn ||
+                            am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any { isBluetoothDevice(it) }
                     if (hasBt) {
-                        am.startBluetoothSco()
-                        am.isBluetoothScoOn = true
+                        if (!am.isBluetoothScoOn) {
+                            am.startBluetoothSco()
+                            am.isBluetoothScoOn = true
+                        }
                         isBluetoothActive = true
                         notifyRouteChanged(isSpeaker = false, isBluetooth = true)
                     } else {
@@ -139,9 +190,10 @@ class CallAudioRouteManager(private val context: Context) {
 
     private fun isBluetoothDevice(device: AudioDeviceInfo): Boolean {
         return device.type == AudioDeviceInfo.TYPE_BLUETOOTH_SCO ||
-               device.type == AudioDeviceInfo.TYPE_BLE_HEADSET ||
-               (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER) ||
-               device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+               device.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+               (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P && device.type == AudioDeviceInfo.TYPE_HEARING_AID) ||
+               (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && device.type == AudioDeviceInfo.TYPE_BLE_HEADSET) ||
+               (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && device.type == AudioDeviceInfo.TYPE_BLE_SPEAKER)
     }
 
     private fun notifyRouteChanged(isSpeaker: Boolean, isBluetooth: Boolean) {

@@ -404,15 +404,32 @@ object CallManager {
         val currentSpeaker = _currentCallState.value.isSpeakerOn
         val targetSpeaker = !currentSpeaker
         if (isIpCallActive) {
+            val hasBt = SipEngine.isBluetoothConnected()
             SipEngine.setSpeaker(context, targetSpeaker)
             _currentCallState.value = _currentCallState.value.copy(
                 isSpeakerOn = targetSpeaker,
-                isBluetoothOn = if (targetSpeaker) false else SipEngine.isBluetoothActive()
+                isBluetoothOn = if (targetSpeaker) false else hasBt
             )
         } else {
-            val targetRoute = if (currentSpeaker) CallAudioState.ROUTE_EARPIECE else CallAudioState.ROUTE_SPEAKER
+            val supported = inCallService?.callAudioState?.supportedRouteMask ?: 0
+            val hasBt = (supported and CallAudioState.ROUTE_BLUETOOTH) != 0
+            val hasWired = (supported and CallAudioState.ROUTE_WIRED_HEADSET) != 0
+            val targetRoute = if (currentSpeaker) {
+                if (hasBt) {
+                    CallAudioState.ROUTE_BLUETOOTH
+                } else if (hasWired) {
+                    CallAudioState.ROUTE_WIRED_HEADSET
+                } else {
+                    CallAudioState.ROUTE_EARPIECE
+                }
+            } else {
+                CallAudioState.ROUTE_SPEAKER
+            }
             inCallService?.setAudioRoute(targetRoute)
-            _currentCallState.value = _currentCallState.value.copy(isSpeakerOn = targetSpeaker)
+            _currentCallState.value = _currentCallState.value.copy(
+                isSpeakerOn = targetSpeaker,
+                isBluetoothOn = if (targetSpeaker) false else hasBt
+            )
         }
     }
 
