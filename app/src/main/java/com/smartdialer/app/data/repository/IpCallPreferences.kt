@@ -121,6 +121,42 @@ class IpCallPreferences(private val context: Context) {
     val isConfigured: Boolean
         get() = username.isNotBlank() || domain.isNotBlank() || ipPrefix.isNotBlank()
 
+    // ==========================================
+    // IP Call Sound & Audio Quality Settings
+    // ==========================================
+    // Audio Input: VOICE_COMMUNICATION, MIC, VOICE_RECOGNITION, CAMCORDER, UNPROCESSED
+    var audioInputSource: String
+        get() = prefs.getString("sip_audio_input_source", "VOICE_COMMUNICATION") ?: "VOICE_COMMUNICATION"
+        set(value) = prefs.edit().putString("sip_audio_input_source", value).apply()
+
+    // Quality Preset: STANDARD_8K (Standard 8kHz), HD_16K (720p HD 16kHz), FHD_24K (1080p FHD 24kHz), ULTRA_48K (4K Ultra HD 48kHz Hi-Fi)
+    var audioQualityPreset: String
+        get() = prefs.getString("sip_audio_quality_preset", "HD_16K") ?: "HD_16K"
+        set(value) = prefs.edit().putString("sip_audio_quality_preset", value).apply()
+
+    // Preferred Codec: AUTO, PCMA (G.711 A-law 8), PCMU (G.711 u-law 0)
+    var preferredCodec: String
+        get() = prefs.getString("sip_preferred_codec", "AUTO") ?: "AUTO"
+        set(value) = prefs.edit().putString("sip_preferred_codec", value).apply()
+
+    // Hardware Audio Processing & Mic Boost
+    var enableAec: Boolean
+        get() = prefs.getBoolean("sip_enable_aec", true)
+        set(value) = prefs.edit().putBoolean("sip_enable_aec", value).apply()
+
+    var enableNs: Boolean
+        get() = prefs.getBoolean("sip_enable_ns", true)
+        set(value) = prefs.edit().putBoolean("sip_enable_ns", value).apply()
+
+    var enableAgc: Boolean
+        get() = prefs.getBoolean("sip_enable_agc", true)
+        set(value) = prefs.edit().putBoolean("sip_enable_agc", value).apply()
+
+    // Mic Gain Boost in dB: 0, 3, 6, 12
+    var micGainBoost: Int
+        get() = prefs.getInt("sip_mic_gain_boost", 0)
+        set(value) = prefs.edit().putInt("sip_mic_gain_boost", value).apply()
+
     fun clearAccount() {
         prefs.edit().clear().apply()
     }

@@ -13,7 +13,7 @@ object SpecialCodeHelper {
      */
     fun isCompleteSpecialCode(input: String): Boolean {
         val clean = input.trim()
-        if (clean.equals("*#06#", ignoreCase = true) || clean.equals("*#06", ignoreCase = true)) {
+        if (clean.equals("*#06#", ignoreCase = true)) {
             return true
         }
         if (clean.startsWith("*#*#") && clean.endsWith("#*#*") && clean.length > 8) {
@@ -40,7 +40,7 @@ object SpecialCodeHelper {
         val clean = input.trim()
 
         // 1. Handle *#06# (IMEI display)
-        if (clean.equals("*#06#", ignoreCase = true) || clean.equals("*#06", ignoreCase = true)) {
+        if (clean.equals("*#06#", ignoreCase = true)) {
             val identifiers = getDeviceIdentifiers(context)
             if (onShowImeiDialog != null) {
                 onShowImeiDialog(identifiers)

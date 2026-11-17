@@ -108,6 +108,8 @@ import com.smartdialer.app.data.model.ContactSourceFilter
 import com.smartdialer.app.data.repository.AppSettingsPreferences
 import com.smartdialer.app.telecom.CallManager
 import com.smartdialer.app.ui.components.ContactAvatar
+import com.smartdialer.app.ui.components.SamsungSwipeItem
+import com.smartdialer.app.utils.SmsHelper
 import com.smartdialer.app.ui.components.PermissionCard
 import com.smartdialer.app.ui.dialogs.CallAccountPickerDialog
 import com.smartdialer.app.ui.theme.BgLight
@@ -703,14 +705,24 @@ fun ContactsScreen(
                         }
 
                         items(contactList, key = { it.id }) { contact ->
-                            ContactRow(
-                                contact = contact,
-                                onCallClick = {
+                            SamsungSwipeItem(
+                                onSwipeRight = {
                                     pendingCallNumber = contact.phoneNumber
                                     pendingCallName = contact.name
                                 },
-                                onRowClick = { viewModel.selectContact(contact) }
-                            )
+                                onSwipeLeft = {
+                                    SmsHelper.openSms(context, contact.phoneNumber)
+                                }
+                            ) {
+                                ContactRow(
+                                    contact = contact,
+                                    onCallClick = {
+                                        pendingCallNumber = contact.phoneNumber
+                                        pendingCallName = contact.name
+                                    },
+                                    onRowClick = { viewModel.selectContact(contact) }
+                                )
+                            }
                         }
                     }
 

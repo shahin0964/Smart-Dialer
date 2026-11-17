@@ -224,4 +224,12 @@ class AppSettingsPreferences(private val context: Context) {
     var truecallerCustomEndpoint: String?
         get() = prefs.getString("truecaller_custom_endpoint", null)
         set(value) = prefs.edit().putString("truecaller_custom_endpoint", value).apply()
+
+    // ==========================================
+    // 11. Theme & Caller Screen Style
+    // ==========================================
+    // Themes: CLASSIC_DARK, IOS_GLASS, CYBERPUNK_AMOLED, EMERALD_AURORA, SUNSET_VELVET, SAMSUNG_ONE_UI
+    var callerTheme: String
+        get() = prefs.getString("caller_screen_theme", "CLASSIC_DARK") ?: "CLASSIC_DARK"
+        set(value) = prefs.edit().putString("caller_screen_theme", value).apply()
 }

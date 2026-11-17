@@ -16,6 +16,7 @@ import com.smartdialer.app.data.model.ContactSourceFilter
 import com.smartdialer.app.data.model.DuplicateContactGroup
 import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.telecom.CallManager
+import com.smartdialer.app.utils.SmsHelper
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -308,18 +309,7 @@ class ContactsViewModel(
     }
 
     fun sendSms(context: Context, number: String) {
-        val cleanNumber = number.trim()
-        if (cleanNumber.isNotBlank()) {
-            try {
-                val intent = Intent(Intent.ACTION_SENDTO).apply {
-                    data = Uri.parse("smsto:$cleanNumber")
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                }
-                context.startActivity(intent)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        SmsHelper.openSms(context, number)
     }
 
     fun sendEmail(context: Context, email: String) {

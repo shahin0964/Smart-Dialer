@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Search
@@ -31,10 +32,13 @@ import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
 import com.smartdialer.app.ui.dialogs.CallerIdSettingsDialog
+import com.smartdialer.app.ui.dialogs.IpAudioSettingsDialog
+import com.smartdialer.app.ui.dialogs.ThemeSelectionDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -105,6 +109,8 @@ fun MoreScreen(
     var showAboutDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showCallerIdDialog by remember { mutableStateOf(false) }
+    var showIpAudioDialog by remember { mutableStateOf(false) }
+    var showThemeDialog by remember { mutableStateOf(false) }
 
     var refreshKey by remember { mutableStateOf(0) }
     var sims by remember { mutableStateOf<List<SimInfo>>(emptyList()) }
@@ -129,6 +135,22 @@ fun MoreScreen(
     }
 
     // Dialogs
+    if (showIpAudioDialog) {
+        IpAudioSettingsDialog(
+            ipPreferences = ipPreferences,
+            onDismiss = { showIpAudioDialog = false },
+            onSaved = { refreshKey++ }
+        )
+    }
+
+    if (showThemeDialog) {
+        ThemeSelectionDialog(
+            appSettings = appSettings,
+            onDismiss = { showThemeDialog = false },
+            onSaved = { refreshKey++ }
+        )
+    }
+
     if (showCallerIdDialog) {
         CallerIdSettingsDialog(
             appSettings = appSettings,
@@ -326,6 +348,24 @@ fun MoreScreen(
             onClick = { showIpDialog = true }
         )
 
+        // 1b. IP Call Sound & Audio Quality
+        val audioSummary = remember(refreshKey, ipPreferences.audioQualityPreset, ipPreferences.preferredCodec, ipPreferences.micGainBoost) {
+            val qLabel = when (ipPreferences.audioQualityPreset) {
+                "HD_16K" -> "720p HD (16kHz)"
+                "FHD_24K" -> "1080p FHD (24kHz)"
+                "ULTRA_48K" -> "4K Ultra HD (48kHz)"
+                else -> "Standard (8kHz)"
+            }
+            "Quality: $qLabel • Codec: ${ipPreferences.preferredCodec} • Mic Boost: ${if (ipPreferences.micGainBoost > 0) "+${ipPreferences.micGainBoost}dB" else "Normal"}"
+        }
+
+        MoreOptionItem(
+            icon = Icons.Default.SurroundSound,
+            title = "IP Call Sound & Audio Quality",
+            subtitle = audioSummary,
+            onClick = { showIpAudioDialog = true }
+        )
+
         // 2. Dual SIM Settings
         val simSummary = remember(refreshKey, appSettings.preferredSimSlot) {
             if (appSettings.preferredSimSlot == -1) {
@@ -441,6 +481,25 @@ fun MoreScreen(
             title = "Sounds & Haptics",
             subtitle = soundSummary,
             onClick = { showSoundsHapticsDialog = true }
+        )
+
+        // 9b. Themes & Caller Screen
+        val themeSummary = remember(refreshKey, appSettings.callerTheme) {
+            when (appSettings.callerTheme) {
+                "IOS_GLASS" -> "iOS Glassmorphism (Apple Blur Style)"
+                "SAMSUNG_ONE_UI" -> "Samsung One UI (Midnight Slate)"
+                "CYBERPUNK_AMOLED" -> "Cyberpunk AMOLED (Pure OLED Neon)"
+                "EMERALD_AURORA" -> "Emerald Aurora (Deep Teal Gradient)"
+                "SUNSET_VELVET" -> "Sunset Velvet (Purple & Crimson)"
+                else -> "Classic Dark (Default Navy)"
+            }
+        }
+
+        MoreOptionItem(
+            icon = Icons.Default.Palette,
+            title = "Themes & Caller Screen",
+            subtitle = themeSummary,
+            onClick = { showThemeDialog = true }
         )
 
         Spacer(modifier = Modifier.height(10.dp))

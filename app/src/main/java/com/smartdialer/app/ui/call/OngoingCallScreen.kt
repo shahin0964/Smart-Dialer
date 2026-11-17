@@ -85,13 +85,37 @@ fun OngoingCallScreen(
     val callInfo by CallManager.currentCallState.collectAsState()
     var showDtmfKeypad by remember { mutableStateOf(false) }
 
+    val appSettings = remember { AppSettingsPreferences(context) }
+    val currentTheme = appSettings.callerTheme
+    val themeGradient = when (currentTheme) {
+        "IOS_GLASS" -> listOf(Color(0xFF1C1C1E), Color(0xFF2C2C2E), Color(0xFF000000))
+        "SAMSUNG_ONE_UI" -> listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0B1120))
+        "CYBERPUNK_AMOLED" -> listOf(Color(0xFF000000), Color(0xFF070714), Color(0xFF120324))
+        "EMERALD_AURORA" -> listOf(Color(0xFF042F2E), Color(0xFF064E3B), Color(0xFF021B1A))
+        "SUNSET_VELVET" -> listOf(Color(0xFF4C0519), Color(0xFF3B0764), Color(0xFF180A28))
+        else -> listOf(CallBgDark1, CallBgDark2, CallBgDark3)
+    }
+
+    val buttonBgColor = when (currentTheme) {
+        "IOS_GLASS" -> Color(0x38FFFFFF)
+        "CYBERPUNK_AMOLED" -> Color(0xFF141428)
+        else -> CallButtonTranslucent
+    }
+
+    val buttonActiveColor = when (currentTheme) {
+        "IOS_GLASS" -> Color(0xFF0A84FF)
+        "SAMSUNG_ONE_UI" -> Color(0xFF0284C7)
+        "CYBERPUNK_AMOLED" -> Color(0xFF00F0FF)
+        "EMERALD_AURORA" -> Color(0xFF10B981)
+        "SUNSET_VELVET" -> Color(0xFFE11D48)
+        else -> CallButtonActive
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(
-                Brush.verticalGradient(
-                    listOf(CallBgDark1, CallBgDark2, CallBgDark3)
-                )
+                Brush.verticalGradient(themeGradient)
             )
             .padding(horizontal = 24.dp, vertical = 20.dp)
     ) {
@@ -424,6 +448,8 @@ fun OngoingCallScreen(
                             icon = if (callInfo.isMuted) Icons.Default.MicOff else Icons.Default.Mic,
                             label = if (callInfo.isMuted) "Unmute" else "Mute",
                             isActive = callInfo.isMuted,
+                            buttonBg = buttonBgColor,
+                            buttonActiveBg = buttonActiveColor,
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 CallManager.toggleMute()
@@ -434,6 +460,8 @@ fun OngoingCallScreen(
                             icon = Icons.Default.Dialpad,
                             label = "Keypad",
                             isActive = showDtmfKeypad,
+                            buttonBg = buttonBgColor,
+                            buttonActiveBg = buttonActiveColor,
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 showDtmfKeypad = !showDtmfKeypad
@@ -448,6 +476,8 @@ fun OngoingCallScreen(
                             icon = audioIcon,
                             label = audioLabel,
                             isActive = audioActive,
+                            buttonBg = buttonBgColor,
+                            buttonActiveBg = buttonActiveColor,
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 CallManager.toggleSpeaker(context)
@@ -464,6 +494,8 @@ fun OngoingCallScreen(
                             icon = Icons.Default.Add,
                             label = "Add Call",
                             isActive = false,
+                            buttonBg = buttonBgColor,
+                            buttonActiveBg = buttonActiveColor,
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 // Add Call
@@ -524,6 +556,8 @@ fun InCallCircleButton(
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     label: String,
     isActive: Boolean,
+    buttonBg: Color = CallButtonTranslucent,
+    buttonActiveBg: Color = CallButtonActive,
     onClick: () -> Unit
 ) {
     Column(
@@ -533,10 +567,10 @@ fun InCallCircleButton(
             modifier = Modifier
                 .size(62.dp)
                 .clip(CircleShape)
-                .background(if (isActive) CallButtonActive else CallButtonTranslucent)
+                .background(if (isActive) buttonActiveBg else buttonBg)
                 .border(
                     width = 1.dp,
-                    color = if (isActive) PurpleLight else Color(0x33FFFFFF),
+                    color = if (isActive) Color.White.copy(alpha = 0.5f) else Color(0x33FFFFFF),
                     shape = CircleShape
                 )
                 .clickable { onClick() },

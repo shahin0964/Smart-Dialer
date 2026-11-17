@@ -76,7 +76,9 @@ import com.smartdialer.app.data.model.GroupedCallLog
 import com.smartdialer.app.telecom.CallManager
 import com.smartdialer.app.ui.components.ContactAvatar
 import com.smartdialer.app.ui.components.PermissionCard
+import com.smartdialer.app.ui.components.SamsungSwipeItem
 import com.smartdialer.app.ui.dialogs.CallAccountPickerDialog
+import com.smartdialer.app.utils.SmsHelper
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.CallMissedRed
@@ -339,16 +341,26 @@ fun CallsScreen(
                         SectionHeader(title = "Today")
                     }
                     items(todayGroups, key = { it.groupKey }) { group ->
-                        GroupedCallLogRow(
-                            group = group,
-                            onRowClick = {
-                                selectedGroupForHistory = group
-                            },
-                            onCallClick = {
+                        SamsungSwipeItem(
+                            onSwipeRight = {
                                 pendingCallNumber = group.primaryNumber
                                 pendingCallName = group.displayName
+                            },
+                            onSwipeLeft = {
+                                SmsHelper.openSms(context, group.primaryNumber)
                             }
-                        )
+                        ) {
+                            GroupedCallLogRow(
+                                group = group,
+                                onRowClick = {
+                                    selectedGroupForHistory = group
+                                },
+                                onCallClick = {
+                                    pendingCallNumber = group.primaryNumber
+                                    pendingCallName = group.displayName
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -357,16 +369,26 @@ fun CallsScreen(
                         SectionHeader(title = "Yesterday")
                     }
                     items(yesterdayGroups, key = { it.groupKey }) { group ->
-                        GroupedCallLogRow(
-                            group = group,
-                            onRowClick = {
-                                selectedGroupForHistory = group
-                            },
-                            onCallClick = {
+                        SamsungSwipeItem(
+                            onSwipeRight = {
                                 pendingCallNumber = group.primaryNumber
                                 pendingCallName = group.displayName
+                            },
+                            onSwipeLeft = {
+                                SmsHelper.openSms(context, group.primaryNumber)
                             }
-                        )
+                        ) {
+                            GroupedCallLogRow(
+                                group = group,
+                                onRowClick = {
+                                    selectedGroupForHistory = group
+                                },
+                                onCallClick = {
+                                    pendingCallNumber = group.primaryNumber
+                                    pendingCallName = group.displayName
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -375,16 +397,26 @@ fun CallsScreen(
                         SectionHeader(title = "Older")
                     }
                     items(olderGroups, key = { it.groupKey }) { group ->
-                        GroupedCallLogRow(
-                            group = group,
-                            onRowClick = {
-                                selectedGroupForHistory = group
-                            },
-                            onCallClick = {
+                        SamsungSwipeItem(
+                            onSwipeRight = {
                                 pendingCallNumber = group.primaryNumber
                                 pendingCallName = group.displayName
+                            },
+                            onSwipeLeft = {
+                                SmsHelper.openSms(context, group.primaryNumber)
                             }
-                        )
+                        ) {
+                            GroupedCallLogRow(
+                                group = group,
+                                onRowClick = {
+                                    selectedGroupForHistory = group
+                                },
+                                onCallClick = {
+                                    pendingCallNumber = group.primaryNumber
+                                    pendingCallName = group.displayName
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -679,12 +711,7 @@ fun CallHistoryDetailDialog(
                         // SMS Action
                         Surface(
                             onClick = {
-                                try {
-                                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:${group.primaryNumber}"))
-                                    context.startActivity(intent)
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Could not open messaging app", Toast.LENGTH_SHORT).show()
-                                }
+                                SmsHelper.openSms(context, group.primaryNumber)
                             },
                             shape = RoundedCornerShape(10.dp),
                             color = Color(0xFFF1F5F9),

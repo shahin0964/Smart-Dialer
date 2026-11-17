@@ -8,6 +8,7 @@ import android.media.AudioRecord
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
+import android.media.audiofx.AutomaticGainControl
 import android.media.audiofx.NoiseSuppressor
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -645,7 +646,7 @@ object SipEngine {
                 soTimeout = 2000
             }
 
-            extractRemoteSdp(incomingRemoteSdp, serverAddr.hostAddress ?: "103.170.231.10")
+            extractRemoteSdp(incomingRemoteSdp, serverAddr.hostAddress ?: "103.170.231.10", context)
 
             // Build 200 OK with SDP Answer (PCMA 8, PCMU 0)
             val sdpAnswer = buildString {
@@ -859,16 +860,23 @@ object SipEngine {
                 val localSipPort = sock.localPort
                 val serverAddr = InetAddress.getByName(cleanDomain)
 
-                // SDP Offer with preferred codecs (PCMA 8 first, PCMU 0 second)
+                val ipPrefs = IpCallPreferences(context)
+                val codecOrder = if (ipPrefs.preferredCodec == "PCMU") "0 8 101" else "8 0 101"
+                // SDP Offer with preferred codecs (PCMA 8 first, PCMU 0 second, or vice versa)
                 val sdpOffer = buildString {
                     append("v=0\r\n")
                     append("o=- ${System.currentTimeMillis()} 1 IN IP4 $localIp\r\n")
                     append("s=SmartDialer\r\n")
                     append("c=IN IP4 $localIp\r\n")
                     append("t=0 0\r\n")
-                    append("m=audio $localRtpPort RTP/AVP 8 0 101\r\n")
-                    append("a=rtpmap:8 PCMA/8000\r\n")
-                    append("a=rtpmap:0 PCMU/8000\r\n")
+                    append("m=audio $localRtpPort RTP/AVP $codecOrder\r\n")
+                    if (ipPrefs.preferredCodec == "PCMU") {
+                        append("a=rtpmap:0 PCMU/8000\r\n")
+                        append("a=rtpmap:8 PCMA/8000\r\n")
+                    } else {
+                        append("a=rtpmap:8 PCMA/8000\r\n")
+                        append("a=rtpmap:0 PCMU/8000\r\n")
+                    }
                     append("a=rtpmap:101 telephone-event/8000\r\n")
                     append("a=fmtp:101 0-16\r\n")
                     append("a=sendrecv\r\n")
@@ -909,7 +917,7 @@ object SipEngine {
                                         onCallStateChanged?.invoke(CallStatus.RINGING, "Ringing...")
                                     }
                                     if (msg.body.contains("m=audio")) {
-                                        extractRemoteSdp(msg.body, cleanDomain)
+                                        extractRemoteSdp(msg.body, cleanDomain, context)
                                         startRtpAudio(context)
                                     }
                                 }
@@ -976,7 +984,7 @@ object SipEngine {
                                         match?.groupValues?.get(1) ?: raw
                                     }
 
-                                    extractRemoteSdp(msg.body, cleanDomain)
+                                    extractRemoteSdp(msg.body, cleanDomain, context)
 
                                     // Send ACK for 200 OK
                                     val ackBranch = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
@@ -1039,7 +1047,7 @@ object SipEngine {
         }
     }
 
-    private fun extractRemoteSdp(sdp: String, fallbackHost: String) {
+    private fun extractRemoteSdp(sdp: String, fallbackHost: String, context: Context? = null) {
         val ipMatch = Regex("""c=IN IP4\s+([0-9.]+)""").find(sdp)
         remoteRtpIp = ipMatch?.groupValues?.get(1) ?: fallbackHost
 
@@ -1047,8 +1055,8 @@ object SipEngine {
         if (audioMatch != null) {
             remoteRtpPort = audioMatch.groupValues[1].toIntOrNull() ?: 16428
             val codecs = audioMatch.groupValues[2].trim().split(Regex("""\s+"""))
-            // Pick first supported codec: prefer PCMA 8 if offered, else PCMU 0
-            val chosen = codecs.firstOrNull { it == "8" || it == "0" }
+            val preferred = if (context != null && IpCallPreferences(context).preferredCodec == "PCMU") "0" else "8"
+            val chosen = if (codecs.contains(preferred)) preferred else codecs.firstOrNull { it == "8" || it == "0" }
             negotiatedCodec = chosen?.toIntOrNull() ?: 8
         }
     }
@@ -1089,6 +1097,22 @@ object SipEngine {
             e.printStackTrace()
         }
 
+        val ipPrefs = IpCallPreferences(context)
+        val audioSource = when (ipPrefs.audioInputSource) {
+            "MIC" -> MediaRecorder.AudioSource.MIC
+            "VOICE_RECOGNITION" -> MediaRecorder.AudioSource.VOICE_RECOGNITION
+            "CAMCORDER" -> MediaRecorder.AudioSource.CAMCORDER
+            "UNPROCESSED" -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) MediaRecorder.AudioSource.UNPROCESSED else MediaRecorder.AudioSource.VOICE_COMMUNICATION
+            else -> MediaRecorder.AudioSource.VOICE_COMMUNICATION
+        }
+
+        val micBoostMultiplier = when (ipPrefs.micGainBoost) {
+            3 -> 1.41f
+            6 -> 2.0f
+            12 -> 3.98f
+            else -> 1.0f
+        }
+
         val sampleRate = 8000
         val pcmFrameSize = 160 // 20ms at 8kHz
 
@@ -1115,25 +1139,30 @@ object SipEngine {
             e.printStackTrace()
         }
 
-        // 1. AudioRecord (Hardware AEC & NS)
+        // 1. AudioRecord (Hardware AEC & NS & AGC)
         val minRecBuf = max(
             AudioRecord.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT) * 2,
             2560
         )
         try {
             audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.VOICE_COMMUNICATION,
+                audioSource,
                 sampleRate,
                 AudioFormat.CHANNEL_IN_MONO,
                 AudioFormat.ENCODING_PCM_16BIT,
                 minRecBuf
             )
             audioRecord?.let { rec ->
-                if (AcousticEchoCanceler.isAvailable()) {
+                if (ipPrefs.enableAec && AcousticEchoCanceler.isAvailable()) {
                     aecEffect = AcousticEchoCanceler.create(rec.audioSessionId)?.apply { enabled = true }
                 }
-                if (NoiseSuppressor.isAvailable()) {
+                if (ipPrefs.enableNs && NoiseSuppressor.isAvailable()) {
                     nsEffect = NoiseSuppressor.create(rec.audioSessionId)?.apply { enabled = true }
+                }
+                if (ipPrefs.enableAgc && AutomaticGainControl.isAvailable()) {
+                    try {
+                        AutomaticGainControl.create(rec.audioSessionId)?.apply { enabled = true }
+                    } catch (e: Exception) {}
                 }
                 rec.startRecording()
             }
@@ -1199,6 +1228,11 @@ object SipEngine {
 
                 if (isMuted.get()) {
                     for (i in 0 until pcmFrameSize) pcmBuf[i] = 0
+                } else if (micBoostMultiplier != 1.0f) {
+                    for (i in 0 until pcmFrameSize) {
+                        val boosted = (pcmBuf[i] * micBoostMultiplier).toInt()
+                        pcmBuf[i] = boosted.coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+                    }
                 }
 
                 if (negotiatedCodec == 8) {
