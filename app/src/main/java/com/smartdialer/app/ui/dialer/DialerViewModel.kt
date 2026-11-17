@@ -12,6 +12,7 @@ import com.smartdialer.app.data.repository.ContactsRepository
 import com.smartdialer.app.data.repository.IpCallPreferences
 import com.smartdialer.app.data.repository.SimRepository
 import com.smartdialer.app.telecom.CallManager
+import com.smartdialer.app.utils.SpecialCodeHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -62,6 +63,12 @@ class DialerViewModel(
     private val _isSavingContact = MutableStateFlow(false)
     val isSavingContact: StateFlow<Boolean> = _isSavingContact.asStateFlow()
 
+    private val _showImeiDialog = MutableStateFlow(false)
+    val showImeiDialog: StateFlow<Boolean> = _showImeiDialog.asStateFlow()
+
+    private val _imeiInfoList = MutableStateFlow<List<Pair<String, String>>>(emptyList())
+    val imeiInfoList: StateFlow<List<Pair<String, String>>> = _imeiInfoList.asStateFlow()
+
     private var cachedContacts: List<ContactItem> = emptyList()
 
     init {
@@ -71,6 +78,25 @@ class DialerViewModel(
 
     fun loadSims() {
         _sims.value = simRepository.getSimCards()
+    }
+
+    fun dismissImeiDialog() {
+        _showImeiDialog.value = false
+    }
+
+    fun checkAndHandleSpecialCode(context: Context, input: String): Boolean {
+        if (SpecialCodeHelper.isCompleteSpecialCode(input)) {
+            val handled = SpecialCodeHelper.handleSpecialCode(context, input) { identifiers ->
+                _imeiInfoList.value = identifiers
+                _showImeiDialog.value = true
+            }
+            if (handled) {
+                _inputNumber.value = ""
+                _matchedContacts.value = emptyList()
+                return true
+            }
+        }
+        return false
     }
 
     fun loadContactsCache() {
@@ -84,8 +110,12 @@ class DialerViewModel(
     }
 
     fun onDigitClick(digit: String) {
-        _inputNumber.value += digit
-        searchT9(_inputNumber.value)
+        val newNumber = _inputNumber.value + digit
+        _inputNumber.value = newNumber
+        if (checkAndHandleSpecialCode(contactsRepository.context, newNumber)) {
+            return
+        }
+        searchT9(newNumber)
     }
 
     fun onZeroLongClick() {
@@ -110,6 +140,9 @@ class DialerViewModel(
 
     fun setNumber(number: String) {
         _inputNumber.value = number
+        if (checkAndHandleSpecialCode(contactsRepository.context, number)) {
+            return
+        }
         searchT9(number)
     }
 
@@ -231,6 +264,9 @@ class DialerViewModel(
     fun callWithSim(context: Context, simSlot: Int) {
         val number = _inputNumber.value.trim()
         if (number.isNotBlank()) {
+            if (checkAndHandleSpecialCode(context, number)) {
+                return
+            }
             CallManager.initiateCall(context, number, simSlot)
         }
     }

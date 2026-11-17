@@ -41,6 +41,7 @@ import androidx.compose.material3.Text
 import com.smartdialer.app.data.callerid.CallerIdResult
 import com.smartdialer.app.ui.components.IpCallConfigDialog
 import com.smartdialer.app.ui.contacts.AddNewContactDialog
+import com.smartdialer.app.ui.dialogs.ImeiInfoDialog
 import com.smartdialer.app.utils.WhatsAppHelper
 import com.smartdialer.app.utils.TelegramHelper
 import androidx.compose.material.icons.filled.Send
@@ -117,14 +118,68 @@ fun DialerScreen(
         )
     }
 
+    val showImeiDialog by viewModel.showImeiDialog.collectAsState()
+    val imeiInfoList by viewModel.imeiInfoList.collectAsState()
+
+    if (showImeiDialog) {
+        ImeiInfoDialog(
+            infoList = imeiInfoList,
+            onDismiss = { viewModel.dismissImeiDialog() }
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(BgLight)
             .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.SpaceBetween
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Top Flexible Area (Suggestions & Caller ID)
+        // Uses .weight(1f) so the Keypad and Number card below remain 100% fixed and never wobble
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .padding(bottom = 6.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            if (matchedContacts.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(matchedContacts) { contact ->
+                        ContactChip(contact = contact) {
+                            viewModel.setNumber(contact.phoneNumber)
+                        }
+                    }
+                }
+            } else if (inputNumber.isNotBlank() && inputNumber.length >= 3) {
+                // Live Truecaller & Operator Caller ID Banner
+                CallerIdBanner(
+                    callerId = callerIdResult,
+                    isLoading = isCallerIdLoading,
+                    inputNumber = inputNumber,
+                    onSaveContact = {
+                        viewModel.openAddContactDialog(
+                            initialName = callerIdResult?.name ?: "",
+                            initialPhone = inputNumber
+                        )
+                    },
+                    onWhatsApp = {
+                        WhatsAppHelper.openWhatsAppChat(context, inputNumber)
+                    },
+                    onTelegram = {
+                        TelegramHelper.openTelegramChat(context, inputNumber)
+                    }
+                )
+            }
+        }
+
+        // Bottom Fixed Area: Number Display Card + Keypad + Call Buttons
         Column(
             modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
@@ -133,7 +188,7 @@ fun DialerScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp)
+                    .padding(bottom = 8.dp)
                     .shadow(elevation = 2.dp, shape = RoundedCornerShape(16.dp))
                     .combinedClickable(
                         onClick = { },
@@ -238,49 +293,13 @@ fun DialerScreen(
                 }
             }
 
-            // Real T9 Contact Matches if any
-            if (matchedContacts.isNotEmpty()) {
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(matchedContacts) { contact ->
-                        ContactChip(contact = contact) {
-                            viewModel.setNumber(contact.phoneNumber)
-                        }
-                    }
-                }
-            } else if (inputNumber.isNotBlank() && inputNumber.length >= 3) {
-                // Live Truecaller & Operator Caller ID Banner
-                CallerIdBanner(
-                    callerId = callerIdResult,
-                    isLoading = isCallerIdLoading,
-                    inputNumber = inputNumber,
-                    onSaveContact = {
-                        viewModel.openAddContactDialog(
-                            initialName = callerIdResult?.name ?: "",
-                            initialPhone = inputNumber
-                        )
-                    },
-                    onWhatsApp = {
-                        WhatsAppHelper.openWhatsAppChat(context, inputNumber)
-                    },
-                    onTelegram = {
-                        TelegramHelper.openTelegramChat(context, inputNumber)
-                    }
-                )
-            }
-        }
-
-        // 3x4 Dialpad Keypad Grid
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+            // 3x4 Dialpad Keypad Grid
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
             // Row 1: 1, 2, 3
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -541,6 +560,7 @@ fun DialerScreen(
             )
         }
     }
+}
 
     // In-App Built-in Add Contact Dialog (Phone, SIM, or Google Account)
     if (showAddContactDialog) {

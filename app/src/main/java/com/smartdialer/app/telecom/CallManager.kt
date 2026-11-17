@@ -23,6 +23,7 @@ import com.smartdialer.app.data.model.SpamAction
 import com.smartdialer.app.data.repository.IpCallStatsRepository
 import com.smartdialer.app.data.repository.SpamProtectionManager
 import com.smartdialer.app.ui.call.CallActivity
+import com.smartdialer.app.utils.SpecialCodeHelper
 import com.smartdialer.app.utils.VibrationHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -610,8 +611,16 @@ object CallManager {
     fun initiateCall(context: Context, number: String, simSlot: Int = 0) {
         if (number.isBlank()) return
         try {
-            val cleanNumber = number.replace("#", "%23")
-            val uri = Uri.parse("tel:$cleanNumber")
+            val cleanNumber = number.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }.trim()
+            if (cleanNumber.isBlank()) return
+
+            // Handle secret codes (e.g. *#06#, *#*#4636#*#*)
+            if (SpecialCodeHelper.handleSpecialCode(context, cleanNumber)) {
+                return
+            }
+
+            val encodedNumber = cleanNumber.replace("#", "%23")
+            val uri = Uri.parse("tel:$encodedNumber")
             val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
 
             val hasPhonePermission = ContextCompat.checkSelfPermission(
@@ -632,6 +641,28 @@ object CallManager {
                     if (callCapableAccounts.isNotEmpty()) {
                         targetAccount = callCapableAccounts.getOrNull(simSlot) ?: callCapableAccounts.firstOrNull()
                     }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
+            val isUssd = cleanNumber.startsWith("*") && cleanNumber.endsWith("#")
+
+            // For USSD codes (*...#): ACTION_CALL with encoded URI starts the carrier MMI overlay
+            if (isUssd && hasPhonePermission) {
+                try {
+                    val ussdIntent = Intent(Intent.ACTION_CALL, uri).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        if (targetAccount != null) {
+                            putExtra(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, targetAccount)
+                        }
+                        putExtra("com.android.phone.extra.slot", simSlot)
+                        putExtra("simSlot", simSlot)
+                        putExtra("phone_account_id", simSlot)
+                        putExtra("Subscription", simSlot)
+                    }
+                    context.startActivity(ussdIntent)
+                    return
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
