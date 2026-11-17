@@ -646,7 +646,7 @@ object SipEngine {
                 soTimeout = 2000
             }
 
-            extractRemoteSdp(incomingRemoteSdp, serverAddr.hostAddress ?: "103.170.231.10", context)
+            extractRemoteSdp(incomingRemoteSdp, serverAddr.hostAddress ?: "103.170.231.10", ctx)
 
             // Build 200 OK with SDP Answer (PCMA 8, PCMU 0)
             val sdpAnswer = buildString {
