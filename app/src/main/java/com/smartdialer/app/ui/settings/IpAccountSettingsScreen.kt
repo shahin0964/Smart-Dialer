@@ -85,6 +85,7 @@ import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.CallMissedRed
 import com.smartdialer.app.ui.theme.CallOutgoingBlue
 import com.smartdialer.app.ui.theme.IpCallPurple
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
 import com.smartdialer.app.ui.theme.TextDark
@@ -198,10 +199,12 @@ fun IpAccountSettingsScreen(
         )
     }
 
+    val theme = LocalAppTheme.current
+
     Scaffold(
         topBar = {
             Surface(
-                color = Color.White,
+                color = theme.topBarBg,
                 shadowElevation = 2.dp
             ) {
                 Row(
@@ -222,7 +225,7 @@ fun IpAccountSettingsScreen(
                         Icon(
                             imageVector = Icons.Default.ArrowBack,
                             contentDescription = "Back",
-                            tint = TextDark
+                            tint = theme.textPrimary
                         )
                     }
 
@@ -237,7 +240,7 @@ fun IpAccountSettingsScreen(
                             },
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextDark
+                            color = theme.textPrimary
                         )
                         Text(
                             text = when (subView) {
@@ -246,7 +249,7 @@ fun IpAccountSettingsScreen(
                                 IpSettingsSubView.ADVANCED -> "VoIP, Transport & Network"
                             },
                             fontSize = 12.sp,
-                            color = TextMuted
+                            color = theme.textMuted
                         )
                     }
 
@@ -259,7 +262,7 @@ fun IpAccountSettingsScreen(
                         liveStatus.startsWith("Connecting") -> "Connecting..." to Color(0xFFF59E0B)
                         liveStatus.startsWith("Auth Failed") -> "Auth Failed" to Color(0xFFEF4444)
                         isConfigured -> "Configured" to CallIncomingGreen
-                        else -> "Offline" to TextMuted
+                        else -> "Offline" to theme.textMuted
                     }
                     Surface(
                         shape = RoundedCornerShape(12.dp),
@@ -277,13 +280,13 @@ fun IpAccountSettingsScreen(
                 }
             }
         },
-        containerColor = BgLight
+        containerColor = theme.background
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(BgLight)
+                .background(theme.background)
         ) {
             when (subView) {
                 IpSettingsSubView.DASHBOARD -> {
@@ -298,7 +301,7 @@ fun IpAccountSettingsScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = theme.cardBackground),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(
@@ -491,7 +494,7 @@ fun IpAccountSettingsScreen(
                                 .fillMaxWidth()
                                 .clickable { subView = IpSettingsSubView.SETTINGS },
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = theme.cardBackground),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                         ) {
                             Row(
@@ -563,7 +566,7 @@ fun IpAccountSettingsScreen(
                                 .fillMaxWidth()
                                 .clickable { showAudioSettingsDialog = true },
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = theme.cardBackground),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                         ) {
                             Row(
@@ -623,7 +626,7 @@ fun IpAccountSettingsScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = theme.cardBackground),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                         ) {
                             Column(
@@ -685,7 +688,7 @@ fun IpAccountSettingsScreen(
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = theme.cardBackground),
                             elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
                         ) {
                             Column(
@@ -773,7 +776,7 @@ fun IpAccountSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Column(
                             modifier = Modifier.padding(18.dp),
@@ -904,7 +907,7 @@ fun IpAccountSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Column(modifier = Modifier.padding(18.dp)) {
                             Text(
@@ -941,7 +944,7 @@ fun IpAccountSettingsScreen(
                             .fillMaxWidth()
                             .clickable { subView = IpSettingsSubView.ADVANCED },
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Row(
                             modifier = Modifier
@@ -995,7 +998,7 @@ fun IpAccountSettingsScreen(
                             .fillMaxWidth()
                             .clickable { showAudioSettingsDialog = true },
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Row(
                             modifier = Modifier
@@ -1162,7 +1165,7 @@ fun IpAccountSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -1213,7 +1216,7 @@ fun IpAccountSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -1250,7 +1253,7 @@ fun IpAccountSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -1289,7 +1292,7 @@ fun IpAccountSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -1344,7 +1347,7 @@ fun IpAccountSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),
@@ -1391,7 +1394,7 @@ fun IpAccountSettingsScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
                     ) {
                         Column(
                             modifier = Modifier.padding(16.dp),

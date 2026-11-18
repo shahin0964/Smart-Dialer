@@ -114,6 +114,7 @@ import com.smartdialer.app.ui.components.PermissionCard
 import com.smartdialer.app.ui.dialogs.CallAccountPickerDialog
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.DividerColor
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurpleBorder
 import com.smartdialer.app.ui.theme.PurpleLight
 import com.smartdialer.app.ui.theme.PurplePrimary
@@ -218,12 +219,13 @@ fun ContactsScreen(
         contacts.groupBy { it.initial }.toSortedMap()
     }
 
+    val theme = LocalAppTheme.current
     val alphabet = remember { ('A'..'Z').map { it.toString() } + "#" }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgLight)
+            .background(theme.background)
     ) {
         // Search Bar + Add Contact Icon
         Row(
@@ -235,12 +237,12 @@ fun ContactsScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
-                placeholder = { Text("Search contacts", color = TextLightGray, fontSize = 14.sp) },
+                placeholder = { Text("Search contacts", color = theme.textMuted, fontSize = 14.sp) },
                 leadingIcon = {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Search",
-                        tint = TextLightGray,
+                        tint = theme.textMuted,
                         modifier = Modifier.size(20.dp)
                     )
                 },
@@ -250,7 +252,7 @@ fun ContactsScreen(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Clear",
-                                tint = TextLightGray,
+                                tint = theme.textMuted,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -262,10 +264,12 @@ fun ContactsScreen(
                     .height(50.dp),
                 shape = RoundedCornerShape(25.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
-                    focusedIndicatorColor = PurplePrimary,
-                    unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                    focusedContainerColor = theme.cardBackground,
+                    unfocusedContainerColor = theme.cardBackground,
+                    focusedTextColor = theme.textPrimary,
+                    unfocusedTextColor = theme.textPrimary,
+                    focusedIndicatorColor = theme.primary,
+                    unfocusedIndicatorColor = theme.divider
                 )
             )
 
@@ -379,8 +383,8 @@ fun ContactsScreen(
             // Direct Sync Google Contacts Button Chip
             Surface(
                 shape = RoundedCornerShape(20.dp),
-                color = Color.White,
-                border = androidx.compose.foundation.BorderStroke(1.dp, PurpleBorder),
+                color = theme.cardBackground,
+                border = androidx.compose.foundation.BorderStroke(1.dp, theme.divider),
                 modifier = Modifier.clickable { viewModel.syncGoogleContacts() }
             ) {
                 Row(
@@ -391,13 +395,13 @@ fun ContactsScreen(
                         CircularProgressIndicator(
                             modifier = Modifier.size(14.dp),
                             strokeWidth = 2.dp,
-                            color = PurplePrimary
+                            color = theme.primary
                         )
                     } else {
                         Icon(
                             imageVector = Icons.Default.Sync,
                             contentDescription = "Sync Google",
-                            tint = PurplePrimary,
+                            tint = theme.primary,
                             modifier = Modifier.size(15.dp)
                         )
                     }
@@ -406,7 +410,7 @@ fun ContactsScreen(
                         text = "Sync Google",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
-                        color = PurplePrimary
+                        color = theme.primary
                     )
                 }
             }
@@ -427,10 +431,10 @@ fun ContactsScreen(
                 // "All Google Accounts" chip
                 Surface(
                     shape = RoundedCornerShape(16.dp),
-                    color = if (selectedGoogleAccount == null) Color(0xFFEA4335) else Color.White,
+                    color = if (selectedGoogleAccount == null) Color(0xFFEA4335) else theme.cardBackground,
                     border = androidx.compose.foundation.BorderStroke(
                         1.dp,
-                        if (selectedGoogleAccount == null) Color(0xFFEA4335) else Color(0xFFE2E8F0)
+                        if (selectedGoogleAccount == null) Color(0xFFEA4335) else theme.divider
                     ),
                     modifier = Modifier.clickable { viewModel.selectGoogleAccount(null) }
                 ) {
@@ -438,7 +442,7 @@ fun ContactsScreen(
                         text = "All Google (${counts.google})",
                         fontSize = 11.sp,
                         fontWeight = if (selectedGoogleAccount == null) FontWeight.Bold else FontWeight.Medium,
-                        color = if (selectedGoogleAccount == null) Color.White else TextDark,
+                        color = if (selectedGoogleAccount == null) Color.White else theme.textPrimary,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                     )
                 }
@@ -449,10 +453,10 @@ fun ContactsScreen(
                     val isSelected = selectedGoogleAccount == acc
                     Surface(
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) Color(0xFF1A73E8) else Color.White,
+                        color = if (isSelected) Color(0xFF1A73E8) else theme.cardBackground,
                         border = androidx.compose.foundation.BorderStroke(
                             1.dp,
-                            if (isSelected) Color(0xFF1A73E8) else Color(0xFFE2E8F0)
+                            if (isSelected) Color(0xFF1A73E8) else theme.divider
                         ),
                         modifier = Modifier.clickable { viewModel.selectGoogleAccount(acc) }
                     ) {
@@ -464,13 +468,13 @@ fun ContactsScreen(
                                 text = acc,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else TextDark
+                                color = if (isSelected) Color.White else theme.textPrimary
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
                                 text = "($accCount)",
                                 fontSize = 10.sp,
-                                color = if (isSelected) Color.White.copy(alpha = 0.85f) else TextMuted
+                                color = if (isSelected) Color.White.copy(alpha = 0.85f) else theme.textMuted
                             )
                         }
                     }
@@ -853,12 +857,14 @@ fun AccountFilterChip(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
+
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = if (isSelected) PurplePrimary else Color.White,
+        color = if (isSelected) theme.primary else theme.cardBackground,
         border = androidx.compose.foundation.BorderStroke(
             1.dp,
-            if (isSelected) PurplePrimary else Color(0xFFE2E8F0)
+            if (isSelected) theme.primary else theme.divider
         ),
         modifier = Modifier.clickable { onClick() }
     ) {
@@ -869,7 +875,7 @@ fun AccountFilterChip(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (isSelected) Color.White else (iconColor ?: TextMuted),
+                tint = if (isSelected) Color.White else (iconColor ?: theme.textMuted),
                 modifier = Modifier.size(15.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
@@ -877,7 +883,7 @@ fun AccountFilterChip(
                 text = "$label ($count)",
                 fontSize = 12.sp,
                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                color = if (isSelected) Color.White else TextDark
+                color = if (isSelected) Color.White else theme.textPrimary
             )
         }
     }
@@ -889,6 +895,7 @@ fun ContactRow(
     onCallClick: () -> Unit,
     onRowClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     val avatarColors = listOf(
         Color(0xFFDBEAFE) to Color(0xFF1D4ED8), // Blue
         Color(0xFFFEF3C7) to Color(0xFFB45309), // Amber
@@ -925,7 +932,7 @@ fun ContactRow(
                         text = contact.name,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextDark,
+                        color = theme.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -1010,10 +1017,11 @@ fun ContactDetailsDialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
+        val theme = LocalAppTheme.current
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+            color = theme.cardBackground,
+            border = androidx.compose.foundation.BorderStroke(1.dp, theme.divider),
             modifier = Modifier
                 .fillMaxWidth(0.92f)
                 .fillMaxHeight(0.85f)
@@ -1041,7 +1049,7 @@ fun ContactDetailsDialog(
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Edit Contact",
-                            tint = PurplePrimary,
+                            tint = theme.primary,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1050,7 +1058,7 @@ fun ContactDetailsDialog(
                         text = "Contact Profile",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark
+                        color = theme.textPrimary
                     )
 
                     IconButton(
@@ -1060,7 +1068,7 @@ fun ContactDetailsDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextMuted,
+                            tint = theme.textMuted,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1085,7 +1093,7 @@ fun ContactDetailsDialog(
                     text = contact.name,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark,
+                    color = theme.textPrimary,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
 
@@ -1289,16 +1297,16 @@ fun ContactDetailsDialog(
 
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFF8FAFC),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            color = theme.surface,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, theme.divider),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
                         ) {
                             Row(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 9.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -1307,12 +1315,12 @@ fun ContactDetailsDialog(
                                         text = phone,
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = TextDark
+                                        color = theme.textPrimary
                                     )
                                     Text(
                                         text = "${carrier.carrierName} • ${carrier.location}",
                                         fontSize = 11.sp,
-                                        color = TextMuted
+                                        color = theme.textMuted
                                     )
                                 }
 
@@ -1400,8 +1408,8 @@ fun ContactDetailsDialog(
                     for (email in contact.emails) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFF8FAFC),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            color = theme.surface,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, theme.divider),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
@@ -1416,7 +1424,7 @@ fun ContactDetailsDialog(
                                 Text(
                                     text = email,
                                     fontSize = 13.sp,
-                                    color = TextDark,
+                                    color = theme.textPrimary,
                                     modifier = Modifier.weight(1f)
                                 )
                                 IconButton(
@@ -1677,6 +1685,8 @@ fun DeletedContactsDialog(
     onOpenTrash: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -1685,18 +1695,18 @@ fun DeletedContactsDialog(
                     modifier = Modifier
                         .size(36.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(PurpleUltraLight),
+                        .background(theme.primaryUltraLight),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = null,
-                        tint = PurplePrimary,
+                        tint = theme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("Deleted Contacts", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = TextDark)
+                Text("Deleted Contacts", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = theme.textPrimary)
             }
         },
         text = {
@@ -1704,13 +1714,13 @@ fun DeletedContactsDialog(
                 Text(
                     text = "Contacts deleted from your Google / Gmail account are safely stored in Google Contacts Trash for 30 days before permanent deletion.",
                     fontSize = 13.sp,
-                    color = TextMuted,
+                    color = theme.textMuted,
                     lineHeight = 18.sp
                 )
                 Text(
                     text = "You can view, restore, or permanently remove deleted contacts directly through Google Contacts.",
                     fontSize = 13.sp,
-                    color = TextMuted,
+                    color = theme.textMuted,
                     lineHeight = 18.sp
                 )
             }
@@ -1718,7 +1728,7 @@ fun DeletedContactsDialog(
         confirmButton = {
             Button(
                 onClick = onOpenTrash,
-                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Icon(
@@ -1735,10 +1745,10 @@ fun DeletedContactsDialog(
                 onClick = onOpenSettings,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Sync Settings", fontSize = 13.sp, color = TextDark)
+                Text("Sync Settings", fontSize = 13.sp, color = theme.textPrimary)
             }
         },
-        containerColor = Color.White,
+        containerColor = theme.cardBackground,
         shape = RoundedCornerShape(20.dp)
     )
 }
@@ -1747,13 +1757,15 @@ fun DeletedContactsDialog(
 fun DeletedContactsCard(
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = PurpleUltraLight)
+        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
     ) {
         Row(
             modifier = Modifier
@@ -1770,7 +1782,7 @@ fun DeletedContactsCard(
                     modifier = Modifier
                         .size(40.dp)
                         .clip(RoundedCornerShape(12.dp))
-                        .background(PurplePrimary),
+                        .background(theme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -1788,13 +1800,13 @@ fun DeletedContactsCard(
                         text = "Deleted Contacts",
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark
+                        color = theme.textPrimary
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "View, recover, or permanently delete removed contacts",
                         fontSize = 12.sp,
-                        color = TextMuted,
+                        color = theme.textMuted,
                         maxLines = 2,
                         lineHeight = 16.sp
                     )
@@ -1804,7 +1816,7 @@ fun DeletedContactsCard(
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = "View",
-                tint = TextMuted,
+                tint = theme.textMuted,
                 modifier = Modifier.size(22.dp)
             )
         }

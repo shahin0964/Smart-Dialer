@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.smartdialer.app.data.repository.IpCallPreferences
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
 import com.smartdialer.app.ui.theme.TextDark
@@ -60,6 +61,7 @@ fun IpAudioSettingsDialog(
     onSaved: () -> Unit
 ) {
     val view = LocalView.current
+    val theme = LocalAppTheme.current
 
     var selectedInput by remember { mutableStateOf(ipPreferences.audioInputSource) }
     var selectedQuality by remember { mutableStateOf(ipPreferences.audioQualityPreset) }
@@ -72,7 +74,7 @@ fun IpAudioSettingsDialog(
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp),
@@ -89,13 +91,13 @@ fun IpAudioSettingsDialog(
                 Box(
                     modifier = Modifier
                         .size(52.dp)
-                        .background(PurpleUltraLight, RoundedCornerShape(16.dp)),
+                        .background(theme.primaryUltraLight, RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.SurroundSound,
                         contentDescription = "Audio Settings",
-                        tint = PurplePrimary,
+                        tint = theme.primary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -106,13 +108,13 @@ fun IpAudioSettingsDialog(
                     text = "IP Call Sound & Audio Quality",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
 
                 Text(
                     text = "High-definition sound input & crystal voice tuning",
                     fontSize = 12.sp,
-                    color = TextMuted,
+                    color = theme.textMuted,
                     modifier = Modifier.padding(top = 2.dp, bottom = 16.dp)
                 )
 
@@ -211,7 +213,7 @@ fun IpAudioSettingsDialog(
                     text = "Microphone Gain Boost",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextDark,
+                    color = theme.textPrimary,
                     modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)
                 )
                 Row(
@@ -225,7 +227,7 @@ fun IpAudioSettingsDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (isSelected) PurplePrimary else Color(0xFFF1F5F9))
+                                .background(if (isSelected) theme.primary else theme.surface)
                                 .clickable {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     selectedMicBoost = gain
@@ -237,7 +239,7 @@ fun IpAudioSettingsDialog(
                                 text = label,
                                 fontSize = 11.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                color = if (isSelected) Color.White else TextDark
+                                color = if (isSelected) Color.White else theme.textPrimary
                             )
                         }
                     }
@@ -256,9 +258,9 @@ fun IpAudioSettingsDialog(
                             .weight(1f)
                             .height(46.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1F5F9))
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.surface)
                     ) {
-                        Text("Cancel", color = TextDark, fontWeight = FontWeight.SemiBold)
+                        Text("Cancel", color = theme.textPrimary, fontWeight = FontWeight.SemiBold)
                     }
 
                     Button(
@@ -278,7 +280,7 @@ fun IpAudioSettingsDialog(
                             .weight(1f)
                             .height(46.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                     ) {
                         Text("Save", color = Color.White, fontWeight = FontWeight.Bold)
                     }
@@ -290,6 +292,7 @@ fun IpAudioSettingsDialog(
 
 @Composable
 private fun AudioSectionTitle(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -299,7 +302,7 @@ private fun AudioSectionTitle(icon: androidx.compose.ui.graphics.vector.ImageVec
         Icon(
             imageVector = icon,
             contentDescription = null,
-            tint = PurplePrimary,
+            tint = theme.primary,
             modifier = Modifier.size(16.dp)
         )
         Spacer(modifier = Modifier.width(6.dp))
@@ -307,7 +310,7 @@ private fun AudioSectionTitle(icon: androidx.compose.ui.graphics.vector.ImageVec
             text = title,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            color = PurplePrimary
+            color = theme.primary
         )
     }
 }
@@ -318,12 +321,13 @@ private fun AudioRadioOption(
     label: String,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 3.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(if (selected) Color(0xFFF5F3FF) else Color(0xFFF8FAFC))
+            .background(if (selected) theme.primaryUltraLight else theme.surface)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -332,8 +336,8 @@ private fun AudioRadioOption(
             modifier = Modifier
                 .size(18.dp)
                 .clip(CircleShape)
-                .border(2.dp, if (selected) PurplePrimary else Color(0xFFCBD5E1), CircleShape)
-                .background(if (selected) PurplePrimary else Color.Transparent),
+                .border(2.dp, if (selected) theme.primary else theme.divider, CircleShape)
+                .background(if (selected) theme.primary else Color.Transparent),
             contentAlignment = Alignment.Center
         ) {
             if (selected) {
@@ -345,7 +349,7 @@ private fun AudioRadioOption(
             text = label,
             fontSize = 13.sp,
             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-            color = if (selected) TextDark else TextMuted
+            color = if (selected) theme.textPrimary else theme.textMuted
         )
     }
 }
@@ -357,6 +361,7 @@ private fun AudioQualityOption(
     subtitle: String,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -364,10 +369,10 @@ private fun AudioQualityOption(
             .clip(RoundedCornerShape(10.dp))
             .border(
                 width = if (selected) 1.5.dp else 1.dp,
-                color = if (selected) PurplePrimary else Color(0xFFE2E8F0),
+                color = if (selected) theme.primary else theme.divider,
                 shape = RoundedCornerShape(10.dp)
             )
-            .background(if (selected) Color(0xFFF5F3FF) else Color(0xFFFAFAFA))
+            .background(if (selected) theme.primaryUltraLight else theme.surface)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -376,8 +381,8 @@ private fun AudioQualityOption(
             modifier = Modifier
                 .size(18.dp)
                 .clip(CircleShape)
-                .border(2.dp, if (selected) PurplePrimary else Color(0xFFCBD5E1), CircleShape)
-                .background(if (selected) PurplePrimary else Color.Transparent),
+                .border(2.dp, if (selected) theme.primary else theme.divider, CircleShape)
+                .background(if (selected) theme.primary else Color.Transparent),
             contentAlignment = Alignment.Center
         ) {
             if (selected) {
@@ -390,12 +395,12 @@ private fun AudioQualityOption(
                 text = title,
                 fontSize = 13.sp,
                 fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-                color = TextDark
+                color = theme.textPrimary
             )
             Text(
                 text = subtitle,
                 fontSize = 11.sp,
-                color = TextMuted
+                color = theme.textMuted
             )
         }
     }
@@ -408,6 +413,7 @@ private fun AudioToggleItem(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -420,12 +426,12 @@ private fun AudioToggleItem(
                 text = label,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium,
-                color = TextDark
+                color = theme.textPrimary
             )
             Text(
                 text = subtitle,
                 fontSize = 11.sp,
-                color = TextMuted
+                color = theme.textMuted
             )
         }
         Switch(
@@ -433,7 +439,7 @@ private fun AudioToggleItem(
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
-                checkedTrackColor = PurplePrimary
+                checkedTrackColor = theme.primary
             )
         )
     }

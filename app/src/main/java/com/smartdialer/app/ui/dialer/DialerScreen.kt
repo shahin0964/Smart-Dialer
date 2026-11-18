@@ -133,7 +133,7 @@ fun DialerScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgLight)
+            .background(theme.background)
             .padding(horizontal = 16.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
@@ -685,9 +685,11 @@ fun ContactChip(
     contact: ContactItem,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
+
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = PurpleUltraLight,
+        color = theme.primaryUltraLight,
         modifier = Modifier.clickable { onClick() }
     ) {
         Row(
@@ -697,7 +699,7 @@ fun ContactChip(
             Icon(
                 imageVector = Icons.Default.Person,
                 contentDescription = null,
-                tint = PurplePrimary,
+                tint = theme.primary,
                 modifier = Modifier.size(16.dp)
             )
             Spacer(modifier = Modifier.width(6.dp))
@@ -706,7 +708,7 @@ fun ContactChip(
                     text = contact.name,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = PurplePrimary,
+                    color = theme.primary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -714,7 +716,7 @@ fun ContactChip(
                     Text(
                         text = contact.phoneNumber,
                         fontSize = 10.sp,
-                        color = TextMuted,
+                        color = theme.textMuted,
                         maxLines = 1
                     )
                 }
@@ -732,12 +734,13 @@ fun CallerIdBanner(
     onWhatsApp: () -> Unit,
     onTelegram: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     val isSpam = callerId?.isSpam == true
 
     Surface(
         shape = RoundedCornerShape(12.dp),
-        color = Color(0xFFF8FAFC),
-        border = BorderStroke(1.dp, if (isSpam) Color(0xFFFCA5A5) else Color(0xFFE2E8F0)),
+        color = if (isSpam) Color(0xFFFEE2E2).copy(alpha = 0.15f) else theme.cardBackground,
+        border = BorderStroke(1.dp, if (isSpam) Color(0xFFFCA5A5) else theme.divider),
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
@@ -755,7 +758,7 @@ fun CallerIdBanner(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = if (isSpam) Color(0xFFFEE2E2) else Color(0xFFEDE9FE),
+                    color = if (isSpam) Color(0xFFFEE2E2) else theme.primaryUltraLight,
                     modifier = Modifier.size(34.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
@@ -763,13 +766,13 @@ fun CallerIdBanner(
                             CircularProgressIndicator(
                                 modifier = Modifier.size(16.dp),
                                 strokeWidth = 2.dp,
-                                color = PurplePrimary
+                                color = theme.primary
                             )
                         } else {
                             Icon(
                                 imageVector = if (isSpam) Icons.Default.Warning else Icons.Default.Person,
                                 contentDescription = null,
-                                tint = if (isSpam) Color(0xFFDC2626) else PurplePrimary,
+                                tint = if (isSpam) Color(0xFFDC2626) else theme.primary,
                                 modifier = Modifier.size(18.dp)
                             )
                         }
@@ -785,7 +788,7 @@ fun CallerIdBanner(
                             text = if (hasName) callerId!!.name!! else if (isLoading) "Looking up caller..." else "${callerId?.carrier ?: "Mobile"} Subscriber",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSpam) Color(0xFFDC2626) else TextDark,
+                            color = if (isSpam) Color(0xFFDC2626) else theme.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -822,7 +825,7 @@ fun CallerIdBanner(
                     Text(
                         text = "${callerId?.carrier ?: "Searching"} • ${callerId?.location ?: "Bangladesh"}",
                         fontSize = 11.sp,
-                        color = TextMuted,
+                        color = theme.textMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -865,7 +868,7 @@ fun CallerIdBanner(
                     Icon(
                         imageVector = Icons.Default.PersonAdd,
                         contentDescription = "Save Contact",
-                        tint = PurplePrimary,
+                        tint = theme.primary,
                         modifier = Modifier.size(18.dp)
                     )
                 }

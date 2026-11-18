@@ -66,6 +66,7 @@ import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.CallMissedRed
 import com.smartdialer.app.ui.theme.CallOutgoingBlue
 import com.smartdialer.app.ui.theme.IpCallPurple
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
 import com.smartdialer.app.ui.theme.TextDark
@@ -78,12 +79,13 @@ fun QuickIpCallDialog(
     onCall: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     var dialNumber by remember { mutableStateOf("") }
 
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(8.dp)
@@ -103,13 +105,13 @@ fun QuickIpCallDialog(
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
-                                .background(PurpleUltraLight, CircleShape),
+                                .background(theme.primaryUltraLight, CircleShape),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Phone,
                                 contentDescription = null,
-                                tint = PurplePrimary,
+                                tint = theme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -118,7 +120,7 @@ fun QuickIpCallDialog(
                             text = "Make IP Call (আইপি কল)",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextDark
+                            color = theme.textPrimary
                         )
                     }
 
@@ -126,29 +128,31 @@ fun QuickIpCallDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextMuted,
+                            tint = theme.textMuted,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = Color(0xFFF1F5F9))
+                HorizontalDivider(color = theme.divider)
                 Spacer(modifier = Modifier.height(14.dp))
 
                 OutlinedTextField(
                     value = dialNumber,
                     onValueChange = { dialNumber = it },
-                    placeholder = { Text("Enter number or SIP address...", color = TextLightGray, fontSize = 14.sp) },
+                    placeholder = { Text("Enter number or SIP address...", color = theme.textMuted, fontSize = 14.sp) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color(0xFFF8FAFC),
-                        unfocusedContainerColor = Color(0xFFF8FAFC),
-                        focusedIndicatorColor = PurplePrimary,
-                        unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                        focusedContainerColor = theme.surface,
+                        unfocusedContainerColor = theme.surface,
+                        focusedIndicatorColor = theme.primary,
+                        unfocusedIndicatorColor = theme.divider,
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary
                     )
                 )
 
@@ -195,9 +199,10 @@ fun DashboardStatBox(
     iconTint: Color,
     modifier: Modifier = Modifier
 ) {
+    val theme = LocalAppTheme.current
     Surface(
         shape = RoundedCornerShape(16.dp),
-        color = Color.White,
+        color = theme.cardBackground,
         shadowElevation = 1.dp,
         modifier = modifier
     ) {
@@ -222,7 +227,7 @@ fun DashboardStatBox(
                 text = value,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = TextDark,
+                color = theme.textPrimary,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
@@ -230,12 +235,12 @@ fun DashboardStatBox(
                 text = title,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = TextDark.copy(alpha = 0.8f)
+                color = theme.textSecondary
             )
             Text(
                 text = subtitle,
                 fontSize = 10.sp,
-                color = TextMuted
+                color = theme.textMuted
             )
         }
     }
@@ -246,6 +251,7 @@ fun ContactTalkRow(
     stat: ContactTalkStat,
     onCallClick: (String) -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -268,14 +274,14 @@ fun ContactTalkRow(
                     text = stat.displayName,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextDark,
+                    color = theme.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${stat.callCount} calls • ${stat.number}",
                     fontSize = 11.sp,
-                    color = TextMuted,
+                    color = theme.textMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -285,13 +291,13 @@ fun ContactTalkRow(
         Row(verticalAlignment = Alignment.CenterVertically) {
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                color = PurpleUltraLight
+                color = theme.primaryUltraLight
             ) {
                 Text(
                     text = stat.formattedDuration,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = PurplePrimary,
+                    color = theme.primary,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
@@ -318,6 +324,7 @@ fun IpCallHistoryRow(
     record: IpCallRecord,
     onCallClick: (String) -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -333,7 +340,7 @@ fun IpCallHistoryRow(
                 CallType.INCOMING -> Icons.Default.CallReceived to CallIncomingGreen
                 CallType.OUTGOING -> Icons.Default.CallMade to CallOutgoingBlue
                 CallType.MISSED, CallType.REJECTED -> Icons.Default.CallMissed to CallMissedRed
-                CallType.UNKNOWN -> Icons.Default.Call to TextMuted
+                CallType.UNKNOWN -> Icons.Default.Call to theme.textMuted
             }
 
             Box(
@@ -357,14 +364,14 @@ fun IpCallHistoryRow(
                     text = record.displayName,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = TextDark,
+                    color = theme.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = "${record.formattedDateTime} • ${record.formattedDuration}",
                     fontSize = 11.sp,
-                    color = TextMuted
+                    color = theme.textMuted
                 )
             }
         }

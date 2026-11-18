@@ -83,6 +83,7 @@ import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.CallMissedRed
 import com.smartdialer.app.ui.theme.CallOutgoingBlue
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.TextDark
 import com.smartdialer.app.ui.theme.TextLightGray
@@ -184,10 +185,12 @@ fun CallsScreen(
         )
     }
 
+    val theme = LocalAppTheme.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgLight)
+            .background(theme.background)
     ) {
         // Sub-header: Call History Title + Search + Filter
         Row(
@@ -201,7 +204,7 @@ fun CallsScreen(
                 text = "Call History",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = TextDark
+                color = theme.textPrimary
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -212,7 +215,7 @@ fun CallsScreen(
                     Icon(
                         imageVector = if (isSearchVisible) Icons.Default.Close else Icons.Default.Search,
                         contentDescription = "Search",
-                        tint = TextMuted,
+                        tint = theme.textMuted,
                         modifier = Modifier.size(22.dp)
                     )
                 }
@@ -225,7 +228,7 @@ fun CallsScreen(
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = "Filter",
-                            tint = if (activeFilter != null) PurplePrimary else TextMuted,
+                            tint = if (activeFilter != null) theme.primary else theme.textMuted,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -233,10 +236,10 @@ fun CallsScreen(
                     DropdownMenu(
                         expanded = filterMenuExpanded,
                         onDismissRequest = { filterMenuExpanded = false },
-                        modifier = Modifier.background(Color.White)
+                        modifier = Modifier.background(theme.cardBackground)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("All Calls", fontWeight = if (activeFilter == null) FontWeight.Bold else FontWeight.Normal) },
+                            text = { Text("All Calls", color = theme.textPrimary, fontWeight = if (activeFilter == null) FontWeight.Bold else FontWeight.Normal) },
                             onClick = {
                                 filterMenuExpanded = false
                                 viewModel.setFilter(null)
@@ -273,17 +276,19 @@ fun CallsScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { viewModel.onSearchQueryChanged(it) },
-                placeholder = { Text("Search call history...", color = TextLightGray) },
+                placeholder = { Text("Search call history...", color = theme.textMuted) },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp, vertical = 4.dp),
                 shape = RoundedCornerShape(12.dp),
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.White,
-                    unfocusedContainerColor = Color.White,
-                    focusedIndicatorColor = PurplePrimary,
-                    unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                    focusedContainerColor = theme.cardBackground,
+                    unfocusedContainerColor = theme.cardBackground,
+                    focusedTextColor = theme.textPrimary,
+                    unfocusedTextColor = theme.textPrimary,
+                    focusedIndicatorColor = theme.primary,
+                    unfocusedIndicatorColor = theme.divider
                 )
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -443,6 +448,7 @@ fun GroupedCallLogRow(
     onRowClick: () -> Unit,
     onCallClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     val latest = group.latestCall
 
     Row(
@@ -473,7 +479,7 @@ fun GroupedCallLogRow(
                         text = group.displayName,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (group.isSpam) Color(0xFFDC2626) else TextDark,
+                        color = if (group.isSpam) Color(0xFFDC2626) else theme.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -483,13 +489,13 @@ fun GroupedCallLogRow(
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = PurplePrimary.copy(alpha = 0.12f)
+                            color = theme.primary.copy(alpha = 0.12f)
                         ) {
                             Text(
                                 text = "(${group.totalCount})",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = PurplePrimary,
+                                color = theme.primary,
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
                             )
                         }
@@ -617,13 +623,15 @@ fun CallHistoryDetailDialog(
                 .clickable { onDismiss() },
             contentAlignment = Alignment.BottomCenter
         ) {
+            val theme = LocalAppTheme.current
+
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
                     .fillMaxHeight(0.85f)
                     .clickable(enabled = false) {}, // Prevent dismiss on inner click
                 shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
             ) {
                 Column(
                     modifier = Modifier
@@ -640,7 +648,7 @@ fun CallHistoryDetailDialog(
                             text = "Call Details & History",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextMuted
+                            color = theme.textMuted
                         )
                         IconButton(
                             onClick = onDismiss,
@@ -649,7 +657,7 @@ fun CallHistoryDetailDialog(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "Close",
-                                tint = TextMuted
+                                tint = theme.textMuted
                             )
                         }
                     }
@@ -672,7 +680,7 @@ fun CallHistoryDetailDialog(
                                 text = group.displayName,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (group.isSpam) Color(0xFFDC2626) else TextDark,
+                                color = if (group.isSpam) Color(0xFFDC2626) else theme.textPrimary,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
@@ -680,7 +688,7 @@ fun CallHistoryDetailDialog(
                             Text(
                                 text = group.primaryNumber,
                                 fontSize = 14.sp,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
                         }
                     }
@@ -701,7 +709,7 @@ fun CallHistoryDetailDialog(
                                 .weight(1f)
                                 .height(40.dp),
                             shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                            colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                         ) {
                             Icon(Icons.Default.Call, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(6.dp))
@@ -714,11 +722,11 @@ fun CallHistoryDetailDialog(
                                 SmsHelper.openSms(context, group.primaryNumber)
                             },
                             shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFFF1F5F9),
+                            color = theme.surface,
                             modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.Message, contentDescription = "SMS", tint = PurplePrimary, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.Message, contentDescription = "SMS", tint = theme.primary, modifier = Modifier.size(18.dp))
                             }
                         }
 
@@ -729,11 +737,11 @@ fun CallHistoryDetailDialog(
                                 Toast.makeText(context, "Number copied to clipboard", Toast.LENGTH_SHORT).show()
                             },
                             shape = RoundedCornerShape(10.dp),
-                            color = Color(0xFFF1F5F9),
+                            color = theme.surface,
                             modifier = Modifier.size(40.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = TextDark, modifier = Modifier.size(18.dp))
+                                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", tint = theme.textPrimary, modifier = Modifier.size(18.dp))
                             }
                         }
 
@@ -759,8 +767,8 @@ fun CallHistoryDetailDialog(
 
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF8FAFC),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        color = theme.surface,
+                        border = BorderStroke(1.dp, theme.divider),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -771,8 +779,8 @@ fun CallHistoryDetailDialog(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
-                                Text("Total Duration", fontSize = 11.sp, color = TextMuted)
-                                Text(group.totalDurationFormatted, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = PurplePrimary)
+                                Text("Total Duration", fontSize = 11.sp, color = theme.textMuted)
+                                Text(group.totalDurationFormatted, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = theme.primary)
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("↙ $incomingCount", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = CallIncomingGreen)
@@ -788,7 +796,7 @@ fun CallHistoryDetailDialog(
                         text = "History (${group.totalCount} calls)",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextMuted
+                        color = theme.textMuted
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -816,12 +824,14 @@ private fun SingleCallHistoryItem(
     call: CallLogItem,
     onDelete: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
+
     val (icon, tint, bg) = when (call.type) {
-        CallType.INCOMING -> Triple(Icons.Default.CallReceived, CallIncomingGreen, Color(0xFFECFDF5))
-        CallType.OUTGOING -> Triple(Icons.Default.CallMade, CallOutgoingBlue, Color(0xFFEFF6FF))
-        CallType.MISSED -> Triple(Icons.Default.CallMissed, CallMissedRed, Color(0xFFFEF2F2))
-        CallType.REJECTED -> Triple(Icons.Default.CallMissed, Color(0xFFF59E0B), Color(0xFFFFFBEB))
-        CallType.UNKNOWN -> Triple(Icons.Default.Call, TextMuted, Color(0xFFF1F5F9))
+        CallType.INCOMING -> Triple(Icons.Default.CallReceived, CallIncomingGreen, Color(0xFFECFDF5).copy(alpha = 0.2f))
+        CallType.OUTGOING -> Triple(Icons.Default.CallMade, CallOutgoingBlue, Color(0xFFEFF6FF).copy(alpha = 0.2f))
+        CallType.MISSED -> Triple(Icons.Default.CallMissed, CallMissedRed, Color(0xFFFEF2F2).copy(alpha = 0.2f))
+        CallType.REJECTED -> Triple(Icons.Default.CallMissed, Color(0xFFF59E0B), Color(0xFFFFFBEB).copy(alpha = 0.2f))
+        CallType.UNKNOWN -> Triple(Icons.Default.Call, theme.textMuted, theme.surface)
     }
 
     val typeLabel = when (call.type) {
@@ -840,8 +850,8 @@ private fun SingleCallHistoryItem(
 
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = Color(0xFFF8FAFC),
-        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        color = theme.surface,
+        border = BorderStroke(1.dp, theme.divider),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -879,13 +889,13 @@ private fun SingleCallHistoryItem(
                         // Duration Badge
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = if (call.durationSeconds > 0) Color(0xFFEDE9FE) else Color(0xFFF1F5F9)
+                            color = if (call.durationSeconds > 0) theme.primaryUltraLight else theme.surface
                         ) {
                             Text(
                                 text = call.durationFormatted,
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = if (call.durationSeconds > 0) PurplePrimary else TextMuted,
+                                color = if (call.durationSeconds > 0) theme.primary else theme.textMuted,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -894,7 +904,7 @@ private fun SingleCallHistoryItem(
                     Text(
                         text = dateLabel,
                         fontSize = 12.sp,
-                        color = TextMuted
+                        color = theme.textMuted
                     )
                 }
             }
@@ -907,7 +917,7 @@ private fun SingleCallHistoryItem(
                 Icon(
                     imageVector = Icons.Default.DeleteOutline,
                     contentDescription = "Delete call",
-                    tint = TextLightGray,
+                    tint = theme.textMuted,
                     modifier = Modifier.size(16.dp)
                 )
             }

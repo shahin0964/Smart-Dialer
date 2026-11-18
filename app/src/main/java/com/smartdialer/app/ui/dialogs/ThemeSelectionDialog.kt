@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.smartdialer.app.data.repository.AppSettingsPreferences
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
 import com.smartdialer.app.ui.theme.TextDark
@@ -117,10 +118,12 @@ fun ThemeSelectionDialog(
         )
     )
 
+    val activeTheme = LocalAppTheme.current
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = activeTheme.cardBackground),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 16.dp),
@@ -137,13 +140,13 @@ fun ThemeSelectionDialog(
                 Box(
                     modifier = Modifier
                         .size(52.dp)
-                        .background(PurpleUltraLight, RoundedCornerShape(16.dp)),
+                        .background(activeTheme.primaryUltraLight, RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.Palette,
                         contentDescription = "Themes",
-                        tint = PurplePrimary,
+                        tint = activeTheme.primary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -154,13 +157,13 @@ fun ThemeSelectionDialog(
                     text = "Themes & Caller Screen",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = activeTheme.textPrimary
                 )
 
                 Text(
                     text = "Choose your preferred calling screen & dialer skin",
                     fontSize = 12.sp,
-                    color = TextMuted,
+                    color = activeTheme.textMuted,
                     modifier = Modifier.padding(top = 2.dp, bottom = 16.dp)
                 )
 
@@ -174,7 +177,7 @@ fun ThemeSelectionDialog(
                             .clip(RoundedCornerShape(14.dp))
                             .border(
                                 width = if (isSelected) 2.dp else 1.dp,
-                                color = if (isSelected) PurplePrimary else Color(0xFFE2E8F0),
+                                color = if (isSelected) activeTheme.primary else activeTheme.divider,
                                 shape = RoundedCornerShape(14.dp)
                             )
                             .clickable {
@@ -182,7 +185,9 @@ fun ThemeSelectionDialog(
                                 selectedTheme = theme.id
                             },
                         shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = if (isSelected) Color(0xFFFBF8FF) else Color.White)
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isSelected) activeTheme.primaryUltraLight else activeTheme.surface
+                        )
                     ) {
                         Row(
                             modifier = Modifier
@@ -214,12 +219,12 @@ fun ThemeSelectionDialog(
                                     text = theme.name,
                                     fontSize = 14.sp,
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                                    color = TextDark
+                                    color = activeTheme.textPrimary
                                 )
                                 Text(
                                     text = theme.description,
                                     fontSize = 11.sp,
-                                    color = TextMuted
+                                    color = activeTheme.textMuted
                                 )
                             }
 
@@ -228,7 +233,7 @@ fun ThemeSelectionDialog(
                                     modifier = Modifier
                                         .size(22.dp)
                                         .clip(CircleShape)
-                                        .background(PurplePrimary),
+                                        .background(activeTheme.primary),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
@@ -256,9 +261,9 @@ fun ThemeSelectionDialog(
                             .weight(1f)
                             .height(46.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1F5F9))
+                        colors = ButtonDefaults.buttonColors(containerColor = activeTheme.surface)
                     ) {
-                        Text("Cancel", color = TextDark, fontWeight = FontWeight.SemiBold)
+                        Text("Cancel", color = activeTheme.textPrimary, fontWeight = FontWeight.SemiBold)
                     }
 
                     Button(
@@ -272,7 +277,7 @@ fun ThemeSelectionDialog(
                             .weight(1f)
                             .height(46.dp),
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                        colors = ButtonDefaults.buttonColors(containerColor = activeTheme.primary)
                     ) {
                         Text("Apply Theme", color = Color.White, fontWeight = FontWeight.Bold)
                     }

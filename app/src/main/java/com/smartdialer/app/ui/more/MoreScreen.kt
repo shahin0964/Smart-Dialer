@@ -80,6 +80,7 @@ import com.smartdialer.app.ui.dialogs.SpeedDialDialog
 import com.smartdialer.app.ui.dialogs.VcfExportImportDialog
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
 import com.smartdialer.app.ui.theme.TextDark
@@ -239,10 +240,12 @@ fun MoreScreen(
         )
     }
 
+    val theme = LocalAppTheme.current
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(BgLight)
+            .background(theme.background)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
@@ -250,7 +253,7 @@ fun MoreScreen(
             text = "Settings & Features",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark,
+            color = theme.textPrimary,
             modifier = Modifier.padding(vertical = 8.dp)
         )
 
@@ -260,7 +263,7 @@ fun MoreScreen(
                 .fillMaxWidth()
                 .padding(vertical = 8.dp),
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = PurpleUltraLight)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -273,7 +276,7 @@ fun MoreScreen(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(PurplePrimary),
+                                .background(theme.primary),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -289,12 +292,12 @@ fun MoreScreen(
                                 text = "Default Phone App",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextDark
+                                color = theme.textPrimary
                             )
                             Text(
                                 text = if (isDefaultDialer) "Smart Dialer is your default dialer" else "Not set as default phone app",
                                 fontSize = 12.sp,
-                                color = if (isDefaultDialer) CallIncomingGreen else TextMuted
+                                color = if (isDefaultDialer) CallIncomingGreen else theme.textMuted
                             )
                         }
                     }
@@ -307,7 +310,7 @@ fun MoreScreen(
                             onRequestDefaultDialer()
                             checkDefaultDialer()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -519,11 +522,13 @@ fun MoreScreen(
 
 @Composable
 private fun SectionHeader(title: String) {
+    val theme = LocalAppTheme.current
+
     Text(
         text = title,
         fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
-        color = PurplePrimary,
+        color = theme.primary,
         modifier = Modifier.padding(start = 4.dp, top = 8.dp, bottom = 4.dp)
     )
 }
@@ -535,13 +540,15 @@ fun MoreOptionItem(
     subtitle: String,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
     ) {
         Row(
             modifier = Modifier
@@ -558,13 +565,13 @@ fun MoreOptionItem(
                     modifier = Modifier
                         .size(38.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(PurpleUltraLight),
+                        .background(theme.primaryUltraLight),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = icon,
                         contentDescription = null,
-                        tint = PurplePrimary,
+                        tint = theme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -576,13 +583,13 @@ fun MoreOptionItem(
                         text = title,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextDark
+                        color = theme.textPrimary
                     )
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = subtitle,
                         fontSize = 12.sp,
-                        color = TextMuted
+                        color = theme.textMuted
                     )
                 }
             }
@@ -590,7 +597,7 @@ fun MoreOptionItem(
             Icon(
                 imageVector = Icons.Default.ChevronRight,
                 contentDescription = null,
-                tint = TextLightGray,
+                tint = theme.textMuted,
                 modifier = Modifier.size(20.dp)
             )
         }

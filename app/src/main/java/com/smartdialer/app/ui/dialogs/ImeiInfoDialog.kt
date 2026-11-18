@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
 import com.smartdialer.app.ui.theme.TextDark
@@ -49,10 +50,12 @@ fun ImeiInfoDialog(
     val view = LocalView.current
     val clipboardManager = LocalClipboardManager.current
 
+    val theme = LocalAppTheme.current
+
     Dialog(onDismissRequest = onDismiss) {
         Card(
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground),
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
@@ -68,13 +71,13 @@ fun ImeiInfoDialog(
                 Box(
                     modifier = Modifier
                         .size(52.dp)
-                        .background(PurpleUltraLight, RoundedCornerShape(16.dp)),
+                        .background(theme.primaryUltraLight, RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Default.PhoneAndroid,
                         contentDescription = "Device Info",
-                        tint = PurplePrimary,
+                        tint = theme.primary,
                         modifier = Modifier.size(28.dp)
                     )
                 }
@@ -85,7 +88,7 @@ fun ImeiInfoDialog(
                     text = "Device Information",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -94,7 +97,7 @@ fun ImeiInfoDialog(
                     Text(
                         text = "IMEI request sent to system.",
                         fontSize = 14.sp,
-                        color = TextMuted
+                        color = theme.textMuted
                     )
                 } else {
                     infoList.forEach { (label, value) ->
@@ -102,7 +105,7 @@ fun ImeiInfoDialog(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
-                                .background(Color(0xFFF7F8FA), RoundedCornerShape(12.dp))
+                                .background(theme.surface, RoundedCornerShape(12.dp))
                                 .padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -112,14 +115,14 @@ fun ImeiInfoDialog(
                                     text = label,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = TextMuted
+                                    color = theme.textMuted
                                 )
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = value,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = TextDark
+                                    color = theme.textPrimary
                                 )
                             }
 
@@ -134,7 +137,7 @@ fun ImeiInfoDialog(
                                 Icon(
                                     imageVector = Icons.Default.ContentCopy,
                                     contentDescription = "Copy",
-                                    tint = PurplePrimary,
+                                    tint = theme.primary,
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
@@ -150,7 +153,7 @@ fun ImeiInfoDialog(
                         .fillMaxWidth()
                         .height(48.dp),
                     shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                 ) {
                     Text(
                         text = "OK",
