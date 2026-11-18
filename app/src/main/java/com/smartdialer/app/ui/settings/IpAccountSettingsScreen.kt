@@ -80,16 +80,12 @@ import com.smartdialer.app.data.repository.IpCallMode
 import com.smartdialer.app.data.repository.IpCallPreferences
 import com.smartdialer.app.data.repository.IpCallStatsRepository
 import com.smartdialer.app.telecom.SipEngine
-import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.CallMissedRed
 import com.smartdialer.app.ui.theme.CallOutgoingBlue
 import com.smartdialer.app.ui.theme.IpCallPurple
 import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
-import com.smartdialer.app.ui.theme.PurpleUltraLight
-import com.smartdialer.app.ui.theme.TextDark
-import com.smartdialer.app.ui.theme.TextLightGray
 import com.smartdialer.app.ui.theme.TextMuted
 import java.util.Locale
 
@@ -332,12 +328,12 @@ fun IpAccountSettingsScreen(
                                                 text = if (username.isNotBlank()) username else "No IP Account Set",
                                                 fontSize = 17.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = TextDark
+                                                color = theme.textPrimary
                                             )
                                             Text(
                                                 text = if (domain.isNotBlank()) domain else "SIP Domain not set",
                                                 fontSize = 12.sp,
-                                                color = TextMuted
+                                                color = theme.textMuted
                                             )
                                         }
                                     }
@@ -348,7 +344,7 @@ fun IpAccountSettingsScreen(
                                         liveStatus.startsWith("Connecting") -> "Connecting" to Color(0xFFF59E0B)
                                         liveStatus.startsWith("Auth Failed") -> "Auth Failed" to Color(0xFFEF4444)
                                         username.isNotBlank() || domain.isNotBlank() -> "Configured" to CallIncomingGreen
-                                        else -> "Offline" to TextMuted
+                                        else -> "Offline" to theme.textMuted
                                     }
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Box(
@@ -367,7 +363,7 @@ fun IpAccountSettingsScreen(
                                 }
 
                                 Spacer(modifier = Modifier.height(16.dp))
-                                HorizontalDivider(color = Color(0xFFF1F5F9))
+                                HorizontalDivider(color = theme.divider)
                                 Spacer(modifier = Modifier.height(14.dp))
 
                                 // Real Balance Display
@@ -380,20 +376,20 @@ fun IpAccountSettingsScreen(
                                         text = "IP Account Balance (রিয়েল ব্যালেন্স)",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium,
-                                        color = TextMuted
+                                        color = theme.textMuted
                                     )
                                     if (isBalanceFetching) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             CircularProgressIndicator(
                                                 modifier = Modifier.size(12.dp),
                                                 strokeWidth = 1.5.dp,
-                                                color = PurplePrimary
+                                                color = theme.primary
                                             )
                                             Spacer(modifier = Modifier.width(4.dp))
                                             Text(
                                                 text = "আপডেট হচ্ছে...",
                                                 fontSize = 11.sp,
-                                                color = PurplePrimary
+                                                color = theme.primary
                                             )
                                         }
                                     }
@@ -422,11 +418,11 @@ fun IpAccountSettingsScreen(
                                             Icon(
                                                 imageVector = Icons.Default.Refresh,
                                                 contentDescription = "Check Balance",
-                                                tint = PurplePrimary,
+                                                tint = theme.primary,
                                                 modifier = Modifier.size(16.dp)
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
-                                            Text("রিফ্রেশ", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PurplePrimary)
+                                            Text("রিফ্রেশ", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = theme.primary)
                                         }
 
                                         Button(
@@ -512,13 +508,13 @@ fun IpAccountSettingsScreen(
                                         modifier = Modifier
                                             .size(42.dp)
                                             .clip(RoundedCornerShape(10.dp))
-                                            .background(PurpleUltraLight),
+                                            .background(theme.primaryUltraLight),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.Settings,
                                             contentDescription = null,
-                                            tint = PurplePrimary,
+                                            tint = theme.primary,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
@@ -528,13 +524,13 @@ fun IpAccountSettingsScreen(
                                             text = "SIP & Account Settings (সেটিংস)",
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = TextDark
+                                            color = theme.textPrimary
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = "Username, Password, Domain, Mode, Proxy & STUN",
                                             fontSize = 11.sp,
-                                            color = TextMuted,
+                                            color = theme.textMuted,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -544,7 +540,7 @@ fun IpAccountSettingsScreen(
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = TextLightGray,
+                                    tint = theme.textMuted,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -584,13 +580,13 @@ fun IpAccountSettingsScreen(
                                         modifier = Modifier
                                             .size(42.dp)
                                             .clip(RoundedCornerShape(10.dp))
-                                            .background(PurpleUltraLight),
+                                            .background(theme.primaryUltraLight),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.SurroundSound,
                                             contentDescription = null,
-                                            tint = PurplePrimary,
+                                            tint = theme.primary,
                                             modifier = Modifier.size(24.dp)
                                         )
                                     }
@@ -600,13 +596,13 @@ fun IpAccountSettingsScreen(
                                             text = "Sound & Audio Quality (সাউন্ড কোয়ালিটি)",
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = TextDark
+                                            color = theme.textPrimary
                                         )
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = audioQualityDashboardSummary,
                                             fontSize = 11.sp,
-                                            color = TextMuted,
+                                            color = theme.textMuted,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
@@ -616,7 +612,7 @@ fun IpAccountSettingsScreen(
                                 Icon(
                                     imageVector = Icons.Default.ChevronRight,
                                     contentDescription = null,
-                                    tint = TextLightGray,
+                                    tint = theme.textMuted,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -642,18 +638,18 @@ fun IpAccountSettingsScreen(
                                             text = "Talk Time by Contact",
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = TextDark
+                                            color = theme.textPrimary
                                         )
                                         Text(
                                             text = "কার সাথে কত মিনিট কথা বলেছেন",
                                             fontSize = 11.sp,
-                                            color = TextMuted
+                                            color = theme.textMuted
                                         )
                                     }
                                 }
 
                                 Spacer(modifier = Modifier.height(10.dp))
-                                HorizontalDivider(color = Color(0xFFF1F5F9))
+                                HorizontalDivider(color = theme.divider)
                                 Spacer(modifier = Modifier.height(6.dp))
 
                                 if (contactStats.isEmpty()) {
@@ -666,7 +662,7 @@ fun IpAccountSettingsScreen(
                                         Text(
                                             text = "No contact talk time yet.\nআইপি কল সম্পন্ন হলে কার সাথে কত মিনিট কথা বলেছেন এখানে দেখাবে।",
                                             fontSize = 12.sp,
-                                            color = TextMuted,
+                                            color = theme.textMuted,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                         )
                                     }
@@ -678,7 +674,7 @@ fun IpAccountSettingsScreen(
                                                 ipPreferences.makeIpCall(number)
                                             }
                                         )
-                                        HorizontalDivider(color = Color(0xFFF8FAFC))
+                                        HorizontalDivider(color = theme.divider.copy(alpha = 0.5f))
                                     }
                                 }
                             }
@@ -704,12 +700,12 @@ fun IpAccountSettingsScreen(
                                             text = "Recent IP Call History",
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.Bold,
-                                            color = TextDark
+                                            color = theme.textPrimary
                                         )
                                         Text(
                                             text = "আইপি কল হিস্ট্রি",
                                             fontSize = 11.sp,
-                                            color = TextMuted
+                                            color = theme.textMuted
                                         )
                                     }
 
@@ -726,7 +722,7 @@ fun IpAccountSettingsScreen(
                                 }
 
                                 Spacer(modifier = Modifier.height(10.dp))
-                                HorizontalDivider(color = Color(0xFFF1F5F9))
+                                HorizontalDivider(color = theme.divider)
                                 Spacer(modifier = Modifier.height(6.dp))
 
                                 if (historyList.isEmpty()) {
@@ -739,7 +735,7 @@ fun IpAccountSettingsScreen(
                                         Text(
                                             text = "No IP calls recorded yet.\nআইপি নম্বর দিয়ে কল করার পর কল হিস্ট্রি এখানে দেখা যাবে।",
                                             fontSize = 12.sp,
-                                            color = TextMuted,
+                                            color = theme.textMuted,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                         )
                                     }
@@ -751,7 +747,7 @@ fun IpAccountSettingsScreen(
                                                 ipPreferences.makeIpCall(number)
                                             }
                                         )
-                                        HorizontalDivider(color = Color(0xFFF8FAFC))
+                                        HorizontalDivider(color = theme.divider.copy(alpha = 0.5f))
                                     }
                                 }
                             }
@@ -803,12 +799,12 @@ fun IpAccountSettingsScreen(
                                         text = "SIP Account",
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = TextDark
+                                        color = theme.textPrimary
                                     )
                                     Text(
                                         text = "Enter your IP Phone / VoIP credentials",
                                         fontSize = 12.sp,
-                                        color = TextMuted
+                                        color = theme.textMuted
                                     )
                                 }
                             }
@@ -819,22 +815,26 @@ fun IpAccountSettingsScreen(
                                     text = "Username",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = TextDark
+                                    color = theme.textPrimary
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedTextField(
                                     value = username,
                                     onValueChange = { username = it },
-                                    placeholder = { Text("e.g. 09649732389", color = TextLightGray, fontSize = 14.sp) },
+                                    placeholder = { Text("e.g. 09649732389", color = theme.textMuted, fontSize = 14.sp) },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(10.dp),
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFFF8FAFC),
-                                        unfocusedContainerColor = Color(0xFFF8FAFC),
-                                        focusedIndicatorColor = PurplePrimary,
-                                        unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                                        focusedContainerColor = theme.surface,
+                                        unfocusedContainerColor = theme.surface,
+                                        focusedTextColor = theme.textPrimary,
+                                        unfocusedTextColor = theme.textPrimary,
+                                        focusedLabelColor = theme.primary,
+                                        unfocusedLabelColor = theme.textMuted,
+                                        focusedIndicatorColor = theme.primary,
+                                        unfocusedIndicatorColor = theme.divider
                                     )
                                 )
                             }
@@ -845,13 +845,13 @@ fun IpAccountSettingsScreen(
                                     text = "Password",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = TextDark
+                                    color = theme.textPrimary
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedTextField(
                                     value = password,
                                     onValueChange = { password = it },
-                                    placeholder = { Text("Password", color = TextLightGray, fontSize = 14.sp) },
+                                    placeholder = { Text("Password", color = theme.textMuted, fontSize = 14.sp) },
                                     singleLine = true,
                                     visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -860,7 +860,7 @@ fun IpAccountSettingsScreen(
                                             Icon(
                                                 imageVector = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
                                                 contentDescription = if (passwordVisible) "Hide password" else "Show password",
-                                                tint = TextMuted,
+                                                tint = theme.textMuted,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
@@ -868,10 +868,14 @@ fun IpAccountSettingsScreen(
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(10.dp),
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFFF8FAFC),
-                                        unfocusedContainerColor = Color(0xFFF8FAFC),
-                                        focusedIndicatorColor = PurplePrimary,
-                                        unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                                        focusedContainerColor = theme.surface,
+                                        unfocusedContainerColor = theme.surface,
+                                        focusedTextColor = theme.textPrimary,
+                                        unfocusedTextColor = theme.textPrimary,
+                                        focusedLabelColor = theme.primary,
+                                        unfocusedLabelColor = theme.textMuted,
+                                        focusedIndicatorColor = theme.primary,
+                                        unfocusedIndicatorColor = theme.divider
                                     )
                                 )
                             }
@@ -882,21 +886,25 @@ fun IpAccountSettingsScreen(
                                     text = "SIP Domain",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = TextDark
+                                    color = theme.textPrimary
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedTextField(
                                     value = domain,
                                     onValueChange = { domain = it },
-                                    placeholder = { Text("e.g. sip.domain.com or IP address", color = TextLightGray, fontSize = 14.sp) },
+                                    placeholder = { Text("e.g. sip.domain.com or IP address", color = theme.textMuted, fontSize = 14.sp) },
                                     singleLine = true,
                                     modifier = Modifier.fillMaxWidth(),
                                     shape = RoundedCornerShape(10.dp),
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFFF8FAFC),
-                                        unfocusedContainerColor = Color(0xFFF8FAFC),
-                                        focusedIndicatorColor = PurplePrimary,
-                                        unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                                        focusedContainerColor = theme.surface,
+                                        unfocusedContainerColor = theme.surface,
+                                        focusedTextColor = theme.textPrimary,
+                                        unfocusedTextColor = theme.textPrimary,
+                                        focusedLabelColor = theme.primary,
+                                        unfocusedLabelColor = theme.textMuted,
+                                        focusedIndicatorColor = theme.primary,
+                                        unfocusedIndicatorColor = theme.divider
                                     )
                                 )
                             }
@@ -914,7 +922,7 @@ fun IpAccountSettingsScreen(
                                 text = "IP Dialing Mode",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextDark
+                                color = theme.textPrimary
                             )
                             Spacer(modifier = Modifier.height(8.dp))
 
@@ -958,13 +966,13 @@ fun IpAccountSettingsScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(PurpleUltraLight),
+                                        .background(theme.primaryUltraLight),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Settings,
                                         contentDescription = null,
-                                        tint = PurplePrimary,
+                                        tint = theme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -974,19 +982,19 @@ fun IpAccountSettingsScreen(
                                         text = "Advanced",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = TextDark
+                                        color = theme.textPrimary
                                     )
                                     Text(
                                         text = "Proxy, Transport, STUN, Mobile Network",
                                         fontSize = 12.sp,
-                                        color = TextMuted
+                                        color = theme.textMuted
                                     )
                                 }
                             }
                             Icon(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
-                                tint = TextLightGray,
+                                tint = theme.textMuted,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -1012,13 +1020,13 @@ fun IpAccountSettingsScreen(
                                     modifier = Modifier
                                         .size(36.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(PurpleUltraLight),
+                                        .background(theme.primaryUltraLight),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.SurroundSound,
                                         contentDescription = null,
-                                        tint = PurplePrimary,
+                                        tint = theme.primary,
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
@@ -1028,19 +1036,19 @@ fun IpAccountSettingsScreen(
                                         text = "Sound & Audio Quality",
                                         fontSize = 15.sp,
                                         fontWeight = FontWeight.SemiBold,
-                                        color = TextDark
+                                        color = theme.textPrimary
                                     )
                                     Text(
                                         text = "Quality Preset (720p HD / 4K), Codec, Mic Boost & FX",
                                         fontSize = 12.sp,
-                                        color = TextMuted
+                                        color = theme.textMuted
                                     )
                                 }
                             }
                             Icon(
                                 imageVector = Icons.Default.ChevronRight,
                                 contentDescription = null,
-                                tint = TextLightGray,
+                                tint = theme.textMuted,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -1276,13 +1284,13 @@ fun IpAccountSettingsScreen(
                                 Text(
                                     text = "Verify TLS Certificates",
                                     fontSize = 14.sp,
-                                    color = TextDark,
+                                    color = theme.textPrimary,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Switch(
                                     checked = verifyTls,
                                     onCheckedChange = { verifyTls = it },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = PurplePrimary)
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
                                 )
                             }
                         }
@@ -1302,7 +1310,7 @@ fun IpAccountSettingsScreen(
                                 text = "STUN",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
 
                             Row(
@@ -1315,13 +1323,13 @@ fun IpAccountSettingsScreen(
                                 Text(
                                     text = "Enable STUN",
                                     fontSize = 14.sp,
-                                    color = TextDark,
+                                    color = theme.textPrimary,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Switch(
                                     checked = enableStun,
                                     onCheckedChange = { enableStun = it },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = PurplePrimary)
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
                                 )
                             }
 
@@ -1357,7 +1365,7 @@ fun IpAccountSettingsScreen(
                                 text = "MOBILE NETWORK",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
 
                             Row(
@@ -1371,20 +1379,20 @@ fun IpAccountSettingsScreen(
                                     Text(
                                         text = "Mobile Network",
                                         fontSize = 14.sp,
-                                        color = TextDark,
+                                        color = theme.textPrimary,
                                         fontWeight = FontWeight.Medium
                                     )
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text(
                                         text = "Enable this option to allow the app to use your mobile data plan when Wi-Fi is not available.",
                                         fontSize = 11.sp,
-                                        color = TextMuted
+                                        color = theme.textMuted
                                     )
                                 }
                                 Switch(
                                     checked = useMobileData,
                                     onCheckedChange = { useMobileData = it },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = PurplePrimary)
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
                                 )
                             }
                         }
@@ -1404,7 +1412,7 @@ fun IpAccountSettingsScreen(
                                 text = "ADDITIONAL PREFERENCES",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
 
                             Row(
@@ -1417,13 +1425,13 @@ fun IpAccountSettingsScreen(
                                 Text(
                                     text = "Enable Logging",
                                     fontSize = 14.sp,
-                                    color = TextDark,
+                                    color = theme.textPrimary,
                                     fontWeight = FontWeight.Medium
                                 )
                                 Switch(
                                     checked = enableLogging,
                                     onCheckedChange = { enableLogging = it },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = PurplePrimary)
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
                                 )
                             }
 
@@ -1442,7 +1450,7 @@ fun IpAccountSettingsScreen(
                             saveAll()
                             subView = IpSettingsSubView.SETTINGS
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = IpCallPurple),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1471,26 +1479,31 @@ private fun AdvancedInputField(
     onValueChange: (String) -> Unit,
     placeholder: String
 ) {
+    val theme = LocalAppTheme.current
     Column {
         Text(
             text = label,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            color = TextDark
+            color = theme.textPrimary
         )
         Spacer(modifier = Modifier.height(4.dp))
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            placeholder = { Text(placeholder, color = TextLightGray, fontSize = 13.sp) },
+            placeholder = { Text(placeholder, color = theme.textMuted, fontSize = 13.sp) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(10.dp),
             colors = TextFieldDefaults.colors(
-                focusedContainerColor = Color(0xFFF8FAFC),
-                unfocusedContainerColor = Color(0xFFF8FAFC),
-                focusedIndicatorColor = PurplePrimary,
-                unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                focusedContainerColor = theme.surface,
+                unfocusedContainerColor = theme.surface,
+                focusedTextColor = theme.textPrimary,
+                unfocusedTextColor = theme.textPrimary,
+                focusedLabelColor = theme.primary,
+                unfocusedLabelColor = theme.textMuted,
+                focusedIndicatorColor = theme.primary,
+                unfocusedIndicatorColor = theme.divider
             )
         )
     }
@@ -1502,6 +1515,7 @@ private fun ProtocolOptionRow(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1512,13 +1526,13 @@ private fun ProtocolOptionRow(
         RadioButton(
             selected = isSelected,
             onClick = onClick,
-            colors = RadioButtonDefaults.colors(selectedColor = PurplePrimary)
+            colors = RadioButtonDefaults.colors(selectedColor = theme.primary)
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = title,
             fontSize = 14.sp,
-            color = if (isSelected) TextDark else TextMuted,
+            color = if (isSelected) theme.textPrimary else theme.textMuted,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
         )
     }
@@ -1530,6 +1544,7 @@ private fun ModeSelectRow(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1540,13 +1555,13 @@ private fun ModeSelectRow(
         RadioButton(
             selected = isSelected,
             onClick = onClick,
-            colors = RadioButtonDefaults.colors(selectedColor = PurplePrimary)
+            colors = RadioButtonDefaults.colors(selectedColor = theme.primary)
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
             text = title,
             fontSize = 13.sp,
-            color = if (isSelected) TextDark else TextMuted,
+            color = if (isSelected) theme.textPrimary else theme.textMuted,
             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal
         )
     }
