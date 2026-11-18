@@ -68,6 +68,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.smartdialer.app.data.model.ContactSaveDestination
 import com.smartdialer.app.data.model.ContactSaveDestinationType
 import com.smartdialer.app.ui.theme.DividerColor
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurpleBorder
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
@@ -122,6 +123,8 @@ fun AddNewContactDialog(
         destinations.filter { it.type == ContactSaveDestinationType.GOOGLE }
     }
 
+    val theme = LocalAppTheme.current
+
     Dialog(
         onDismissRequest = {
             if (!isSaving) onDismiss()
@@ -137,7 +140,7 @@ fun AddNewContactDialog(
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 24.dp),
             shape = RoundedCornerShape(24.dp),
-            color = Color.White,
+            color = theme.cardBackground,
             shadowElevation = 8.dp
         ) {
             Column(
@@ -157,13 +160,13 @@ fun AddNewContactDialog(
                             modifier = Modifier
                                 .size(42.dp)
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(PurpleUltraLight),
+                                .background(theme.primaryUltraLight),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.PersonAdd,
                                 contentDescription = null,
-                                tint = PurplePrimary,
+                                tint = theme.primary,
                                 modifier = Modifier.size(22.dp)
                             )
                         }
@@ -175,12 +178,12 @@ fun AddNewContactDialog(
                                 text = "New Contact",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextDark
+                                color = theme.textPrimary
                             )
                             Text(
                                 text = "Save to Phone, SIM, or Google",
                                 fontSize = 12.sp,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
                         }
                     }
@@ -193,7 +196,7 @@ fun AddNewContactDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextMuted,
+                            tint = theme.textMuted,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -286,13 +289,13 @@ fun AddNewContactDialog(
                     DropdownMenu(
                         expanded = showGoogleAccountsDropdown,
                         onDismissRequest = { showGoogleAccountsDropdown = false },
-                        modifier = Modifier.background(Color.White)
+                        modifier = Modifier.background(theme.cardBackground)
                     ) {
                         Text(
                             text = "Select Google Account",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextMuted,
+                            color = theme.textMuted,
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                         )
                         for (gDest in googleDestinations) {
@@ -303,12 +306,12 @@ fun AddNewContactDialog(
                                             text = gDest.accountName ?: "Google Account",
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.SemiBold,
-                                            color = TextDark
+                                            color = theme.textPrimary
                                         )
                                         Text(
                                             text = "Sync with Google Cloud",
                                             fontSize = 11.sp,
-                                            color = TextMuted
+                                            color = theme.textMuted
                                         )
                                     }
                                 },
@@ -628,7 +631,7 @@ fun AddNewContactDialog(
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.weight(1f).height(48.dp)
                     ) {
-                        Text("Cancel", fontSize = 14.sp, color = TextDark)
+                        Text("Cancel", fontSize = 14.sp, color = theme.textPrimary)
                     }
 
                     Button(
@@ -652,7 +655,7 @@ fun AddNewContactDialog(
                             )
                         },
                         enabled = !isSaving,
-                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                         shape = RoundedCornerShape(14.dp),
                         modifier = Modifier.weight(1.3f).height(48.dp)
                     ) {
@@ -689,12 +692,13 @@ private fun DestinationCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = if (isSelected) PurpleUltraLight else Color(0xFFF8FAFC),
+        color = if (isSelected) theme.primaryUltraLight else theme.surface,
         border = androidx.compose.foundation.BorderStroke(
             if (isSelected) 1.5.dp else 1.dp,
-            if (isSelected) PurplePrimary else DividerColor
+            if (isSelected) theme.primary else theme.divider
         ),
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
@@ -708,7 +712,7 @@ private fun DestinationCard(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(if (isSelected) PurplePrimary.copy(alpha = 0.15f) else Color.White),
+                    .background(if (isSelected) theme.primary.copy(alpha = 0.15f) else theme.cardBackground),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -726,13 +730,13 @@ private fun DestinationCard(
                     text = title,
                     fontSize = 12.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) PurplePrimary else TextDark
+                    color = if (isSelected) theme.primary else theme.textPrimary
                 )
                 if (hasDropdown) {
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
                         contentDescription = null,
-                        tint = if (isSelected) PurplePrimary else TextMuted,
+                        tint = if (isSelected) theme.primary else theme.textMuted,
                         modifier = Modifier.size(14.dp)
                     )
                 }
@@ -741,7 +745,7 @@ private fun DestinationCard(
             Text(
                 text = subtitle,
                 fontSize = 10.sp,
-                color = TextMuted,
+                color = theme.textMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

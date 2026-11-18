@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.smartdialer.app.ui.theme.IpCallPurple
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.Sim1Blue
 import com.smartdialer.app.ui.theme.Sim2Green
 
@@ -46,10 +47,12 @@ fun CallAccountPickerDialog(
     onCallIp: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
+
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(24.dp),
-            color = Color.White,
+            color = theme.cardBackground,
             shadowElevation = 8.dp,
             modifier = Modifier
                 .fillMaxWidth()
@@ -72,7 +75,7 @@ fun CallAccountPickerDialog(
                             text = if (!contactName.isNullOrBlank()) contactName else phoneNumber,
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1E293B),
+                            color = theme.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -81,7 +84,7 @@ fun CallAccountPickerDialog(
                                 text = phoneNumber,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Normal,
-                                color = Color(0xFF64748B)
+                                color = theme.textMuted
                             )
                         }
                     }
@@ -89,21 +92,21 @@ fun CallAccountPickerDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = Color(0xFF94A3B8),
+                            tint = theme.textMuted,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
-                HorizontalDivider(color = Color(0xFFF1F5F9))
+                HorizontalDivider(color = theme.divider)
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
                     text = "Choose calling account:",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Medium,
-                    color = Color(0xFF64748B),
+                    color = theme.textMuted,
                     modifier = Modifier.align(Alignment.Start)
                 )
 
@@ -158,7 +161,7 @@ fun CallAccountPickerDialog(
                         .fillMaxWidth()
                         .height(42.dp)
                 ) {
-                    Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF64748B))
+                    Text("Cancel", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = theme.textMuted)
                 }
             }
         }
@@ -173,9 +176,10 @@ private fun CallMethodItem(
     backgroundColor: Color,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = backgroundColor.copy(alpha = 0.08f),
+        color = backgroundColor.copy(alpha = 0.12f),
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() }
@@ -205,12 +209,12 @@ private fun CallMethodItem(
                     text = title,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF1E293B)
+                    color = theme.textPrimary
                 )
                 Text(
                     text = subtitle,
                     fontSize = 12.sp,
-                    color = Color(0xFF64748B)
+                    color = theme.textMuted
                 )
             }
         }

@@ -49,6 +49,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.smartdialer.app.data.model.ContactItem
 import com.smartdialer.app.data.model.DuplicateContactGroup
 import com.smartdialer.app.ui.components.ContactAvatar
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.TextDark
 import com.smartdialer.app.ui.theme.TextMuted
@@ -61,6 +62,8 @@ fun DuplicateContactsDialog(
     onMergeAll: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -70,7 +73,7 @@ fun DuplicateContactsDialog(
                 .fillMaxWidth(0.92f)
                 .heightIn(max = 620.dp),
             shape = RoundedCornerShape(24.dp),
-            color = Color.White,
+            color = theme.cardBackground,
             shadowElevation = 16.dp
         ) {
             Column(
@@ -105,12 +108,12 @@ fun DuplicateContactsDialog(
                                 text = "Merge Duplicates",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextDark
+                                color = theme.textPrimary
                             )
                             Text(
                                 text = "${groups.size} duplicate group(s) found",
                                 fontSize = 12.sp,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
                         }
                     }
@@ -119,7 +122,7 @@ fun DuplicateContactsDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextMuted
+                            tint = theme.textMuted
                         )
                     }
                 }
@@ -239,11 +242,12 @@ private fun DuplicateGroupCard(
     isMerging: Boolean,
     onMerge: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0))
+        colors = CardDefaults.cardColors(containerColor = theme.surface),
+        border = androidx.compose.foundation.BorderStroke(1.dp, theme.divider)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
             // Group Header
@@ -256,7 +260,7 @@ private fun DuplicateGroupCard(
                     text = group.primaryContact.name.ifBlank { group.primaryContact.phoneNumber },
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark,
+                    color = theme.textPrimary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
@@ -298,7 +302,7 @@ private fun DuplicateGroupCard(
                         text = group.primaryContact.phoneNumber.ifBlank { "No number" },
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextDark
+                        color = theme.textPrimary
                     )
                     AccountBadge(group.primaryContact)
                 }
@@ -324,7 +328,7 @@ private fun DuplicateGroupCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFFF1F5F9))
+                        .background(theme.cardBackground)
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -340,12 +344,12 @@ private fun DuplicateGroupCard(
                             text = dup.name.ifBlank { dup.phoneNumber },
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Medium,
-                            color = TextDark
+                            color = theme.textPrimary
                         )
                         Text(
                             text = dup.phoneNumber,
                             fontSize = 11.sp,
-                            color = TextMuted
+                            color = theme.textMuted
                         )
                     }
                     AccountBadge(dup)

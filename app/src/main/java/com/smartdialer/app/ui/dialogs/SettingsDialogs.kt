@@ -104,6 +104,7 @@ import com.smartdialer.app.data.model.SimInfo
 import com.smartdialer.app.data.repository.AppSettingsPreferences
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
 import com.smartdialer.app.ui.theme.Sim1Blue
@@ -122,6 +123,7 @@ fun DualSimSettingsDialog(
     onDismiss: () -> Unit,
     onSaved: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     var selectedSlot by remember { mutableStateOf(appSettings.preferredSimSlot) }
     var askEveryTime by remember { mutableStateOf(appSettings.askEveryTime) }
 
@@ -131,7 +133,7 @@ fun DualSimSettingsDialog(
                 .fillMaxWidth()
                 .padding(8.dp),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -151,7 +153,7 @@ fun DualSimSettingsDialog(
                     text = "Default Outgoing SIM Card",
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -200,18 +202,18 @@ fun DualSimSettingsDialog(
                             text = "Ask every time on dialer",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextDark
+                            color = theme.textPrimary
                         )
                         Text(
                             text = "Show SIM 1 and SIM 2 call buttons",
                             fontSize = 11.sp,
-                            color = TextMuted
+                            color = theme.textMuted
                         )
                     }
                     Switch(
                         checked = askEveryTime,
                         onCheckedChange = { askEveryTime = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = PurplePrimary)
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
                     )
                 }
 
@@ -226,7 +228,7 @@ fun DualSimSettingsDialog(
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                 ) {
                     Text("Save SIM Preferences", fontWeight = FontWeight.Bold, color = Color.White)
                 }
@@ -245,6 +247,7 @@ fun CallRecordingDialog(
     onSaved: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = LocalAppTheme.current
     var autoRecord by remember { mutableStateOf(appSettings.autoRecord) }
     var recordUnknownOnly by remember { mutableStateOf(appSettings.recordUnknownOnly) }
     var audioFormat by remember { mutableStateOf(appSettings.audioFormat) }
@@ -265,7 +268,7 @@ fun CallRecordingDialog(
                 .fillMaxWidth()
                 .padding(8.dp),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -292,12 +295,12 @@ fun CallRecordingDialog(
                             text = "Auto Call Recording",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextDark
+                            color = theme.textPrimary
                         )
                         Text(
                             text = "Automatically record all calls",
                             fontSize = 11.sp,
-                            color = TextMuted
+                            color = theme.textMuted
                         )
                     }
                     Switch(
@@ -313,7 +316,7 @@ fun CallRecordingDialog(
                                 autoRecord = false
                             }
                         },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = PurplePrimary)
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
                     )
                 }
 
@@ -330,19 +333,19 @@ fun CallRecordingDialog(
                             text = "Record Unknown Numbers Only",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = TextDark
+                            color = theme.textPrimary
                         )
                         Text(
                             text = "Do not record calls from saved contacts",
                             fontSize = 11.sp,
-                            color = TextMuted
+                            color = theme.textMuted
                         )
                     }
                     Switch(
                         checked = recordUnknownOnly,
                         enabled = autoRecord,
                         onCheckedChange = { recordUnknownOnly = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = PurplePrimary)
+                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
                     )
                 }
 
@@ -353,14 +356,14 @@ fun CallRecordingDialog(
                     text = "Audio Format",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("AAC / M4A", "AMR").forEach { format ->
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = if (audioFormat == format) PurplePrimary else PurpleUltraLight,
+                            color = if (audioFormat == format) theme.primary else theme.surface,
                             modifier = Modifier
                                 .clickable { audioFormat = format }
                                 .padding(vertical = 2.dp)
@@ -369,7 +372,7 @@ fun CallRecordingDialog(
                                 text = format,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (audioFormat == format) Color.White else TextDark,
+                                color = if (audioFormat == format) Color.White else theme.textPrimary,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                             )
                         }
@@ -381,13 +384,14 @@ fun CallRecordingDialog(
                 // Storage location
                 Surface(
                     shape = RoundedCornerShape(10.dp),
-                    color = Color(0xFFF8FAFC),
+                    color = theme.surface,
+                    border = BorderStroke(1.dp, theme.divider),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(10.dp)) {
-                        Text(text = "Save Location", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = TextMuted)
+                        Text(text = "Save Location", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = theme.textMuted)
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = "Internal Storage / Recordings / SmartDialer", fontSize = 12.sp, color = TextDark)
+                        Text(text = "Internal Storage / Recordings / SmartDialer", fontSize = 12.sp, color = theme.textPrimary)
                     }
                 }
 
@@ -403,7 +407,7 @@ fun CallRecordingDialog(
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                 ) {
                     Text("Save Recording Settings", fontWeight = FontWeight.Bold, color = Color.White)
                 }
@@ -421,6 +425,7 @@ fun SoundsHapticsDialog(
     onDismiss: () -> Unit,
     onSaved: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     var dialpadTones by remember { mutableStateOf(appSettings.dialpadTones) }
     var dialpadVibration by remember { mutableStateOf(appSettings.dialpadVibration) }
     var callConnectedVibration by remember { mutableStateOf(appSettings.callConnectedVibration) }
@@ -432,7 +437,7 @@ fun SoundsHapticsDialog(
                 .fillMaxWidth()
                 .padding(8.dp),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -489,7 +494,7 @@ fun SoundsHapticsDialog(
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                 ) {
                     Text("Save Sounds & Haptics", fontWeight = FontWeight.Bold, color = Color.White)
                 }
@@ -507,6 +512,7 @@ fun BlockedNumbersDialog(
     onDismiss: () -> Unit,
     onSaved: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     var blockHidden by remember { mutableStateOf(appSettings.blockHiddenNumbers) }
     var blockUnknown by remember { mutableStateOf(appSettings.blockUnknownNumbers) }
     var silenceUnknown by remember { mutableStateOf(appSettings.silenceUnknownCallers) }
@@ -522,7 +528,7 @@ fun BlockedNumbersDialog(
                 .fillMaxWidth()
                 .padding(vertical = 12.dp),
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -553,7 +559,7 @@ fun BlockedNumbersDialog(
                         text = "Protection Layers (সুরক্ষার লেয়ার নির্বাচন করুন):",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark
+                        color = theme.textPrimary
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
@@ -572,7 +578,7 @@ fun BlockedNumbersDialog(
                     SpamLayerCard(
                         level = SpamProtectionLevel.SMART,
                         isSelected = selectedLayer == SpamProtectionLevel.SMART,
-                        accentColor = PurplePrimary,
+                        accentColor = theme.primary,
                         tag = "Layer 2 • Recommended",
                         onClick = { selectedLayer = SpamProtectionLevel.SMART }
                     )
@@ -595,7 +601,7 @@ fun BlockedNumbersDialog(
                     text = "Additional Filtering Options",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -626,7 +632,7 @@ fun BlockedNumbersDialog(
                     text = "Blocked Phone Numbers (${blockedList.size})",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -644,10 +650,12 @@ fun BlockedNumbersDialog(
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(10.dp),
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFFF8FAFC),
-                            unfocusedContainerColor = Color(0xFFF8FAFC),
-                            focusedIndicatorColor = PurplePrimary,
-                            unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                            focusedContainerColor = theme.surface,
+                            unfocusedContainerColor = theme.surface,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary,
+                            focusedIndicatorColor = theme.primary,
+                            unfocusedIndicatorColor = theme.divider
                         )
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -661,7 +669,7 @@ fun BlockedNumbersDialog(
                             }
                         },
                         shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                     ) {
                         Icon(imageVector = Icons.Default.Add, contentDescription = "Add", tint = Color.White)
                     }
@@ -673,13 +681,14 @@ fun BlockedNumbersDialog(
                 if (blockedList.isEmpty()) {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFFF8FAFC),
+                        color = theme.surface,
+                        border = BorderStroke(1.dp, theme.divider),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
                         Text(
                             text = "No phone numbers blocked yet.",
                             fontSize = 12.sp,
-                            color = TextMuted,
+                            color = theme.textMuted,
                             modifier = Modifier.padding(12.dp)
                         )
                     }
@@ -693,7 +702,7 @@ fun BlockedNumbersDialog(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .clip(RoundedCornerShape(8.dp))
-                                    .background(Color(0xFFF8FAFC))
+                                    .background(theme.surface)
                                     .padding(horizontal = 10.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -702,11 +711,11 @@ fun BlockedNumbersDialog(
                                     Icon(
                                         imageVector = Icons.Default.Phone,
                                         contentDescription = null,
-                                        tint = TextMuted,
+                                        tint = theme.textMuted,
                                         modifier = Modifier.size(16.dp)
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(text = number, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
+                                    Text(text = number, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = theme.textPrimary)
                                 }
                                 IconButton(
                                     onClick = {
@@ -742,7 +751,7 @@ fun BlockedNumbersDialog(
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                 ) {
                     Text("Save Spam & Security Settings", fontWeight = FontWeight.Bold, color = Color.White)
                 }
@@ -759,12 +768,13 @@ private fun SpamLayerCard(
     tag: String,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Surface(
         shape = RoundedCornerShape(10.dp),
-        color = if (isSelected) accentColor.copy(alpha = 0.08f) else Color(0xFFF8FAFC),
+        color = if (isSelected) accentColor.copy(alpha = 0.12f) else theme.surface,
         border = BorderStroke(
             width = if (isSelected) 1.5.dp else 1.dp,
-            color = if (isSelected) accentColor else Color(0xFFE2E8F0)
+            color = if (isSelected) accentColor else theme.divider
         ),
         modifier = Modifier
             .fillMaxWidth()
@@ -780,7 +790,7 @@ private fun SpamLayerCard(
                     .size(18.dp)
                     .border(
                         width = if (isSelected) 5.dp else 1.5.dp,
-                        color = if (isSelected) accentColor else Color(0xFFCBD5E1),
+                        color = if (isSelected) accentColor else theme.divider,
                         shape = CircleShape
                     ),
                 contentAlignment = Alignment.Center
@@ -806,7 +816,7 @@ private fun SpamLayerCard(
                         text = level.title,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (isSelected) accentColor else TextDark,
+                        color = if (isSelected) accentColor else theme.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -816,7 +826,7 @@ private fun SpamLayerCard(
 
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = if (isSelected) accentColor else Color(0xFFE2E8F0)
+                        color = if (isSelected) accentColor else theme.cardBackground
                     ) {
                         Text(
                             text = tag,
@@ -824,7 +834,7 @@ private fun SpamLayerCard(
                             fontWeight = FontWeight.Bold,
                             maxLines = 1,
                             softWrap = false,
-                            color = if (isSelected) Color.White else TextMuted,
+                            color = if (isSelected) Color.White else theme.textMuted,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                         )
                     }
@@ -835,7 +845,7 @@ private fun SpamLayerCard(
                 Text(
                     text = level.subtitle,
                     fontSize = 11.sp,
-                    color = if (isSelected) accentColor.copy(alpha = 0.9f) else TextMuted,
+                    color = if (isSelected) accentColor.copy(alpha = 0.9f) else theme.textMuted,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -853,6 +863,7 @@ fun AboutSmartDialerDialog(
     onCheckUpdates: () -> Unit = {}
 ) {
     val context = LocalContext.current
+    val theme = LocalAppTheme.current
     val currentVersion = remember {
         try {
             val pInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -873,7 +884,7 @@ fun AboutSmartDialerDialog(
                 .fillMaxWidth()
                 .padding(8.dp),
             shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -885,7 +896,7 @@ fun AboutSmartDialerDialog(
                     modifier = Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(16.dp))
-                        .background(PurplePrimary),
+                        .background(theme.primary),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
@@ -902,40 +913,43 @@ fun AboutSmartDialerDialog(
                     text = "Smart Dialer",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
 
                 Text(
                     text = "Version $currentVersion (Official Release)",
                     fontSize = 12.sp,
-                    color = TextMuted
+                    color = theme.textMuted
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = PurpleUltraLight,
+                    color = theme.surface,
+                    border = BorderStroke(1.dp, theme.divider),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text(text = "• Dual SIM (SIM 1 & SIM 2 Outgoing)", fontSize = 12.sp, color = TextDark)
+                        Text(text = "• Dual SIM (SIM 1 & SIM 2 Outgoing)", fontSize = 12.sp, color = theme.textPrimary)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "• PortSIP-Style IP Calling & VoIP", fontSize = 12.sp, color = TextDark)
+                        Text(text = "• PortSIP-Style IP Calling & VoIP", fontSize = 12.sp, color = theme.textPrimary)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "• 3-Layer Spam Protection Engine", fontSize = 12.sp, color = TextDark)
+                        Text(text = "• 3-Layer Spam Protection Engine", fontSize = 12.sp, color = theme.textPrimary)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "• Heads-Up Call Notification Card", fontSize = 12.sp, color = TextDark)
+                        Text(text = "• Heads-Up Call Notification Card", fontSize = 12.sp, color = theme.textPrimary)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "• GitHub In-App OTA Auto-Update", fontSize = 12.sp, color = TextDark)
+                        Text(text = "• GitHub In-App OTA Auto-Update", fontSize = 12.sp, color = theme.textPrimary)
                     }
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth().height(44.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                 ) {
                     Text("Close", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
                 }
@@ -952,6 +966,7 @@ private fun DialogHeader(
     iconTint: Color,
     onDismiss: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -977,11 +992,11 @@ private fun DialogHeader(
                 text = title,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
-                color = TextDark
+                color = theme.textPrimary
             )
         }
         IconButton(onClick = onDismiss, modifier = Modifier.size(30.dp)) {
-            Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = TextMuted, modifier = Modifier.size(18.dp))
+            Icon(imageVector = Icons.Default.Close, contentDescription = "Close", tint = theme.textMuted, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -993,6 +1008,7 @@ private fun SimOptionRow(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1004,12 +1020,12 @@ private fun SimOptionRow(
         RadioButton(
             selected = isSelected,
             onClick = onClick,
-            colors = RadioButtonDefaults.colors(selectedColor = PurplePrimary)
+            colors = RadioButtonDefaults.colors(selectedColor = theme.primary)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Column {
-            Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TextDark)
-            Text(text = subtitle, fontSize = 11.sp, color = TextMuted)
+            Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = theme.textPrimary)
+            Text(text = subtitle, fontSize = 11.sp, color = theme.textMuted)
         }
     }
 }
@@ -1021,6 +1037,7 @@ private fun ToggleSettingRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1033,18 +1050,18 @@ private fun ToggleSettingRow(
                 text = title,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = TextDark
+                color = theme.textPrimary
             )
             Text(
                 text = subtitle,
                 fontSize = 11.sp,
-                color = TextMuted
+                color = theme.textMuted
             )
         }
         Switch(
             checked = checked,
             onCheckedChange = onCheckedChange,
-            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = PurplePrimary)
+            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
         )
     }
 }
@@ -1058,6 +1075,7 @@ fun CallingCountryDialog(
     onDismiss: () -> Unit,
     onSaved: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     val countries = listOf(
         Pair("Bangladesh", "+880"),
         Pair("United States", "+1"),
@@ -1078,7 +1096,7 @@ fun CallingCountryDialog(
         Card(
             modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -1089,7 +1107,7 @@ fun CallingCountryDialog(
                 DialogHeader(
                     title = "Country & Voicemail",
                     icon = Icons.Default.Language,
-                    iconTint = PurplePrimary,
+                    iconTint = theme.primary,
                     onDismiss = onDismiss
                 )
 
@@ -1099,12 +1117,12 @@ fun CallingCountryDialog(
                     text = "Default Country Code",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
                 Text(
                     text = "Used to format local phone numbers for dialing",
                     fontSize = 11.sp,
-                    color = TextMuted
+                    color = theme.textMuted
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -1133,14 +1151,14 @@ fun CallingCountryDialog(
                                     selectedCode = code
                                     selectedName = name
                                 },
-                                colors = RadioButtonDefaults.colors(selectedColor = PurplePrimary)
+                                colors = RadioButtonDefaults.colors(selectedColor = theme.primary)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "$name ($code)",
                                 fontSize = 14.sp,
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                color = TextDark
+                                color = theme.textPrimary
                             )
                         }
                     }
@@ -1152,12 +1170,12 @@ fun CallingCountryDialog(
                     text = "Voicemail Number",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
                 Text(
                     text = "Operator voicemail shortcut (e.g. *121#)",
                     fontSize = 11.sp,
-                    color = TextMuted
+                    color = theme.textMuted
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -1167,7 +1185,15 @@ fun CallingCountryDialog(
                     singleLine = true,
                     placeholder = { Text("*121#", color = TextLightGray) },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = theme.surface,
+                        unfocusedContainerColor = theme.surface,
+                        focusedTextColor = theme.textPrimary,
+                        unfocusedTextColor = theme.textPrimary,
+                        focusedIndicatorColor = theme.primary,
+                        unfocusedIndicatorColor = theme.divider
+                    )
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -1182,7 +1208,7 @@ fun CallingCountryDialog(
                     },
                     modifier = Modifier.fillMaxWidth().height(48.dp),
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
                 ) {
                     Text("Save Settings", fontWeight = FontWeight.Bold, color = Color.White)
                 }
@@ -1200,6 +1226,7 @@ fun SpeedDialDialog(
     onDismiss: () -> Unit,
     onSaved: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     var speedDials by remember { mutableStateOf(appSettings.getAllSpeedDials()) }
     var editingDigit by remember { mutableStateOf<Int?>(null) }
     var editName by remember { mutableStateOf("") }
@@ -1209,7 +1236,7 @@ fun SpeedDialDialog(
         Card(
             modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -1228,15 +1255,15 @@ fun SpeedDialDialog(
                 Text(
                     text = "ডায়ালপ্যাডের কী লং-প্রেস করে সরাসরি কল করার জন্য নাম্বার সেট করুন:",
                     fontSize = 12.sp,
-                    color = TextMuted
+                    color = theme.textMuted
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Digit 1 is Voicemail
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFF8FAFC),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    color = theme.surface,
+                    border = BorderStroke(1.dp, theme.divider),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                 ) {
                     Row(
@@ -1248,15 +1275,15 @@ fun SpeedDialDialog(
                             Box(
                                 modifier = Modifier
                                     .size(32.dp)
-                                    .background(PurpleUltraLight, CircleShape),
+                                    .background(theme.primaryUltraLight, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text("1", fontWeight = FontWeight.Bold, color = PurplePrimary, fontSize = 15.sp)
+                                Text("1", fontWeight = FontWeight.Bold, color = theme.primary, fontSize = 15.sp)
                             }
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text("Voicemail", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextDark)
-                                Text(appSettings.voicemailNumber, fontSize = 12.sp, color = TextMuted)
+                                Text("Voicemail", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = theme.textPrimary)
+                                Text(appSettings.voicemailNumber, fontSize = 12.sp, color = theme.textMuted)
                             }
                         }
                     }
@@ -1269,8 +1296,8 @@ fun SpeedDialDialog(
 
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF8FAFC),
-                        border = BorderStroke(1.dp, if (entry != null) PurplePrimary.copy(alpha = 0.4f) else Color(0xFFE2E8F0)),
+                        color = theme.surface,
+                        border = BorderStroke(1.dp, if (entry != null) theme.primary.copy(alpha = 0.4f) else theme.divider),
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
@@ -1283,7 +1310,7 @@ fun SpeedDialDialog(
                                     Box(
                                         modifier = Modifier
                                             .size(32.dp)
-                                            .background(if (entry != null) PurplePrimary else Color(0xFFCBD5E1), CircleShape),
+                                            .background(if (entry != null) theme.primary else theme.divider, CircleShape),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Text("$digit", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 14.sp)
@@ -1294,10 +1321,10 @@ fun SpeedDialDialog(
                                             text = entry?.second ?: "Unassigned (ফাঁকা)",
                                             fontWeight = FontWeight.SemiBold,
                                             fontSize = 13.sp,
-                                            color = if (entry != null) TextDark else TextLightGray
+                                            color = if (entry != null) theme.textPrimary else theme.textMuted
                                         )
                                         if (entry != null) {
-                                            Text(entry.first, fontSize = 11.sp, color = TextMuted)
+                                            Text(entry.first, fontSize = 11.sp, color = theme.textMuted)
                                         }
                                     }
                                 }
@@ -1335,7 +1362,7 @@ fun SpeedDialDialog(
                                         Icon(
                                             imageVector = if (isEditingThis) Icons.Default.Close else Icons.Default.Add,
                                             contentDescription = "Set",
-                                            tint = PurplePrimary,
+                                            tint = theme.primary,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
@@ -1349,7 +1376,15 @@ fun SpeedDialDialog(
                                     onValueChange = { editName = it },
                                     label = { Text("Name", fontSize = 11.sp) },
                                     singleLine = true,
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = theme.cardBackground,
+                                        unfocusedContainerColor = theme.cardBackground,
+                                        focusedTextColor = theme.textPrimary,
+                                        unfocusedTextColor = theme.textPrimary,
+                                        focusedIndicatorColor = theme.primary,
+                                        unfocusedIndicatorColor = theme.divider
+                                    )
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedTextField(
@@ -1358,7 +1393,15 @@ fun SpeedDialDialog(
                                     label = { Text("Phone Number", fontSize = 11.sp) },
                                     singleLine = true,
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                                    modifier = Modifier.fillMaxWidth()
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = theme.cardBackground,
+                                        unfocusedContainerColor = theme.cardBackground,
+                                        focusedTextColor = theme.textPrimary,
+                                        unfocusedTextColor = theme.textPrimary,
+                                        focusedIndicatorColor = theme.primary,
+                                        unfocusedIndicatorColor = theme.divider
+                                    )
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Button(
@@ -1372,7 +1415,7 @@ fun SpeedDialDialog(
                                         }
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Text("Assign to Key $digit", fontSize = 12.sp)
@@ -1386,7 +1429,7 @@ fun SpeedDialDialog(
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth().height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Close", fontWeight = FontWeight.Bold, color = Color.White)
@@ -1405,6 +1448,7 @@ fun EmergencySosDialog(
     onDismiss: () -> Unit,
     onCallEmergency: (String) -> Unit
 ) {
+    val theme = LocalAppTheme.current
     var customNumber by remember { mutableStateOf(appSettings.customEmergencyNumber ?: "") }
     var customName by remember { mutableStateOf(appSettings.customEmergencyName ?: "") }
     var isEditingCustom by remember { mutableStateOf(false) }
@@ -1413,7 +1457,7 @@ fun EmergencySosDialog(
         Card(
             modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -1433,8 +1477,8 @@ fun EmergencySosDialog(
                 // National Emergency 999 Banner
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFFFEF2F2),
-                    border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
+                    color = Color(0xFFDC2626).copy(alpha = 0.12f),
+                    border = BorderStroke(1.dp, Color(0xFFDC2626).copy(alpha = 0.35f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
@@ -1449,8 +1493,8 @@ fun EmergencySosDialog(
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text("National Emergency (999)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color(0xFF991B1B))
-                                Text("Police • Fire Service • Ambulance", fontSize = 11.sp, color = Color(0xFFB91C1C))
+                                Text("National Emergency (999)", fontWeight = FontWeight.Bold, fontSize = 15.sp, color = if (theme.isDark) Color(0xFFFCA5A5) else Color(0xFF991B1B))
+                                Text("Police • Fire Service • Ambulance", fontSize = 11.sp, color = if (theme.isDark) Color(0xFFF87171) else Color(0xFFB91C1C))
                             }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
@@ -1475,7 +1519,7 @@ fun EmergencySosDialog(
                     text = "Official National Helplines",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -1485,23 +1529,23 @@ fun EmergencySosDialog(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFFF8FAFC),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        color = theme.surface,
+                        border = BorderStroke(1.dp, theme.divider),
                         modifier = Modifier.weight(1f).clickable {
                             onCallEmergency("109")
                             onDismiss()
                         }
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
-                            Text("109", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = PurplePrimary)
-                            Text("Women & Child Help", fontSize = 11.sp, color = TextMuted)
+                            Text("109", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = theme.primary)
+                            Text("Women & Child Help", fontSize = 11.sp, color = theme.textMuted)
                         }
                     }
 
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFFF8FAFC),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        color = theme.surface,
+                        border = BorderStroke(1.dp, theme.divider),
                         modifier = Modifier.weight(1f).clickable {
                             onCallEmergency("1090")
                             onDismiss()
@@ -1509,7 +1553,7 @@ fun EmergencySosDialog(
                     ) {
                         Column(modifier = Modifier.padding(10.dp)) {
                             Text("1090", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color(0xFF0284C7))
-                            Text("Disaster Helpline", fontSize = 11.sp, color = TextMuted)
+                            Text("Disaster Helpline", fontSize = 11.sp, color = theme.textMuted)
                         }
                     }
                 }
@@ -1521,7 +1565,7 @@ fun EmergencySosDialog(
                     text = "Personal Emergency Contact",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
 
@@ -1531,7 +1575,15 @@ fun EmergencySosDialog(
                         onValueChange = { customName = it },
                         label = { Text("Contact Name (e.g. Mom)", fontSize = 11.sp) },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = theme.surface,
+                            unfocusedContainerColor = theme.surface,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary,
+                            focusedIndicatorColor = theme.primary,
+                            unfocusedIndicatorColor = theme.divider
+                        )
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     OutlinedTextField(
@@ -1540,7 +1592,15 @@ fun EmergencySosDialog(
                         label = { Text("Emergency Phone Number", fontSize = 11.sp) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = theme.surface,
+                            unfocusedContainerColor = theme.surface,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary,
+                            focusedIndicatorColor = theme.primary,
+                            unfocusedIndicatorColor = theme.divider
+                        )
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
@@ -1551,7 +1611,7 @@ fun EmergencySosDialog(
                                 isEditingCustom = false
                             }
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -1560,8 +1620,8 @@ fun EmergencySosDialog(
                 } else {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF8FAFC),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        color = theme.surface,
+                        border = BorderStroke(1.dp, theme.divider),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -1570,8 +1630,8 @@ fun EmergencySosDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(appSettings.customEmergencyName ?: "Emergency Contact", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                Text(appSettings.customEmergencyNumber ?: "", fontSize = 12.sp, color = TextMuted)
+                                Text(appSettings.customEmergencyName ?: "Emergency Contact", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = theme.textPrimary)
+                                Text(appSettings.customEmergencyNumber ?: "", fontSize = 12.sp, color = theme.textMuted)
                             }
                             Row {
                                 IconButton(
@@ -1584,7 +1644,7 @@ fun EmergencySosDialog(
                                     Icon(imageVector = Icons.Default.Phone, contentDescription = "Call", tint = CallIncomingGreen, modifier = Modifier.size(20.dp))
                                 }
                                 IconButton(onClick = { isEditingCustom = true }, modifier = Modifier.size(34.dp)) {
-                                    Icon(imageVector = Icons.Default.Add, contentDescription = "Edit", tint = TextMuted, modifier = Modifier.size(18.dp))
+                                    Icon(imageVector = Icons.Default.Add, contentDescription = "Edit", tint = theme.textMuted, modifier = Modifier.size(18.dp))
                                 }
                             }
                         }
@@ -1595,7 +1655,7 @@ fun EmergencySosDialog(
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth().height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Close", fontWeight = FontWeight.Bold, color = Color.White)
@@ -1615,6 +1675,7 @@ fun VcfExportImportDialog(
     onImportFinished: () -> Unit
 ) {
     val context = LocalContext.current
+    val theme = LocalAppTheme.current
     val coroutineScope = rememberCoroutineScope()
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -1639,7 +1700,7 @@ fun VcfExportImportDialog(
         Card(
             modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -1650,7 +1711,7 @@ fun VcfExportImportDialog(
                 DialogHeader(
                     title = "Contacts Backup (.vcf)",
                     icon = Icons.Default.Share,
-                    iconTint = PurplePrimary,
+                    iconTint = theme.primary,
                     onDismiss = onDismiss
                 )
 
@@ -1659,17 +1720,17 @@ fun VcfExportImportDialog(
                 // Export Card
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFF8FAFC),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    color = theme.surface,
+                    border = BorderStroke(1.dp, theme.divider),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(imageVector = Icons.Default.FileUpload, contentDescription = null, tint = PurplePrimary, modifier = Modifier.size(24.dp))
+                            Icon(imageVector = Icons.Default.FileUpload, contentDescription = null, tint = theme.primary, modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text("Export Contacts (.vcf)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                Text("Backup all your contacts to a file or share", fontSize = 11.sp, color = TextMuted)
+                                Text("Export Contacts (.vcf)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = theme.textPrimary)
+                                Text("Backup all your contacts to a file or share", fontSize = 11.sp, color = theme.textMuted)
                             }
                         }
                         Spacer(modifier = Modifier.height(10.dp))
@@ -1689,7 +1750,7 @@ fun VcfExportImportDialog(
                                     }
                                 }
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                            colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !isLoading
@@ -1704,8 +1765,8 @@ fun VcfExportImportDialog(
                 // Import Card
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFF8FAFC),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    color = theme.surface,
+                    border = BorderStroke(1.dp, theme.divider),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
@@ -1713,8 +1774,8 @@ fun VcfExportImportDialog(
                             Icon(imageVector = Icons.Default.FileDownload, contentDescription = null, tint = Color(0xFF059669), modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.width(10.dp))
                             Column {
-                                Text("Import Contacts (.vcf)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextDark)
-                                Text("Restore contacts from a .vcf file on your phone", fontSize = 11.sp, color = TextMuted)
+                                Text("Import Contacts (.vcf)", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = theme.textPrimary)
+                                Text("Restore contacts from a .vcf file on your phone", fontSize = 11.sp, color = theme.textMuted)
                             }
                         }
                         Spacer(modifier = Modifier.height(10.dp))
@@ -1734,14 +1795,14 @@ fun VcfExportImportDialog(
 
                 statusMessage?.let { msg ->
                     Spacer(modifier = Modifier.height(12.dp))
-                    Text(text = msg, fontSize = 12.sp, color = PurplePrimary, fontWeight = FontWeight.Medium)
+                    Text(text = msg, fontSize = 12.sp, color = theme.primary, fontWeight = FontWeight.Medium)
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth().height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Close", fontWeight = FontWeight.Bold, color = Color.White)
@@ -1760,6 +1821,7 @@ fun CallerIdSettingsDialog(
     onDismiss: () -> Unit,
     onSaved: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -1790,7 +1852,7 @@ fun CallerIdSettingsDialog(
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(20.dp),
-            color = Color.White,
+            color = theme.cardBackground,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp)
@@ -1809,13 +1871,13 @@ fun CallerIdSettingsDialog(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFFEDE9FE)),
+                            .background(theme.primaryUltraLight),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Default.Search,
                             contentDescription = null,
-                            tint = PurplePrimary,
+                            tint = theme.primary,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -1825,16 +1887,16 @@ fun CallerIdSettingsDialog(
                             text = "Caller ID & Truecaller",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextDark
+                            color = theme.textPrimary
                         )
                         Text(
                             text = "Real-time caller name & spam lookup",
                             fontSize = 11.sp,
-                            color = TextMuted
+                            color = theme.textMuted
                         )
                     }
                     IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Close, contentDescription = "Close", tint = TextMuted)
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = theme.textMuted)
                     }
                 }
 
@@ -1843,8 +1905,8 @@ fun CallerIdSettingsDialog(
                 // Toggle Card
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFF8FAFC),
-                    border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                    color = theme.surface,
+                    border = BorderStroke(1.dp, theme.divider),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -1859,12 +1921,12 @@ fun CallerIdSettingsDialog(
                                 text = "Real-Time Caller ID",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextDark
+                                color = theme.textPrimary
                             )
                             Text(
                                 text = "Identify unknown numbers when typing or searching",
                                 fontSize = 11.sp,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
                         }
                         Switch(
@@ -1872,7 +1934,7 @@ fun CallerIdSettingsDialog(
                             onCheckedChange = { isEnabled = it },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = Color.White,
-                                checkedTrackColor = PurplePrimary
+                                checkedTrackColor = theme.primary
                             )
                         )
                     }
@@ -1884,8 +1946,8 @@ fun CallerIdSettingsDialog(
                 authSuccess?.let { msg ->
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFFECFDF5),
-                        border = BorderStroke(1.dp, Color(0xFFA7F3D0)),
+                        color = if (theme.isDark) Color(0xFF064E3B) else Color(0xFFECFDF5),
+                        border = BorderStroke(1.dp, if (theme.isDark) Color(0xFF047857) else Color(0xFFA7F3D0)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -1902,7 +1964,7 @@ fun CallerIdSettingsDialog(
                             Text(
                                 text = msg,
                                 fontSize = 12.sp,
-                                color = Color(0xFF065F46),
+                                color = if (theme.isDark) Color(0xFFA7F3D0) else Color(0xFF065F46),
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -1914,8 +1976,8 @@ fun CallerIdSettingsDialog(
                 authError?.let { err ->
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFFFEF2F2),
-                        border = BorderStroke(1.dp, Color(0xFFFECACA)),
+                        color = if (theme.isDark) Color(0xFF7F1D1D) else Color(0xFFFEF2F2),
+                        border = BorderStroke(1.dp, if (theme.isDark) Color(0xFFB91C1C) else Color(0xFFFECACA)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -1932,7 +1994,7 @@ fun CallerIdSettingsDialog(
                             Text(
                                 text = err,
                                 fontSize = 12.sp,
-                                color = Color(0xFF991B1B),
+                                color = if (theme.isDark) Color(0xFFFECACA) else Color(0xFF991B1B),
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -1944,8 +2006,8 @@ fun CallerIdSettingsDialog(
                 if (isConnected) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFFF0FDF4),
-                        border = BorderStroke(1.dp, Color(0xFF86EFAC)),
+                        color = if (theme.isDark) Color(0xFF064E3B) else Color(0xFFF0FDF4),
+                        border = BorderStroke(1.dp, if (theme.isDark) Color(0xFF059669) else Color(0xFF86EFAC)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp)) {
@@ -1966,20 +2028,20 @@ fun CallerIdSettingsDialog(
                                         text = "Truecaller Connected",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 14.sp,
-                                        color = Color(0xFF14532D)
+                                        color = if (theme.isDark) Color(0xFFA7F3D0) else Color(0xFF14532D)
                                     )
                                 }
                                 Box(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(6.dp))
-                                        .background(Color(0xFFDCFCE7))
+                                        .background(if (theme.isDark) Color(0xFF047857) else Color(0xFFDCFCE7))
                                         .padding(horizontal = 8.dp, vertical = 2.dp)
                                 ) {
                                     Text(
                                         text = "LIVE",
                                         fontSize = 10.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF15803D)
+                                        color = if (theme.isDark) Color.White else Color(0xFF15803D)
                                     )
                                 }
                             }
@@ -1989,7 +2051,7 @@ fun CallerIdSettingsDialog(
                                 Text(
                                     text = "Account: $connectedPhone",
                                     fontSize = 12.sp,
-                                    color = Color(0xFF166534),
+                                    color = if (theme.isDark) Color(0xFFD1FAE5) else Color(0xFF166534),
                                     fontWeight = FontWeight.Medium
                                 )
                             }
@@ -1998,7 +2060,7 @@ fun CallerIdSettingsDialog(
                             Text(
                                 text = "Real-time caller name, profile photo, and community spam ratings are active on dialer and contacts search.",
                                 fontSize = 11.sp,
-                                color = Color(0xFF15803D),
+                                color = if (theme.isDark) Color(0xFFA7F3D0) else Color(0xFF15803D),
                                 lineHeight = 15.sp
                             )
 
@@ -2035,14 +2097,14 @@ fun CallerIdSettingsDialog(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color(0xFFF1F5F9))
+                            .background(theme.surface)
                             .padding(3.dp)
                     ) {
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (loginTab == 0) PurplePrimary else Color.Transparent)
+                                .background(if (loginTab == 0) theme.primary else Color.Transparent)
                                 .clickable { 
                                     loginTab = 0
                                     authError = null
@@ -2054,14 +2116,14 @@ fun CallerIdSettingsDialog(
                                 text = "🌐 Web / Token",
                                 fontSize = 12.sp,
                                 fontWeight = if (loginTab == 0) FontWeight.Bold else FontWeight.Medium,
-                                color = if (loginTab == 0) Color.White else TextDark
+                                color = if (loginTab == 0) Color.White else theme.textPrimary
                             )
                         }
                         Box(
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (loginTab == 1) PurplePrimary else Color.Transparent)
+                                .background(if (loginTab == 1) theme.primary else Color.Transparent)
                                 .clickable { 
                                     loginTab = 1 
                                     authError = null
@@ -2073,7 +2135,7 @@ fun CallerIdSettingsDialog(
                                 text = "📱 SMS OTP",
                                 fontSize = 12.sp,
                                 fontWeight = if (loginTab == 1) FontWeight.Bold else FontWeight.Medium,
-                                color = if (loginTab == 1) Color.White else TextDark
+                                color = if (loginTab == 1) Color.White else theme.textPrimary
                             )
                         }
                     }
@@ -2084,8 +2146,8 @@ fun CallerIdSettingsDialog(
                         // TAB 0: WEB LOGIN / MANUAL TOKEN
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFF8FAFC),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            color = theme.surface,
+                            border = BorderStroke(1.dp, theme.divider),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
@@ -2093,13 +2155,13 @@ fun CallerIdSettingsDialog(
                                     text = "Truecaller Web Login / Token (সুপার সহজ)",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = TextDark
+                                    color = theme.textPrimary
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "ব্রাউজারে Truecaller-এ লগইন করে টোকেন দিয়ে তাৎক্ষণিক লাইভ কলার আইডি চালু করুন।",
                                     fontSize = 11.sp,
-                                    color = TextMuted,
+                                    color = theme.textMuted,
                                     lineHeight = 15.sp
                                 )
 
@@ -2119,8 +2181,8 @@ fun CallerIdSettingsDialog(
                                         .fillMaxWidth()
                                         .height(40.dp),
                                     shape = RoundedCornerShape(8.dp),
-                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = PurplePrimary),
-                                    border = BorderStroke(1.dp, PurplePrimary)
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = theme.primary),
+                                    border = BorderStroke(1.dp, theme.primary)
                                 ) {
                                     Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -2150,7 +2212,7 @@ fun CallerIdSettingsDialog(
                                             Icon(
                                                 imageVector = Icons.Default.ContentPaste,
                                                 contentDescription = "Paste",
-                                                tint = PurplePrimary,
+                                                tint = theme.primary,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
@@ -2159,10 +2221,14 @@ fun CallerIdSettingsDialog(
                                     shape = RoundedCornerShape(10.dp),
                                     singleLine = true,
                                     colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color.White,
-                                        unfocusedContainerColor = Color.White,
-                                        focusedIndicatorColor = PurplePrimary,
-                                        unfocusedIndicatorColor = Color(0xFFCBD5E1)
+                                        focusedContainerColor = theme.cardBackground,
+                                        unfocusedContainerColor = theme.cardBackground,
+                                        focusedTextColor = theme.textPrimary,
+                                        unfocusedTextColor = theme.textPrimary,
+                                        focusedLabelColor = theme.primary,
+                                        unfocusedLabelColor = theme.textMuted,
+                                        focusedIndicatorColor = theme.primary,
+                                        unfocusedIndicatorColor = theme.divider
                                     )
                                 )
 
@@ -2196,8 +2262,8 @@ fun CallerIdSettingsDialog(
                         // TAB 1: SMS OTP FLOW
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFF8FAFC),
-                            border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                            color = theme.surface,
+                            border = BorderStroke(1.dp, theme.divider),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(modifier = Modifier.padding(14.dp)) {
@@ -2205,13 +2271,13 @@ fun CallerIdSettingsDialog(
                                     text = "Truecaller SMS OTP Login",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = TextDark
+                                    color = theme.textPrimary
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "আপনার মোবাইল নম্বর দিন। Truecaller সার্ভার থেকে SMS OTP আসবে এবং সরাসরি কানেক্ট হবে।",
                                     fontSize = 11.sp,
-                                    color = TextMuted,
+                                    color = theme.textMuted,
                                     lineHeight = 15.sp
                                 )
 
@@ -2230,10 +2296,14 @@ fun CallerIdSettingsDialog(
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                                         colors = TextFieldDefaults.colors(
-                                            focusedContainerColor = Color.White,
-                                            unfocusedContainerColor = Color.White,
-                                            focusedIndicatorColor = PurplePrimary,
-                                            unfocusedIndicatorColor = Color(0xFFCBD5E1)
+                                            focusedContainerColor = theme.cardBackground,
+                                            unfocusedContainerColor = theme.cardBackground,
+                                            focusedTextColor = theme.textPrimary,
+                                            unfocusedTextColor = theme.textPrimary,
+                                            focusedLabelColor = theme.primary,
+                                            unfocusedLabelColor = theme.textMuted,
+                                            focusedIndicatorColor = theme.primary,
+                                            unfocusedIndicatorColor = theme.divider
                                         )
                                     )
 
@@ -2270,7 +2340,7 @@ fun CallerIdSettingsDialog(
                                             .fillMaxWidth()
                                             .height(44.dp),
                                         shape = RoundedCornerShape(10.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                                         enabled = !isSendingOtp && phoneInput.isNotBlank()
                                     ) {
                                         if (isSendingOtp) {
@@ -2289,7 +2359,7 @@ fun CallerIdSettingsDialog(
                                     // Step 2: OTP verification
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFFEFF6FF),
+                                        color = if (theme.isDark) Color(0xFF1E3A8A) else Color(0xFFEFF6FF),
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(bottom = 10.dp)
@@ -2304,12 +2374,12 @@ fun CallerIdSettingsDialog(
                                                     text = "OTP sent to: ${currentSession.fullPhoneNumber}",
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF1E40AF)
+                                                    color = if (theme.isDark) Color(0xFF93C5FD) else Color(0xFF1E40AF)
                                                 )
                                                 Text(
                                                     text = "SMS ইনবক্সে আসা ৬ সংখ্যার কোড লিখুন",
                                                     fontSize = 10.sp,
-                                                    color = Color(0xFF3B82F6)
+                                                    color = if (theme.isDark) Color(0xFFBFDBFE) else Color(0xFF3B82F6)
                                                 )
                                             }
                                             TextButton(
@@ -2319,7 +2389,7 @@ fun CallerIdSettingsDialog(
                                                     authError = null
                                                 }
                                             ) {
-                                                Text("Change", fontSize = 11.sp, color = PurplePrimary)
+                                                Text("Change", fontSize = 11.sp, color = theme.primary)
                                             }
                                         }
                                     }
@@ -2334,10 +2404,14 @@ fun CallerIdSettingsDialog(
                                         singleLine = true,
                                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
                                         colors = TextFieldDefaults.colors(
-                                            focusedContainerColor = Color.White,
-                                            unfocusedContainerColor = Color.White,
-                                            focusedIndicatorColor = PurplePrimary,
-                                            unfocusedIndicatorColor = Color(0xFFCBD5E1)
+                                            focusedContainerColor = theme.cardBackground,
+                                            unfocusedContainerColor = theme.cardBackground,
+                                            focusedTextColor = theme.textPrimary,
+                                            unfocusedTextColor = theme.textPrimary,
+                                            focusedLabelColor = theme.primary,
+                                            unfocusedLabelColor = theme.textMuted,
+                                            focusedIndicatorColor = theme.primary,
+                                            unfocusedIndicatorColor = theme.divider
                                         )
                                     )
 
@@ -2397,7 +2471,7 @@ fun CallerIdSettingsDialog(
                 // Test Lookup Tool
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFF1F5F9),
+                    color = theme.surface,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
@@ -2405,12 +2479,12 @@ fun CallerIdSettingsDialog(
                             text = "Test Number Lookup",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextDark
+                            color = theme.textPrimary
                         )
                         Text(
                             text = "যেকোনো নম্বর লিখে রিয়েল ডাটা পরীক্ষা করুন",
                             fontSize = 10.sp,
-                            color = TextMuted
+                            color = theme.textMuted
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
@@ -2426,10 +2500,12 @@ fun CallerIdSettingsDialog(
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                                 colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color.White,
-                                    unfocusedContainerColor = Color.White,
-                                    focusedIndicatorColor = PurplePrimary,
-                                    unfocusedIndicatorColor = Color(0xFFCBD5E1)
+                                    focusedContainerColor = theme.cardBackground,
+                                    unfocusedContainerColor = theme.cardBackground,
+                                    focusedTextColor = theme.textPrimary,
+                                    unfocusedTextColor = theme.textPrimary,
+                                    focusedIndicatorColor = theme.primary,
+                                    unfocusedIndicatorColor = theme.divider
                                 )
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -2449,7 +2525,7 @@ fun CallerIdSettingsDialog(
                                     }
                                 },
                                 shape = RoundedCornerShape(8.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                                colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                                 enabled = !isTesting && testNumber.isNotBlank()
                             ) {
                                 if (isTesting) {
@@ -2469,8 +2545,8 @@ fun CallerIdSettingsDialog(
                             Spacer(modifier = Modifier.height(8.dp))
                             Surface(
                                 shape = RoundedCornerShape(8.dp),
-                                color = Color.White,
-                                border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                                color = theme.cardBackground,
+                                border = BorderStroke(1.dp, theme.divider),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(10.dp)) {
@@ -2486,13 +2562,13 @@ fun CallerIdSettingsDialog(
                                             text = res.name ?: "${res.carrier} User",
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 13.sp,
-                                            color = if (res.isSpam) Color(0xFFDC2626) else TextDark
+                                            color = if (res.isSpam) Color(0xFFDC2626) else theme.textPrimary
                                         )
                                     }
                                     Text(
                                         text = "${res.carrier} • ${res.location} • Source: ${res.source}",
                                         fontSize = 11.sp,
-                                        color = TextMuted
+                                        color = theme.textMuted
                                     )
                                     if (res.isSpam) {
                                         Text(
@@ -2524,12 +2600,12 @@ fun CallerIdSettingsDialog(
                         text = "Advanced: Custom Proxy Gateway URL",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextMuted
+                        color = theme.textMuted
                     )
                     Icon(
                         imageVector = Icons.Default.ArrowDropDown,
                         contentDescription = null,
-                        tint = TextMuted
+                        tint = theme.textMuted
                     )
                 }
 
@@ -2544,10 +2620,14 @@ fun CallerIdSettingsDialog(
                         shape = RoundedCornerShape(10.dp),
                         singleLine = true,
                         colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color(0xFFF8FAFC),
-                            unfocusedContainerColor = Color(0xFFF8FAFC),
-                            focusedIndicatorColor = PurplePrimary,
-                            unfocusedIndicatorColor = Color(0xFFE2E8F0)
+                            focusedContainerColor = theme.surface,
+                            unfocusedContainerColor = theme.surface,
+                            focusedTextColor = theme.textPrimary,
+                            unfocusedTextColor = theme.textPrimary,
+                            focusedLabelColor = theme.primary,
+                            unfocusedLabelColor = theme.textMuted,
+                            focusedIndicatorColor = theme.primary,
+                            unfocusedIndicatorColor = theme.divider
                         )
                     )
                 }
@@ -2569,7 +2649,7 @@ fun CallerIdSettingsDialog(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text("Done (সংরক্ষণ করুন)", fontWeight = FontWeight.Bold, color = Color.White)

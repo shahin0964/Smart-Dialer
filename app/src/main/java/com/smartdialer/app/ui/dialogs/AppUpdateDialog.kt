@@ -58,6 +58,7 @@ import com.smartdialer.app.data.repository.OtaUpdateManager
 import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.CallMissedRed
 import com.smartdialer.app.ui.theme.DividerColor
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
 import com.smartdialer.app.ui.theme.TextDark
@@ -72,6 +73,7 @@ fun AppUpdateDialog(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val theme = LocalAppTheme.current
     var updateStatus by remember { mutableStateOf<UpdateStatus>(UpdateStatus.Checking) }
 
     fun runUpdateCheck() {
@@ -91,7 +93,7 @@ fun AppUpdateDialog(
                 .fillMaxWidth()
                 .padding(6.dp),
             shape = RoundedCornerShape(22.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(
                 modifier = Modifier
@@ -109,13 +111,13 @@ fun AppUpdateDialog(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(PurpleUltraLight),
+                                .background(theme.primaryUltraLight),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.SystemUpdate,
                                 contentDescription = null,
-                                tint = PurplePrimary,
+                                tint = theme.primary,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -125,12 +127,12 @@ fun AppUpdateDialog(
                                 text = "App OTA Update",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextDark
+                                color = theme.textPrimary
                             )
                             Text(
                                 text = "GitHub Auto-Update",
                                 fontSize = 11.sp,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
                         }
                     }
@@ -142,7 +144,7 @@ fun AppUpdateDialog(
                         Icon(
                             imageVector = Icons.Default.Close,
                             contentDescription = "Close",
-                            tint = TextMuted,
+                            tint = theme.textMuted,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -161,7 +163,7 @@ fun AppUpdateDialog(
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(42.dp),
-                                color = PurplePrimary,
+                                color = theme.primary,
                                 strokeWidth = 3.5.dp
                             )
                             Spacer(modifier = Modifier.height(16.dp))
@@ -169,12 +171,12 @@ fun AppUpdateDialog(
                                 text = "গিটহাব থেকে নতুন আপডেট চেক করা হচ্ছে...",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = TextDark
+                                color = theme.textPrimary
                             )
                             Text(
                                 text = "Checking latest release from GitHub repository",
                                 fontSize = 11.sp,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
                         }
                     }
@@ -268,6 +270,7 @@ private fun UpToDateView(
     onCheckAgain: () -> Unit,
     onClose: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -276,7 +279,7 @@ private fun UpToDateView(
             modifier = Modifier
                 .size(54.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFDCFCE7)),
+                .background(if (theme.isDark) Color(0xFF14532D) else Color(0xFFDCFCE7)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -293,13 +296,13 @@ private fun UpToDateView(
             text = "অ্যাপটি আপ-টু-ডেট আছে",
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark
+            color = theme.textPrimary
         )
 
         Text(
             text = "Smart Dialer is on the latest version ($currentVersion)",
             fontSize = 12.sp,
-            color = TextMuted
+            color = theme.textMuted
         )
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -308,8 +311,8 @@ private fun UpToDateView(
         if (release != null && release.body.isNotBlank()) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = Color(0xFFF8FAFC),
-                border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor),
+                color = theme.surface,
+                border = androidx.compose.foundation.BorderStroke(1.dp, theme.divider),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
@@ -322,17 +325,17 @@ private fun UpToDateView(
                             text = "রিলিজ নোট (Release Notes):",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextDark
+                            color = theme.textPrimary
                         )
                         Surface(
                             shape = RoundedCornerShape(4.dp),
-                            color = PurpleUltraLight
+                            color = theme.primaryUltraLight
                         ) {
                             Text(
                                 text = release.tagName,
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = PurplePrimary,
+                                color = theme.primary,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -352,21 +355,22 @@ private fun UpToDateView(
             OutlinedButton(
                 onClick = onCheckAgain,
                 shape = RoundedCornerShape(10.dp),
+                border = androidx.compose.foundation.BorderStroke(1.dp, theme.primary),
                 modifier = Modifier.weight(1f)
             ) {
                 Icon(
                     imageVector = Icons.Default.Refresh,
                     contentDescription = null,
                     modifier = Modifier.size(16.dp),
-                    tint = PurplePrimary
+                    tint = theme.primary
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("পুনরায় চেক", fontSize = 13.sp, color = PurplePrimary)
+                Text("পুনরায় চেক", fontSize = 13.sp, color = theme.primary)
             }
 
             Button(
                 onClick = onClose,
-                colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.weight(1f)
             ) {
@@ -382,6 +386,7 @@ private fun UpdateAvailableView(
     release: AppReleaseInfo,
     onStartDownload: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -391,13 +396,13 @@ private fun UpdateAvailableView(
                 modifier = Modifier
                     .size(46.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFEDE9FE)),
+                    .background(theme.primaryUltraLight),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.CloudDownload,
                     contentDescription = null,
-                    tint = PurplePrimary,
+                    tint = theme.primary,
                     modifier = Modifier.size(26.dp)
                 )
             }
@@ -409,12 +414,12 @@ private fun UpdateAvailableView(
                     text = "নতুন আপডেট পাওয়া গেছে!",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.textPrimary
                 )
                 Text(
                     text = "Current: $currentVersion ➔ New: ${release.tagName}",
                     fontSize = 12.sp,
-                    color = PurplePrimary,
+                    color = theme.primary,
                     fontWeight = FontWeight.SemiBold
                 )
             }
@@ -425,8 +430,8 @@ private fun UpdateAvailableView(
         // Release notes card
         Surface(
             shape = RoundedCornerShape(12.dp),
-            color = Color(0xFFF8FAFC),
-            border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor),
+            color = theme.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, theme.divider),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
@@ -439,7 +444,7 @@ private fun UpdateAvailableView(
                         text = "নতুন যা যুক্ত ও ফিক্স হয়েছে:",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark
+                        color = theme.textPrimary
                     )
 
                     val sizeMb = if (release.apkSize > 0) {
@@ -450,7 +455,7 @@ private fun UpdateAvailableView(
 
                     Surface(
                         shape = RoundedCornerShape(4.dp),
-                        color = Color(0xFFDCFCE7)
+                        color = if (theme.isDark) Color(0xFF14532D) else Color(0xFFDCFCE7)
                     ) {
                         Text(
                             text = sizeMb,
@@ -472,7 +477,7 @@ private fun UpdateAvailableView(
         Button(
             onClick = onStartDownload,
             shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+            colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp)
@@ -501,6 +506,7 @@ private fun DownloadingView(
     totalBytes: Long,
     release: AppReleaseInfo
 ) {
+    val theme = LocalAppTheme.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -511,13 +517,13 @@ private fun DownloadingView(
             modifier = Modifier
                 .size(50.dp)
                 .clip(CircleShape)
-                .background(PurpleUltraLight),
+                .background(theme.primaryUltraLight),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Default.CloudDownload,
                 contentDescription = null,
-                tint = PurplePrimary,
+                tint = theme.primary,
                 modifier = Modifier.size(28.dp)
             )
         }
@@ -528,7 +534,7 @@ private fun DownloadingView(
             text = "আপডেট ডাউনলোড হচ্ছে...",
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark
+            color = theme.textPrimary
         )
 
         val downloadedMb = String.format("%.1f", downloadedBytes / (1024f * 1024f))
@@ -537,7 +543,7 @@ private fun DownloadingView(
         Text(
             text = "$downloadedMb MB / $totalMb MB ($progressPercent%)",
             fontSize = 12.sp,
-            color = TextMuted,
+            color = theme.textMuted,
             fontWeight = FontWeight.Medium
         )
 
@@ -549,8 +555,8 @@ private fun DownloadingView(
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(RoundedCornerShape(4.dp)),
-            color = PurplePrimary,
-            trackColor = Color(0xFFE2E8F0)
+            color = theme.primary,
+            trackColor = theme.divider
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -558,7 +564,7 @@ private fun DownloadingView(
         Text(
             text = "ডাউনলোড শেষ হওয়া পর্যন্ত অ্যাপ বন্ধ করবেন না",
             fontSize = 11.sp,
-            color = TextLightGray
+            color = theme.textMuted
         )
     }
 }
@@ -569,6 +575,7 @@ private fun DownloadedView(
     release: AppReleaseInfo,
     onInstall: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -577,7 +584,7 @@ private fun DownloadedView(
             modifier = Modifier
                 .size(54.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFDCFCE7)),
+                .background(if (theme.isDark) Color(0xFF14532D) else Color(0xFFDCFCE7)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -594,13 +601,13 @@ private fun DownloadedView(
             text = "ডাউনলোড সম্পন্ন হয়েছে!",
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark
+            color = theme.textPrimary
         )
 
         Text(
             text = "${release.tagName} ইনস্টল করার জন্য প্রস্তুত",
             fontSize = 12.sp,
-            color = TextMuted
+            color = theme.textMuted
         )
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -635,6 +642,7 @@ private fun ErrorView(
     message: String,
     onRetry: () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -643,7 +651,7 @@ private fun ErrorView(
             modifier = Modifier
                 .size(50.dp)
                 .clip(CircleShape)
-                .background(Color(0xFFFEE2E2)),
+                .background(if (theme.isDark) Color(0xFF7F1D1D) else Color(0xFFFEE2E2)),
             contentAlignment = Alignment.Center
         ) {
             Icon(
@@ -660,7 +668,7 @@ private fun ErrorView(
             text = "আপডেট চেক ব্যর্থ হয়েছে",
             fontSize = 15.sp,
             fontWeight = FontWeight.Bold,
-            color = TextDark
+            color = theme.textPrimary
         )
 
         Spacer(modifier = Modifier.height(4.dp))
@@ -668,7 +676,7 @@ private fun ErrorView(
         Text(
             text = message,
             fontSize = 12.sp,
-            color = TextMuted,
+            color = theme.textMuted,
             lineHeight = 16.sp,
             modifier = Modifier.padding(horizontal = 8.dp)
         )
@@ -678,7 +686,7 @@ private fun ErrorView(
         Button(
             onClick = onRetry,
             shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = PurplePrimary),
+            colors = ButtonDefaults.buttonColors(containerColor = theme.primary),
             modifier = Modifier.fillMaxWidth().height(44.dp)
         ) {
             Icon(
@@ -695,6 +703,7 @@ private fun ErrorView(
 
 @Composable
 private fun ReleaseNotesContent(body: String) {
+    val theme = LocalAppTheme.current
     val cleanBody = body.replace("\r\n", "\n").trim()
     val lines = cleanBody.split("\n")
 
@@ -711,7 +720,7 @@ private fun ReleaseNotesContent(body: String) {
             if (line.startsWith("---")) {
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 4.dp),
-                    color = DividerColor
+                    color = theme.divider
                 )
             } else if (line.startsWith("#")) {
                 val headerText = line.trimStart('#').trim()
@@ -719,7 +728,7 @@ private fun ReleaseNotesContent(body: String) {
                     text = headerText,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark,
+                    color = theme.textPrimary,
                     modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
                 )
             } else if (line.startsWith("*") || line.startsWith("-")) {
@@ -732,13 +741,13 @@ private fun ReleaseNotesContent(body: String) {
                         text = "•",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = PurplePrimary
+                        color = theme.primary
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = bullet,
                         fontSize = 11.sp,
-                        color = TextDark,
+                        color = theme.textPrimary,
                         lineHeight = 15.sp
                     )
                 }
@@ -746,7 +755,7 @@ private fun ReleaseNotesContent(body: String) {
                 Text(
                     text = line,
                     fontSize = 11.sp,
-                    color = TextMuted,
+                    color = theme.textMuted,
                     lineHeight = 15.sp,
                     modifier = Modifier.padding(vertical = 1.dp)
                 )

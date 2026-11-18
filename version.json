@@ -1,8 +1,8 @@
 {
-  "versionCode": 49,
-  "versionName": "1.0.49",
-  "tagName": "v1.0.49",
-  "name": "Smart Dialer v1.0.49",
-  "body": "Fixed all screen white background issues across themes. Replaced hardcoded light backgrounds and white cards with dynamic theme colors across Dialer, Calls, Contacts, More, IP settings, and dialogs.",
-  "apkUrl": "https://github.com/shahin0964/Smart-Dialer/releases/download/v1.0.49/SmartDialer-latest.apk"
+  "versionCode": 50,
+  "versionName": "1.0.50",
+  "tagName": "v1.0.50",
+  "name": "Smart Dialer v1.0.50",
+  "body": "Fixed all remaining white elements across themes. Updated Samsung swipe rows in Call History and Contacts to use dynamic theme backgrounds, and completely themed all Settings hubs and dialogs (Dual SIM, Call Recording, Sounds & Haptics, Blocked Numbers, About, Speed Dial, Emergency SOS, VCF, Caller ID/Truecaller, App Update, Account Picker, and Contact dialogs).",
+  "apkUrl": "https://github.com/shahin0964/Smart-Dialer/releases/download/v1.0.50/SmartDialer-latest.apk"
 }

@@ -36,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -52,6 +53,7 @@ fun SamsungSwipeItem(
     onSwipeLeft: () -> Unit,  // SMS
     content: @Composable () -> Unit
 ) {
+    val theme = LocalAppTheme.current
     val coroutineScope = rememberCoroutineScope()
     val offsetX = remember { Animatable(0f) }
     val view = LocalView.current
@@ -119,7 +121,7 @@ fun SamsungSwipeItem(
         Box(
             modifier = Modifier
                 .offset { IntOffset(offsetX.value.roundToInt(), 0) }
-                .background(Color.White)
+                .background(theme.background)
                 .pointerInput(Unit) {
                     detectHorizontalDragGestures(
                         onDragStart = {
