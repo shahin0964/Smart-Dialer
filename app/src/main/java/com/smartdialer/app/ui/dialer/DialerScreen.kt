@@ -67,6 +67,7 @@ import com.smartdialer.app.data.model.ContactItem
 import com.smartdialer.app.telecom.CallManager
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.IpCallPurple
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.PurpleUltraLight
 import com.smartdialer.app.ui.theme.Sim1Blue
@@ -80,6 +81,7 @@ import com.smartdialer.app.ui.theme.TextMuted
 fun DialerScreen(
     viewModel: DialerViewModel
 ) {
+    val theme = LocalAppTheme.current
     val context = LocalContext.current
     val view = LocalView.current
     val clipboardManager = LocalClipboardManager.current
@@ -195,7 +197,7 @@ fun DialerScreen(
                         onLongClick = { pasteFromClipboard() }
                     ),
                 shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White)
+                colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
             ) {
                 Row(
                     modifier = Modifier
@@ -209,7 +211,7 @@ fun DialerScreen(
                             text = "Enter number...",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Normal,
-                            color = TextMuted,
+                            color = theme.textMuted,
                             modifier = Modifier.weight(1f)
                         )
 
@@ -224,7 +226,7 @@ fun DialerScreen(
                             Icon(
                                 imageVector = Icons.Default.ContentPaste,
                                 contentDescription = "Paste",
-                                tint = PurplePrimary,
+                                tint = theme.primary,
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(4.dp))
@@ -232,7 +234,7 @@ fun DialerScreen(
                                 text = "Paste",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = PurplePrimary
+                                color = theme.primary
                             )
                         }
                     } else {
@@ -240,7 +242,7 @@ fun DialerScreen(
                             text = inputNumber,
                             fontSize = 26.sp,
                             fontWeight = FontWeight.Bold,
-                            color = TextDark,
+                            color = theme.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -593,12 +595,13 @@ fun KeypadButton(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null
 ) {
+    val theme = LocalAppTheme.current
     Surface(
         modifier = modifier
             .height(64.dp)
             .shadow(elevation = 2.dp, shape = RoundedCornerShape(32.dp)),
         shape = RoundedCornerShape(32.dp),
-        color = Color.White
+        color = theme.dialpadButtonBg
     ) {
         Box(
             modifier = Modifier
@@ -617,14 +620,14 @@ fun KeypadButton(
                     text = digit,
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = TextDark
+                    color = theme.dialpadText
                 )
                 if (subtext.isNotEmpty()) {
                     Text(
                         text = subtext,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = TextLightGray
+                        color = theme.dialpadSubText
                     )
                 }
             }

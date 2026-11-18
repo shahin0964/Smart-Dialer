@@ -1,6 +1,14 @@
 package com.smartdialer.app.ui.call
 
 import android.view.HapticFeedbackConstants
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.keyframes
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,6 +31,8 @@ import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
 import androidx.compose.material.icons.filled.Dialpad
+import androidx.compose.ui.draw.rotate
+import com.smartdialer.app.ui.theme.AppThemeRegistry
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -85,38 +95,92 @@ fun OngoingCallScreen(
     val callInfo by CallManager.currentCallState.collectAsState()
     var showDtmfKeypad by remember { mutableStateOf(false) }
 
-    val appSettings = remember { AppSettingsPreferences(context) }
-    val currentTheme = appSettings.callerTheme
-    val themeGradient = when (currentTheme) {
-        "IOS_GLASS" -> listOf(Color(0xFF1C1C1E), Color(0xFF2C2C2E), Color(0xFF000000))
-        "SAMSUNG_ONE_UI" -> listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0B1120))
-        "CYBERPUNK_AMOLED" -> listOf(Color(0xFF000000), Color(0xFF070714), Color(0xFF120324))
-        "EMERALD_AURORA" -> listOf(Color(0xFF042F2E), Color(0xFF064E3B), Color(0xFF021B1A))
-        "SUNSET_VELVET" -> listOf(Color(0xFF4C0519), Color(0xFF3B0764), Color(0xFF180A28))
-        else -> listOf(CallBgDark1, CallBgDark2, CallBgDark3)
+    val currentTheme by AppSettingsPreferences.themeFlow.collectAsState()
+    val themePalette = AppThemeRegistry.getPalette(currentTheme)
+
+    val infiniteTransition = rememberInfiniteTransition(label = "CallerScreenAnimation")
+
+    val pulseSlow by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.14f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pulseSlow"
+    )
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.70f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "pulseAlpha"
+    )
+    val rotatingAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(tween(3500, easing = LinearEasing)),
+        label = "rotatingAngle"
+    )
+    val wave1 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing)),
+        label = "wave1"
+    )
+    val wave2 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2200, delayMillis = 1100, easing = LinearEasing)),
+        label = "wave2"
+    )
+    val auroraShift by infiniteTransition.animateFloat(
+        initialValue = -120f,
+        targetValue = 280f,
+        animationSpec = infiniteRepeatable(tween(5500, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "auroraShift"
+    )
+    val heartbeatScale by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.12f,
+        animationSpec = infiniteRepeatable(
+            keyframes {
+                durationMillis = 1500
+                1f at 0
+                1.10f at 220
+                1.03f at 400
+                1.12f at 600
+                1f at 900
+                1f at 1500
+            },
+            RepeatMode.Restart
+        ),
+        label = "heartbeat"
+    )
+    val eq1 by infiniteTransition.animateFloat(4f, 18f, infiniteRepeatable(tween(420, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "eq1")
+    val eq2 by infiniteTransition.animateFloat(8f, 24f, infiniteRepeatable(tween(330, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "eq2")
+    val eq3 by infiniteTransition.animateFloat(2f, 16f, infiniteRepeatable(tween(510, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "eq3")
+    val eq4 by infiniteTransition.animateFloat(6f, 22f, infiniteRepeatable(tween(380, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "eq4")
+    val eq5 by infiniteTransition.animateFloat(3f, 14f, infiniteRepeatable(tween(460, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "eq5")
+
+    val bgBrush = if (currentTheme == "EMERALD_AURORA") {
+        Brush.verticalGradient(
+            colors = listOf(Color(0xFF021B1A), Color(0xFF042F2E), Color(0xFF064E3B), Color(0xFF021B1A)),
+            startY = auroraShift,
+            endY = auroraShift + 1400f
+        )
+    } else {
+        Brush.verticalGradient(themePalette.callerScreenGradient)
     }
 
     val buttonBgColor = when (currentTheme) {
         "IOS_GLASS" -> Color(0x38FFFFFF)
         "CYBERPUNK_AMOLED" -> Color(0xFF141428)
-        else -> CallButtonTranslucent
+        else -> themePalette.callerButtonBg
     }
 
-    val buttonActiveColor = when (currentTheme) {
-        "IOS_GLASS" -> Color(0xFF0A84FF)
-        "SAMSUNG_ONE_UI" -> Color(0xFF0284C7)
-        "CYBERPUNK_AMOLED" -> Color(0xFF00F0FF)
-        "EMERALD_AURORA" -> Color(0xFF10B981)
-        "SUNSET_VELVET" -> Color(0xFFE11D48)
-        else -> CallButtonActive
-    }
+    val buttonActiveColor = themePalette.callerAccent
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(themeGradient)
-            )
+            .background(bgBrush)
             .padding(horizontal = 24.dp, vertical = 20.dp)
     ) {
         Column(
@@ -203,41 +267,143 @@ fun OngoingCallScreen(
                 }
             }
 
-            // Center: Glowing Caller Avatar + Name + Number + Timer
+            // Center: Glowing Animated Caller Avatar + Name + Number + Timer
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Neon Glowing Avatar (Red if spam, Purple/Blue if safe)
+                // Animated Theme-Specific Avatar Skin
                 Box(
-                    modifier = Modifier
-                        .size(130.dp)
-                        .clip(CircleShape)
-                        .border(
-                            width = 4.dp,
-                            brush = if (callInfo.isSpam) {
-                                Brush.linearGradient(listOf(Color(0xFFEF4444), Color(0xFFDC2626)))
-                            } else {
-                                Brush.sweepGradient(
-                                    listOf(
-                                        Color(0xFF8B5CF6),
-                                        Color(0xFF3B82F6),
-                                        Color(0xFF8B5CF6)
-                                    )
-                                )
-                            },
-                            shape = CircleShape
-                        )
-                        .background(if (callInfo.isSpam) Color(0xFF450A0A) else Color(0xFF23204E)),
+                    modifier = Modifier.size(170.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    ContactAvatar(
-                        name = if (callInfo.contactName.isNotBlank()) callInfo.contactName else callInfo.number,
-                        photoUri = callInfo.photoUri,
-                        size = 122.dp,
-                        preferHighRes = true,
-                        fontSize = 44.sp
-                    )
+                    when (currentTheme) {
+                        "IOS_GLASS" -> {
+                            // Frosted breathing glow ring
+                            Box(
+                                modifier = Modifier
+                                    .size((136 * pulseSlow).dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF0A84FF).copy(alpha = pulseAlpha * 0.35f))
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size((154 * pulseSlow).dp)
+                                    .clip(CircleShape)
+                                    .border(1.5.dp, Color.White.copy(alpha = pulseAlpha * 0.45f), CircleShape)
+                            )
+                        }
+                        "SAMSUNG_ONE_UI" -> {
+                            // One UI Signature Concentric Wave 1
+                            Box(
+                                modifier = Modifier
+                                    .size((126 + wave1 * 60).dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, Color(0xFF38BDF8).copy(alpha = (1f - wave1) * 0.7f), CircleShape)
+                            )
+                            // One UI Signature Concentric Wave 2
+                            Box(
+                                modifier = Modifier
+                                    .size((126 + wave2 * 60).dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, Color(0xFF38BDF8).copy(alpha = (1f - wave2) * 0.7f), CircleShape)
+                            )
+                        }
+                        "CYBERPUNK_AMOLED" -> {
+                            // Rotating neon sweep gradient ring
+                            Box(
+                                modifier = Modifier
+                                    .size(148.dp)
+                                    .rotate(rotatingAngle)
+                                    .clip(CircleShape)
+                                    .border(
+                                        width = 3.5.dp,
+                                        brush = Brush.sweepGradient(listOf(Color(0xFF00F0FF), Color(0xFFFF007F), Color(0xFF00F0FF))),
+                                        shape = CircleShape
+                                    )
+                            )
+                            // Pulsing cyan glow behind
+                            Box(
+                                modifier = Modifier
+                                    .size((134 * pulseSlow).dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF00F0FF).copy(alpha = pulseAlpha * 0.25f))
+                            )
+                        }
+                        "EMERALD_AURORA" -> {
+                            // Aurora breathing radial aura
+                            Box(
+                                modifier = Modifier
+                                    .size((142 * pulseSlow).dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.radialGradient(
+                                            listOf(Color(0xFF10B981).copy(alpha = pulseAlpha * 0.5f), Color.Transparent)
+                                        )
+                                    )
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size((154 * pulseSlow).dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, Color(0xFF34D399).copy(alpha = pulseAlpha * 0.55f), CircleShape)
+                            )
+                        }
+                        "SUNSET_VELVET" -> {
+                            // Velvet Heartbeat double-pulsing radiant aura
+                            Box(
+                                modifier = Modifier
+                                    .size((138 * heartbeatScale).dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.radialGradient(
+                                            listOf(Color(0xFFE11D48).copy(alpha = 0.45f), Color(0xFF3B0764).copy(alpha = 0.2f), Color.Transparent)
+                                        )
+                                    )
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size((152 * heartbeatScale).dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, Color(0xFFFDA4AF).copy(alpha = 0.55f), CircleShape)
+                            )
+                        }
+                        else -> {
+                            // Classic Dark / Sonar Radar Pulse
+                            Box(
+                                modifier = Modifier
+                                    .size((128 + wave1 * 56).dp)
+                                    .clip(CircleShape)
+                                    .border(1.5.dp, themePalette.callerAccent.copy(alpha = (1f - wave1) * 0.65f), CircleShape)
+                            )
+                        }
+                    }
+
+                    // Avatar Core
+                    Box(
+                        modifier = Modifier
+                            .size(124.dp)
+                            .clip(CircleShape)
+                            .border(
+                                width = 3.5.dp,
+                                brush = if (callInfo.isSpam) {
+                                    Brush.linearGradient(listOf(Color(0xFFEF4444), Color(0xFFDC2626)))
+                                } else {
+                                    Brush.linearGradient(listOf(themePalette.callerAccent, themePalette.primaryLight))
+                                },
+                                shape = CircleShape
+                            )
+                            .background(if (callInfo.isSpam) Color(0xFF450A0A) else themePalette.surface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        ContactAvatar(
+                            name = if (callInfo.contactName.isNotBlank()) callInfo.contactName else callInfo.number,
+                            photoUri = callInfo.photoUri,
+                            size = 116.dp,
+                            preferHighRes = true,
+                            fontSize = 42.sp
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -292,6 +458,24 @@ fun OngoingCallScreen(
                         fontSize = 16.sp,
                         color = Color(0xFFCBD5E1)
                     )
+                }
+
+                if (currentTheme == "CYBERPUNK_AMOLED") {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf(eq1, eq2, eq3, eq4, eq5).forEachIndexed { index, barHeight ->
+                            Box(
+                                modifier = Modifier
+                                    .width(4.dp)
+                                    .height(barHeight.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(if (index % 2 == 0) Color(0xFF00F0FF) else Color(0xFFFF007F))
+                            )
+                        }
+                    }
                 }
 
                 if (callInfo.isIpCall || callInfo.simSlot == 3) {
@@ -381,50 +565,66 @@ fun OngoingCallScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Reject (Red)
+                    // Reject (Red with animated pulse ripple)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clip(CircleShape)
-                                .background(CallEndRed)
-                                .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                    CallManager.reject()
-                                    onDismiss()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.CallEnd,
-                                contentDescription = "Decline",
-                                tint = Color.White,
-                                modifier = Modifier.size(36.dp)
+                        Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .size((72 + wave2 * 26).dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, CallEndRed.copy(alpha = (1f - wave2) * 0.75f), CircleShape)
                             )
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(CallEndRed)
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                        CallManager.reject()
+                                        onDismiss()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CallEnd,
+                                    contentDescription = "Decline",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = "Decline", color = Color.White, fontSize = 14.sp)
                     }
 
-                    // Answer (Green)
+                    // Answer (Green with animated pulse ripple)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            modifier = Modifier
-                                .size(72.dp)
-                                .clip(CircleShape)
-                                .background(CallIncomingGreen)
-                                .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                    CallManager.answer()
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Call,
-                                contentDescription = "Answer",
-                                tint = Color.White,
-                                modifier = Modifier.size(36.dp)
+                        Box(contentAlignment = Alignment.Center) {
+                            Box(
+                                modifier = Modifier
+                                    .size((72 + wave1 * 26).dp)
+                                    .clip(CircleShape)
+                                    .border(2.dp, CallIncomingGreen.copy(alpha = (1f - wave1) * 0.75f), CircleShape)
                             )
+                            Box(
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(CircleShape)
+                                    .background(CallIncomingGreen)
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                        CallManager.answer()
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Call,
+                                    contentDescription = "Answer",
+                                    tint = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(text = "Answer", color = Color.White, fontSize = 14.sp)
@@ -513,26 +713,34 @@ fun OngoingCallScreen(
 
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    // End Call Button (Large Red Circular with drop shadow)
-                    Box(
-                        modifier = Modifier
-                            .size(72.dp)
-                            .shadow(elevation = 12.dp, shape = CircleShape, spotColor = CallEndRed)
-                            .clip(CircleShape)
-                            .background(CallEndRed)
-                            .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                CallManager.disconnect()
-                                onDismiss()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CallEnd,
-                            contentDescription = "End Call",
-                            tint = Color.White,
-                            modifier = Modifier.size(36.dp)
+                    // End Call Button (Large Red Circular with animated ripple & drop shadow)
+                    Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .size((72 + wave1 * 22).dp)
+                                .clip(CircleShape)
+                                .border(1.5.dp, CallEndRed.copy(alpha = (1f - wave1) * 0.5f), CircleShape)
                         )
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .shadow(elevation = 12.dp, shape = CircleShape, spotColor = CallEndRed)
+                                .clip(CircleShape)
+                                .background(CallEndRed)
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                    CallManager.disconnect()
+                                    onDismiss()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CallEnd,
+                                contentDescription = "End Call",
+                                tint = Color.White,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        }
                     }
                 }
             }

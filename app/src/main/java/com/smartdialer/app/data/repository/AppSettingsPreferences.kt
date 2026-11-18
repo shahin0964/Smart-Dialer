@@ -2,10 +2,25 @@ package com.smartdialer.app.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class AppSettingsPreferences(private val context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("smart_dialer_app_settings", Context.MODE_PRIVATE)
+
+    companion object {
+        private val _themeFlow = MutableStateFlow("CLASSIC_DARK")
+        val themeFlow: StateFlow<String> = _themeFlow.asStateFlow()
+    }
+
+    init {
+        val current = prefs.getString("caller_screen_theme", "CLASSIC_DARK") ?: "CLASSIC_DARK"
+        if (_themeFlow.value != current) {
+            _themeFlow.value = current
+        }
+    }
 
     // ==========================================
     // 1. Dual SIM Settings
@@ -231,5 +246,8 @@ class AppSettingsPreferences(private val context: Context) {
     // Themes: CLASSIC_DARK, IOS_GLASS, CYBERPUNK_AMOLED, EMERALD_AURORA, SUNSET_VELVET, SAMSUNG_ONE_UI
     var callerTheme: String
         get() = prefs.getString("caller_screen_theme", "CLASSIC_DARK") ?: "CLASSIC_DARK"
-        set(value) = prefs.edit().putString("caller_screen_theme", value).apply()
+        set(value) {
+            prefs.edit().putString("caller_screen_theme", value).apply()
+            _themeFlow.value = value
+        }
 }

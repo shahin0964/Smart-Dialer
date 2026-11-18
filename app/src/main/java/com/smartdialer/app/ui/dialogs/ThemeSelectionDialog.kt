@@ -107,6 +107,13 @@ fun ThemeSelectionDialog(
             description = "Warm royal purple & ruby crimson gradient",
             gradientColors = listOf(Color(0xFF4C0519), Color(0xFF3B0764), Color(0xFF180A28)),
             accentColor = Color(0xFFE11D48)
+        ),
+        ThemeItem(
+            id = "LIGHT_PURPLE",
+            name = "Classic Purple (Light)",
+            description = "Clean white backdrop with signature royal violet accents",
+            gradientColors = listOf(Color(0xFF5B42F3), Color(0xFF8B5CF6), Color(0xFFF5F3FF)),
+            accentColor = Color(0xFF5B42F3)
         )
     )
 

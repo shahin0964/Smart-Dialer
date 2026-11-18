@@ -48,6 +48,7 @@ import com.smartdialer.app.ui.dialer.DialerViewModel
 import com.smartdialer.app.ui.dialogs.AppUpdateDialog
 import com.smartdialer.app.ui.more.MoreScreen
 import com.smartdialer.app.ui.theme.BgLight
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.SmartDialerTheme
 
 class MainActivity : ComponentActivity() {
@@ -101,7 +102,8 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            SmartDialerTheme(darkTheme = false) {
+            val currentTheme by AppSettingsPreferences.themeFlow.collectAsState()
+            SmartDialerTheme(themeId = currentTheme) {
                 MainContent(
                     initialNumber = initialNumber,
                     initialTab = initialTab,
@@ -277,6 +279,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+        val theme = LocalAppTheme.current
+
         Scaffold(
             topBar = {
                 Column {
@@ -291,13 +295,13 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             },
-            containerColor = BgLight
+            containerColor = theme.background
         ) { paddingValues ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .background(BgLight)
+                    .background(theme.background)
             ) {
                 when (selectedTab) {
                     MainTab.DIALER -> DialerScreen(viewModel = dialerViewModel)

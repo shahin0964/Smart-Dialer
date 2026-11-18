@@ -26,7 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartdialer.app.ui.theme.CrownGold
-import com.smartdialer.app.ui.theme.PurplePrimary
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.TextDark
 import com.smartdialer.app.ui.theme.TextMuted
 
@@ -36,10 +36,12 @@ fun TopHeader(
     onSettingsClick: () -> Unit = {},
     onDefaultDialerClick: () -> Unit = {}
 ) {
+    val theme = LocalAppTheme.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(theme.topBarBg)
             .padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -54,7 +56,7 @@ fun TopHeader(
                     .clip(RoundedCornerShape(10.dp))
                     .background(
                         Brush.linearGradient(
-                            listOf(Color(0xFF3B82F6), Color(0xFF8B5CF6))
+                            listOf(theme.primary, theme.primaryLight)
                         )
                     ),
                 contentAlignment = Alignment.Center
@@ -73,7 +75,7 @@ fun TopHeader(
                 text = "Smart Dialer",
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
-                color = TextDark
+                color = theme.textPrimary
             )
         }
 

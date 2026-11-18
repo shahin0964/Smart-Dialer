@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.lifecycle.lifecycleScope
 import com.smartdialer.app.data.model.CallStatus
+import com.smartdialer.app.data.repository.AppSettingsPreferences
 import com.smartdialer.app.telecom.CallManager
 import com.smartdialer.app.telecom.FloatingCallHeadManager
 import com.smartdialer.app.ui.theme.SmartDialerTheme
@@ -90,8 +91,9 @@ class CallActivity : ComponentActivity() {
 
         setContent {
             val isNearEar by isNearEarState.collectAsState()
+            val currentTheme by AppSettingsPreferences.themeFlow.collectAsState()
 
-            SmartDialerTheme(darkTheme = true) {
+            SmartDialerTheme(themeId = currentTheme, darkTheme = true) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     OngoingCallScreen(
                         onDismiss = {

@@ -33,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.smartdialer.app.ui.theme.DividerColor
+import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.PurplePrimary
 import com.smartdialer.app.ui.theme.TextLightGray
 
@@ -48,10 +49,12 @@ fun TopTabBar(
     selectedTab: MainTab,
     onTabSelected: (MainTab) -> Unit
 ) {
+    val theme = LocalAppTheme.current
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color.White)
+            .background(theme.bottomBarBg)
     ) {
         Row(
             modifier = Modifier
@@ -61,7 +64,7 @@ fun TopTabBar(
         ) {
             for (tab in MainTab.entries) {
                 val isSelected = (tab == selectedTab)
-                val tint = if (isSelected) PurplePrimary else TextLightGray
+                val tint = if (isSelected) theme.primary else theme.textMuted
 
                 Column(
                     modifier = Modifier
@@ -97,7 +100,7 @@ fun TopTabBar(
                                 .width(36.dp)
                                 .height(3.dp)
                                 .clip(RoundedCornerShape(topStart = 3.dp, topEnd = 3.dp))
-                                .background(PurplePrimary)
+                                .background(theme.primary)
                         )
                     } else {
                         Spacer(modifier = Modifier.height(3.dp))
@@ -106,6 +109,6 @@ fun TopTabBar(
             }
         }
 
-        HorizontalDivider(color = DividerColor, thickness = 0.8.dp)
+        HorizontalDivider(color = theme.divider, thickness = 0.8.dp)
     }
 }

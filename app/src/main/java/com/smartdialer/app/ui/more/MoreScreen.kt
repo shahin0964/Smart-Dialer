@@ -109,7 +109,6 @@ fun MoreScreen(
     var showAboutDialog by remember { mutableStateOf(false) }
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showCallerIdDialog by remember { mutableStateOf(false) }
-    var showIpAudioDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
 
     var refreshKey by remember { mutableStateOf(0) }
@@ -135,13 +134,6 @@ fun MoreScreen(
     }
 
     // Dialogs
-    if (showIpAudioDialog) {
-        IpAudioSettingsDialog(
-            ipPreferences = ipPreferences,
-            onDismiss = { showIpAudioDialog = false },
-            onSaved = { refreshKey++ }
-        )
-    }
 
     if (showThemeDialog) {
         ThemeSelectionDialog(
@@ -331,13 +323,19 @@ fun MoreScreen(
         SectionHeader("Calling & SIM Preferences")
 
         // 1. IP Calling & IP Number Settings (Preserved 100% exactly as requested)
-        val ipSummary = remember(refreshKey, ipPreferences.balance) {
+        val ipSummary = remember(refreshKey, ipPreferences.balance, ipPreferences.audioQualityPreset) {
+            val qLabel = when (ipPreferences.audioQualityPreset) {
+                "HD_16K" -> "720p HD"
+                "FHD_24K" -> "1080p FHD"
+                "ULTRA_48K" -> "4K Ultra HD"
+                else -> "8kHz"
+            }
             if (ipPreferences.username.isNotBlank()) {
-                "Account: ${ipPreferences.username} • Balance: ৳${String.format(java.util.Locale.US, "%.2f", ipPreferences.balance)}"
+                "Account: ${ipPreferences.username} • Balance: ৳${String.format(java.util.Locale.US, "%.2f", ipPreferences.balance)} • $qLabel"
             } else if (ipPreferences.domain.isNotBlank()) {
-                "Domain: ${ipPreferences.domain} • Setup SIP Account & Dashboard"
+                "Domain: ${ipPreferences.domain} • Setup SIP Account, Sound & Dashboard"
             } else {
-                "Setup SIP Account & Dashboard"
+                "Setup SIP Account, Audio Quality & Dashboard"
             }
         }
 
@@ -346,24 +344,6 @@ fun MoreScreen(
             title = "IP Calling & IP Number Settings",
             subtitle = ipSummary,
             onClick = { showIpDialog = true }
-        )
-
-        // 1b. IP Call Sound & Audio Quality
-        val audioSummary = remember(refreshKey, ipPreferences.audioQualityPreset, ipPreferences.preferredCodec, ipPreferences.micGainBoost) {
-            val qLabel = when (ipPreferences.audioQualityPreset) {
-                "HD_16K" -> "720p HD (16kHz)"
-                "FHD_24K" -> "1080p FHD (24kHz)"
-                "ULTRA_48K" -> "4K Ultra HD (48kHz)"
-                else -> "Standard (8kHz)"
-            }
-            "Quality: $qLabel • Codec: ${ipPreferences.preferredCodec} • Mic Boost: ${if (ipPreferences.micGainBoost > 0) "+${ipPreferences.micGainBoost}dB" else "Normal"}"
-        }
-
-        MoreOptionItem(
-            icon = Icons.Default.SurroundSound,
-            title = "IP Call Sound & Audio Quality",
-            subtitle = audioSummary,
-            onClick = { showIpAudioDialog = true }
         )
 
         // 2. Dual SIM Settings
@@ -491,6 +471,7 @@ fun MoreScreen(
                 "CYBERPUNK_AMOLED" -> "Cyberpunk AMOLED (Pure OLED Neon)"
                 "EMERALD_AURORA" -> "Emerald Aurora (Deep Teal Gradient)"
                 "SUNSET_VELVET" -> "Sunset Velvet (Purple & Crimson)"
+                "LIGHT_PURPLE" -> "Classic Purple (Clean White & Violet)"
                 else -> "Classic Dark (Default Navy)"
             }
         }

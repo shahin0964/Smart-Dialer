@@ -30,9 +30,11 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import com.smartdialer.app.ui.dialogs.IpAudioSettingsDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -113,6 +115,7 @@ fun IpAccountSettingsScreen(
     val displayBalance = liveRealBalance ?: ipPreferences.balance
 
     var showQuickCallDialog by remember { mutableStateOf(false) }
+    var showAudioSettingsDialog by remember { mutableStateOf(false) }
     var refreshStatsKey by remember { mutableStateOf(0) }
 
     LaunchedEffect(Unit) {
@@ -184,6 +187,14 @@ fun IpAccountSettingsScreen(
                 refreshStatsKey++
             },
             onDismiss = { showQuickCallDialog = false }
+        )
+    }
+
+    if (showAudioSettingsDialog) {
+        IpAudioSettingsDialog(
+            ipPreferences = ipPreferences,
+            onDismiss = { showAudioSettingsDialog = false },
+            onSaved = { refreshStatsKey++ }
         )
     }
 
@@ -519,6 +530,78 @@ fun IpAccountSettingsScreen(
                                         Spacer(modifier = Modifier.height(2.dp))
                                         Text(
                                             text = "Username, Password, Domain, Mode, Proxy & STUN",
+                                            fontSize = 11.sp,
+                                            color = TextMuted,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+
+                                Icon(
+                                    imageVector = Icons.Default.ChevronRight,
+                                    contentDescription = null,
+                                    tint = TextLightGray,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+
+                        // 3b. Sound & Audio Quality Card
+                        val audioQualityDashboardSummary = remember(refreshStatsKey, ipPreferences.audioQualityPreset, ipPreferences.preferredCodec, ipPreferences.micGainBoost) {
+                            val qLabel = when (ipPreferences.audioQualityPreset) {
+                                "HD_16K" -> "720p HD (16kHz)"
+                                "FHD_24K" -> "1080p FHD (24kHz)"
+                                "ULTRA_48K" -> "4K Ultra HD (48kHz)"
+                                else -> "Standard (8kHz)"
+                            }
+                            "$qLabel • ${ipPreferences.preferredCodec} • Mic: ${if (ipPreferences.micGainBoost > 0) "+${ipPreferences.micGainBoost}dB" else "Normal"}"
+                        }
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showAudioSettingsDialog = true },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(42.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(PurpleUltraLight),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.SurroundSound,
+                                            contentDescription = null,
+                                            tint = PurplePrimary,
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(14.dp))
+                                    Column {
+                                        Text(
+                                            text = "Sound & Audio Quality (সাউন্ড কোয়ালিটি)",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextDark
+                                        )
+                                        Spacer(modifier = Modifier.height(2.dp))
+                                        Text(
+                                            text = audioQualityDashboardSummary,
                                             fontSize = 11.sp,
                                             color = TextMuted,
                                             maxLines = 1,
@@ -892,6 +975,60 @@ fun IpAccountSettingsScreen(
                                     )
                                     Text(
                                         text = "Proxy, Transport, STUN, Mobile Network",
+                                        fontSize = 12.sp,
+                                        color = TextMuted
+                                    )
+                                }
+                            }
+                            Icon(
+                                imageVector = Icons.Default.ChevronRight,
+                                contentDescription = null,
+                                tint = TextLightGray,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    // Sound & Audio Quality Navigation Card
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAudioSettingsDialog = true },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(PurpleUltraLight),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SurroundSound,
+                                        contentDescription = null,
+                                        tint = PurplePrimary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Sound & Audio Quality",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TextDark
+                                    )
+                                    Text(
+                                        text = "Quality Preset (720p HD / 4K), Codec, Mic Boost & FX",
                                         fontSize = 12.sp,
                                         color = TextMuted
                                     )
