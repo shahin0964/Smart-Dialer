@@ -97,7 +97,7 @@ fun LockScreenSettingsDialog(
                 .fillMaxWidth(0.94f)
                 .heightIn(max = 680.dp),
             shape = RoundedCornerShape(24.dp),
-            color = theme.dialogBackground,
+            color = theme.surface,
             tonalElevation = 8.dp
         ) {
             Column(
