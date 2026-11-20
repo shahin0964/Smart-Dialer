@@ -547,7 +547,7 @@ fun MoreScreen(
             onClick = { showAnalysisDialog = true }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(72.dp))
     }
 }
 
