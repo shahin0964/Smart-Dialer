@@ -81,6 +81,7 @@ import com.smartdialer.app.ui.dialogs.CallRecordingDialog
 import com.smartdialer.app.ui.dialogs.CallingCountryDialog
 import com.smartdialer.app.ui.dialogs.DualSimSettingsDialog
 import com.smartdialer.app.ui.dialogs.EmergencySosDialog
+import com.smartdialer.app.ui.dialogs.LockScreenSettingsDialog
 import com.smartdialer.app.ui.dialogs.SoundsHapticsDialog
 import com.smartdialer.app.ui.dialogs.SpeedDialDialog
 import com.smartdialer.app.ui.dialogs.VcfExportImportDialog
@@ -118,6 +119,7 @@ fun MoreScreen(
     var showCallerIdDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showAnalysisDialog by remember { mutableStateOf(false) }
+    var showLockScreenDialog by remember { mutableStateOf(false) }
 
     var refreshKey by remember { mutableStateOf(0) }
     var sims by remember { mutableStateOf<List<SimInfo>>(emptyList()) }
@@ -168,6 +170,15 @@ fun MoreScreen(
     if (showAnalysisDialog) {
         AppAnalysisDialog(
             onDismiss = { showAnalysisDialog = false }
+        )
+    }
+
+    if (showLockScreenDialog) {
+        LockScreenSettingsDialog(
+            onDismiss = {
+                showLockScreenDialog = false
+                refreshKey++
+            }
         )
     }
 
@@ -341,41 +352,56 @@ fun MoreScreen(
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp),
+                .padding(vertical = 8.dp)
+                .clickable { showLockScreenDialog = true },
             shape = RoundedCornerShape(16.dp),
             colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFFEA580C)),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Security,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0xFFEA580C)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Security,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                text = "Lock Screen & Alert Settings",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = theme.textPrimary
+                            )
+                            Text(
+                                text = if (canFullScreen && isIgnoringBattery) "Calls optimized for background & lock screen" else "Optimization recommended for Xiaomi/Oppo/Realme",
+                                fontSize = 12.sp,
+                                color = if (canFullScreen && isIgnoringBattery) CallIncomingGreen else Color(0xFFF59E0B)
+                            )
+                        }
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "Lock Screen & Alert Settings",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = theme.textPrimary
-                        )
-                        Text(
-                            text = if (canFullScreen && isIgnoringBattery) "Calls optimized for background & lock screen" else "Optimization recommended for Xiaomi/Oppo/Realme",
-                            fontSize = 12.sp,
-                            color = if (canFullScreen && isIgnoringBattery) CallIncomingGreen else Color(0xFFF59E0B)
+
+                    IconButton(onClick = { showLockScreenDialog = true }) {
+                        Icon(
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = "Configure",
+                            tint = theme.textMuted
                         )
                     }
                 }

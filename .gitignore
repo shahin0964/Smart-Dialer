@@ -14,7 +14,7 @@
 .cxx
 local.properties
 app/build/
-release.jks
-*.jks
 *.keystore
 keystore_base64.txt
+*.jks
+!app/release.jks

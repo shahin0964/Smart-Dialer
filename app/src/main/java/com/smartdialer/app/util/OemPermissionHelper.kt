@@ -67,8 +67,27 @@ object OemPermissionHelper {
 
     /**
      * Requests user to disable battery optimizations for uninterrupted incoming calls.
+     * With android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS in the manifest,
+     * this displays the system modal dialog with "Allow" and "Deny" buttons.
      */
     fun requestIgnoreBatteryOptimizations(context: Context) {
+        if (isIgnoringBatteryOptimizations(context)) {
+            android.widget.Toast.makeText(
+                context,
+                "Battery is already unrestricted for Smart-Dialer",
+                android.widget.Toast.LENGTH_SHORT
+            ).show()
+            try {
+                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                openAppDetailsSettings(context)
+            }
+            return
+        }
+
         try {
             val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                 data = Uri.parse("package:${context.packageName}")
@@ -175,20 +194,71 @@ object OemPermissionHelper {
      * Attempts to open Xiaomi/ColorOS background popup / display over other apps settings.
      */
     fun openOemBackgroundPopupSettings(context: Context) {
+        val intents = mutableListOf<Intent>()
+
         if (isXiaomi()) {
-            try {
-                val intent = Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+            intents.add(
+                Intent("miui.intent.action.APP_PERM_EDITOR").apply {
                     setClassName(
                         "com.miui.securitycenter",
                         "com.miui.permcenter.permissions.PermissionsEditorActivity"
                     )
                     putExtra("extra_pkgname", context.packageName)
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
+            )
+            intents.add(
+                Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                    setClassName(
+                        "com.miui.securitycenter",
+                        "com.miui.permcenter.permissions.AppPermissionsEditorActivity"
+                    )
+                    putExtra("extra_pkgname", context.packageName)
+                }
+            )
+        } else if (isOppoOrRealme()) {
+            intents.add(
+                Intent().setComponent(
+                    ComponentName(
+                        "com.coloros.safecenter",
+                        "com.coloros.safecenter.permission.floatwindow.FloatWindowListActivity"
+                    )
+                )
+            )
+            intents.add(
+                Intent().setComponent(
+                    ComponentName(
+                        "com.oplus.safecenter",
+                        "com.oplus.safecenter.permission.floatwindow.FloatWindowListActivity"
+                    )
+                )
+            )
+        } else if (isVivo()) {
+            intents.add(
+                Intent().setComponent(
+                    ComponentName(
+                        "com.vivo.permissionmanager",
+                        "com.vivo.permissionmanager.activity.PurviewTabActivity"
+                    )
+                )
+            )
+        }
+
+        // Overlay permission intent as universal fallback
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            intents.add(
+                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                }
+            )
+        }
+
+        for (intent in intents) {
+            try {
+                intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 context.startActivity(intent)
                 return
             } catch (e: Exception) {
-                // Fallback
+                // Try next
             }
         }
         openAppDetailsSettings(context)
