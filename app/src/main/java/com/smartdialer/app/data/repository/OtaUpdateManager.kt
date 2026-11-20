@@ -255,6 +255,9 @@ object OtaUpdateManager {
         onProgress: (progressPercent: Int, downloadedBytes: Long, totalBytes: Long) -> Unit
     ): Result<File> = withContext(Dispatchers.IO) {
         try {
+            // Clean up any stale APKs before beginning download
+            cleanUpOldApks(context)
+
             val updateDir = File(context.cacheDir, "updates")
             if (!updateDir.exists()) {
                 updateDir.mkdirs()
@@ -378,6 +381,31 @@ object OtaUpdateManager {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_GRANT_READ_URI_PERMISSION
             }
             context.startActivity(installIntent)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    /**
+     * Cleans up all downloaded APK and temporary update files so no residue is left in storage.
+     */
+    fun cleanUpOldApks(context: Context) {
+        try {
+            val updateDir = File(context.cacheDir, "updates")
+            if (updateDir.exists()) {
+                updateDir.deleteRecursively()
+            }
+            context.cacheDir.listFiles()?.forEach { file ->
+                if (file.name.endsWith(".apk", ignoreCase = true) || file.name.endsWith(".tmp", ignoreCase = true)) {
+                    file.delete()
+                }
+            }
+            context.getExternalFilesDir(null)?.let { extDir ->
+                val extUpdateDir = File(extDir, "updates")
+                if (extUpdateDir.exists()) {
+                    extUpdateDir.deleteRecursively()
+                }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }
