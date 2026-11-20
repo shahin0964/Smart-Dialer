@@ -32,6 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.smartdialer.app.data.model.CallStatus
 import com.smartdialer.app.data.repository.AppSettingsPreferences
 import com.smartdialer.app.data.repository.AppUpdateNotifier
 import com.smartdialer.app.data.repository.CallLogRepository
@@ -113,6 +114,14 @@ class MainActivity : ComponentActivity() {
                     onRequestDefaultDialer = { triggerDefaultDialerRequest() }
                 )
             }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val currentCall = CallManager.currentCallState.value
+        if (currentCall.status != CallStatus.IDLE && currentCall.status != CallStatus.DISCONNECTED) {
+            CallManager.launchCallActivity(this)
         }
     }
 

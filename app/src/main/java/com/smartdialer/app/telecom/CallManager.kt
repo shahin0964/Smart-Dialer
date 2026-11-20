@@ -1,7 +1,9 @@
 package com.smartdialer.app.telecom
 
 import android.Manifest
+import android.app.ActivityOptions
 import android.app.KeyguardManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -79,6 +81,52 @@ object CallManager {
         inCallService = null
     }
 
+    fun launchCallActivity(context: Context) {
+        val intent = Intent(context, CallActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+
+        val options = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            ActivityOptions.makeBasic().apply {
+                setPendingIntentBackgroundActivityStartMode(
+                    ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+                )
+            }.toBundle()
+        } else {
+            null
+        }
+
+        // 1. Direct startActivity with BAL options
+        try {
+            if (options != null) {
+                context.startActivity(intent, options)
+            } else {
+                context.startActivity(intent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 2. Also send via PendingIntent with MODE_BACKGROUND_ACTIVITY_START_ALLOWED
+        try {
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                1001,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            if (options != null) {
+                pendingIntent.send(context, 0, intent, null, null, null, options)
+            } else {
+                pendingIntent.send()
+            }
+        } catch (ex: Exception) {
+            // Ignored if already launched
+        }
+    }
+
     fun setCall(call: Call, context: Context) {
         appContext = context.applicationContext
         activeCall?.unregisterCallback(callCallback)
@@ -95,12 +143,7 @@ object CallManager {
         // Instead, the floating Heads-Up notification card is displayed at top.
         // Only launch CallActivity directly if outgoing, or if device is locked.
         if (!isIncoming || isLocked) {
-            val intent = Intent(context, CallActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            context.startActivity(intent)
+            launchCallActivity(context)
         }
     }
 
@@ -251,6 +294,25 @@ object CallManager {
                             isSpam = isSpam,
                             spamCategory = spamCategory
                         )
+                    } else {
+                        CallNotificationManager.showOngoingCallNotification(
+                            context = context,
+                            rawNumber = rawNumber,
+                            contactName = contactName,
+                            photoUri = contactPhoto,
+                            statusText = "Ringing..."
+                        )
+                    }
+                }
+                CallStatus.DIALING, CallStatus.CONNECTING -> {
+                    if (!isIncoming) {
+                        CallNotificationManager.showOngoingCallNotification(
+                            context = context,
+                            rawNumber = rawNumber,
+                            contactName = contactName,
+                            photoUri = contactPhoto,
+                            statusText = if (status == CallStatus.DIALING) "Dialing..." else "Connecting..."
+                        )
                     }
                 }
                 CallStatus.ACTIVE -> {
@@ -263,11 +325,20 @@ object CallManager {
                         durationFormatted = _currentCallState.value.durationFormatted
                     )
                 }
+                CallStatus.HOLDING -> {
+                    CallNotificationManager.showOngoingCallNotification(
+                        context = context,
+                        rawNumber = rawNumber,
+                        contactName = contactName,
+                        photoUri = contactPhoto,
+                        statusText = "Call on hold • ${_currentCallState.value.durationFormatted}"
+                    )
+                }
                 CallStatus.DISCONNECTED -> {
                     CallNotificationManager.dismissAll(context)
                 }
                 else -> {
-                    // IDLE, CONNECTING, DIALING, HOLDING
+                    // IDLE
                 }
             }
         }
@@ -667,6 +738,32 @@ object CallManager {
                     e.printStackTrace()
                 }
             }
+
+            appContext = context.applicationContext
+            val (resolvedName, resolvedPhoto) = lookupContactInfo(context, cleanNumber)
+            val displayName = if (!resolvedName.isNullOrBlank()) resolvedName else cleanNumber
+
+            _currentCallState.value = ActiveCallInfo(
+                callId = "out_${System.currentTimeMillis()}",
+                number = cleanNumber,
+                contactName = displayName,
+                photoUri = resolvedPhoto,
+                status = CallStatus.CONNECTING,
+                simSlot = simSlot,
+                isIncoming = false
+            )
+
+            // Immediately launch CallActivity from the active foreground context
+            launchCallActivity(context)
+
+            // Show outgoing notification immediately so user has persistent call controls
+            CallNotificationManager.showOngoingCallNotification(
+                context = context,
+                rawNumber = cleanNumber,
+                contactName = displayName,
+                photoUri = resolvedPhoto,
+                statusText = "Calling..."
+            )
 
             // 1. Direct Telecom placeCall (places call directly via default dialer without chooser popup)
             if (telecomManager != null && hasPhonePermission) {

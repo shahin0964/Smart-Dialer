@@ -1,5 +1,6 @@
 package com.smartdialer.app.telecom
 
+import android.app.KeyguardManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -89,6 +90,14 @@ object CallNotificationManager {
     ) {
         ensureChannelsCreated(context)
 
+        val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
+        val isLocked = keyguardManager?.isKeyguardLocked == true
+
+        // If CallActivity is already open full-screen while locked, skip posting notification
+        if (CallActivity.isCallActivityVisible && isLocked) {
+            return
+        }
+
         val displayName = if (!contactName.isNullOrBlank() && contactName != "Unknown") {
             contactName
         } else {
@@ -103,6 +112,10 @@ object CallNotificationManager {
 
         // Asynchronously check photo and build notification
         scope.launch {
+            if (CallActivity.isCallActivityVisible && isLocked) {
+                return@launch
+            }
+
             var avatarBitmap: Bitmap? = null
             if (!photoUri.isNullOrBlank()) {
                 avatarBitmap = ContactPhotoLoader.loadPhoto(context, photoUri, null, preferHighRes = true)
@@ -168,7 +181,7 @@ object CallNotificationManager {
                 .setFullScreenIntent(fullScreenPendingIntent, true) // Shows heads-up card when unlocked!
                 .setOngoing(true)
                 .setAutoCancel(false)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                .setVisibility(if (isLocked) NotificationCompat.VISIBILITY_SECRET else NotificationCompat.VISIBILITY_PUBLIC)
                 .setStyle(
                     NotificationCompat.CallStyle.forIncomingCall(
                         person,
@@ -180,7 +193,9 @@ object CallNotificationManager {
                 .addAction(R.drawable.ic_call_answer, "Answer", answerPendingIntent)
 
             try {
-                notificationManager.notify(NOTIFICATION_ID_INCOMING, builder.build())
+                if (!CallActivity.isCallActivityVisible || !isLocked) {
+                    notificationManager.notify(NOTIFICATION_ID_INCOMING, builder.build())
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -192,7 +207,8 @@ object CallNotificationManager {
         rawNumber: String,
         contactName: String?,
         photoUri: String?,
-        durationFormatted: String
+        durationFormatted: String = "",
+        statusText: String? = null
     ) {
         ensureChannelsCreated(context)
 
@@ -200,6 +216,12 @@ object CallNotificationManager {
             contactName
         } else {
             rawNumber.ifBlank { "Caller" }
+        }
+
+        val contentText = statusText ?: if (durationFormatted.isNotBlank()) {
+            "Call in progress • $durationFormatted"
+        } else {
+            "Call in progress"
         }
 
         scope.launch {
@@ -239,11 +261,12 @@ object CallNotificationManager {
             val builder = NotificationCompat.Builder(context, CHANNEL_ID_ONGOING)
                 .setSmallIcon(R.drawable.ic_notification_incoming_call)
                 .setContentTitle(displayName)
-                .setContentText("Call in progress • $durationFormatted")
+                .setContentText(contentText)
                 .setLargeIcon(avatarBitmap)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
                 .setCategory(NotificationCompat.CATEGORY_CALL)
                 .setContentIntent(openCallPendingIntent)
+                .setFullScreenIntent(openCallPendingIntent, false)
                 .setOngoing(true)
                 .setAutoCancel(false)
                 .addAction(R.drawable.ic_call_decline, "End Call", hangupPendingIntent)

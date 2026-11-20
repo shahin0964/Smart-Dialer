@@ -24,6 +24,7 @@ import androidx.lifecycle.lifecycleScope
 import com.smartdialer.app.data.model.CallStatus
 import com.smartdialer.app.data.repository.AppSettingsPreferences
 import com.smartdialer.app.telecom.CallManager
+import com.smartdialer.app.telecom.CallNotificationManager
 import com.smartdialer.app.telecom.FloatingCallHeadManager
 import com.smartdialer.app.ui.theme.SmartDialerTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,6 +38,11 @@ import kotlinx.coroutines.launch
  * and turning it back on when removed, exactly like standard AOSP dialers.
  */
 class CallActivity : ComponentActivity() {
+
+    companion object {
+        @Volatile
+        var isCallActivityVisible: Boolean = false
+    }
 
     private var proximityWakeLock: PowerManager.WakeLock? = null
     private var sensorManager: SensorManager? = null
@@ -62,6 +68,9 @@ class CallActivity : ComponentActivity() {
             )
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        // Dismiss incoming call notification so it never duplicates or hovers over CallActivity
+        CallNotificationManager.dismissIncomingCallNotification(this)
 
         // Initialize Hardware Proximity Screen-Off WakeLock
         initProximitySensor()
@@ -211,6 +220,23 @@ class CallActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        isCallActivityVisible = true
+        CallNotificationManager.dismissIncomingCallNotification(this)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        isCallActivityVisible = true
+        CallNotificationManager.dismissIncomingCallNotification(this)
+    }
+
+    override fun onStop() {
+        isCallActivityVisible = false
+        super.onStop()
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         // User switched apps or pressed home; pause proximity blanking and show floating bubble
@@ -221,6 +247,7 @@ class CallActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        isCallActivityVisible = false
         releaseProximityLock()
         sensorManager?.unregisterListener(sensorEventListener)
         if (CallManager.currentCallState.value.status == CallStatus.DISCONNECTED ||
