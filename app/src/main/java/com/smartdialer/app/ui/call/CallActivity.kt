@@ -211,15 +211,6 @@ class CallActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        FloatingCallHeadManager.dismiss()
-        val state = CallManager.currentCallState.value
-        if (!state.isSpeakerOn && state.status != CallStatus.DISCONNECTED && state.status != CallStatus.IDLE) {
-            acquireProximityLock()
-        }
-    }
-
     override fun onStart() {
         super.onStart()
         isCallActivityVisible = true
@@ -230,6 +221,11 @@ class CallActivity : ComponentActivity() {
         super.onResume()
         isCallActivityVisible = true
         CallNotificationManager.dismissIncomingCallNotification(this)
+        FloatingCallHeadManager.dismiss()
+        val state = CallManager.currentCallState.value
+        if (!state.isSpeakerOn && state.status != CallStatus.DISCONNECTED && state.status != CallStatus.IDLE) {
+            acquireProximityLock()
+        }
     }
 
     override fun onStop() {

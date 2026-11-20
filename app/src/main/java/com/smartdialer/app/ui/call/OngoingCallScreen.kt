@@ -274,7 +274,7 @@ fun OngoingCallScreen(
             ) {
                 // Animated Theme-Specific Avatar Skin
                 Box(
-                    modifier = Modifier.size(170.dp),
+                    modifier = Modifier.size(190.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     when (currentTheme) {
@@ -462,18 +462,23 @@ fun OngoingCallScreen(
 
                 if (currentTheme == "CYBERPUNK_AMOLED") {
                     Spacer(modifier = Modifier.height(6.dp))
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                    Box(
+                        modifier = Modifier.height(26.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        listOf(eq1, eq2, eq3, eq4, eq5).forEachIndexed { index, barHeight ->
-                            Box(
-                                modifier = Modifier
-                                    .width(4.dp)
-                                    .height(barHeight.dp)
-                                    .clip(RoundedCornerShape(2.dp))
-                                    .background(if (index % 2 == 0) Color(0xFF00F0FF) else Color(0xFFFF007F))
-                            )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            listOf(eq1, eq2, eq3, eq4, eq5).forEachIndexed { index, barHeight ->
+                                Box(
+                                    modifier = Modifier
+                                        .width(4.dp)
+                                        .height(barHeight.dp)
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(if (index % 2 == 0) Color(0xFF00F0FF) else Color(0xFFFF007F))
+                                )
+                            }
                         }
                     }
                 }
@@ -567,7 +572,10 @@ fun OngoingCallScreen(
                 ) {
                     // Reject (Red with animated pulse ripple)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier.size(100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size((72 + wave2 * 26).dp)
@@ -600,7 +608,10 @@ fun OngoingCallScreen(
 
                     // Answer (Green with animated pulse ripple)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier.size(100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
                             Box(
                                 modifier = Modifier
                                     .size((72 + wave1 * 26).dp)
@@ -714,7 +725,10 @@ fun OngoingCallScreen(
                     Spacer(modifier = Modifier.height(10.dp))
 
                     // End Call Button (Large Red Circular with animated ripple & drop shadow)
-                    Box(contentAlignment = Alignment.Center) {
+                    Box(
+                        modifier = Modifier.size(96.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Box(
                             modifier = Modifier
                                 .size((72 + wave1 * 22).dp)
