@@ -18,7 +18,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -283,7 +286,12 @@ class MainActivity : ComponentActivity() {
 
         Scaffold(
             topBar = {
-                Column {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(theme.topBarBg)
+                        .statusBarsPadding()
+                ) {
                     TopHeader(
                         onCrownClick = { /* VIP / Crown info */ },
                         onSettingsClick = { selectedTab = MainTab.MORE },
@@ -301,6 +309,7 @@ class MainActivity : ComponentActivity() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
+                    .navigationBarsPadding()
                     .background(theme.background)
             ) {
                 when (selectedTab) {

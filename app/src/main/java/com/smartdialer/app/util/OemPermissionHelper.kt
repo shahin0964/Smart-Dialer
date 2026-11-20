@@ -40,8 +40,66 @@ object OemPermissionHelper {
         return m.contains("huawei") || b.contains("honor")
     }
 
+    fun isSamsung(): Boolean {
+        val m = Build.MANUFACTURER.lowercase()
+        val b = Build.BRAND.lowercase()
+        return m.contains("samsung") || b.contains("samsung")
+    }
+
+    fun isTranssion(): Boolean {
+        val m = Build.MANUFACTURER.lowercase()
+        val b = Build.BRAND.lowercase()
+        return m.contains("transsion") || m.contains("infinix") || m.contains("tecno") || m.contains("itel") ||
+                b.contains("infinix") || b.contains("tecno") || b.contains("itel")
+    }
+
     fun isAggressiveOem(): Boolean {
-        return isXiaomi() || isOppoOrRealme() || isVivo() || isHuawei()
+        return isXiaomi() || isOppoOrRealme() || isVivo() || isHuawei() || isSamsung() || isTranssion()
+    }
+
+    fun getDeviceBrandName(): String {
+        val m = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
+        val b = Build.BRAND.replaceFirstChar { it.uppercase() }
+        return when {
+            isXiaomi() -> "Xiaomi / Redmi / Poco"
+            isOppoOrRealme() -> "Oppo / Realme / OnePlus"
+            isVivo() -> "Vivo / iQOO"
+            isSamsung() -> "Samsung Galaxy"
+            isHuawei() -> "Huawei / Honor"
+            isTranssion() -> "Tecno / Infinix"
+            m.isNotBlank() && m != "Unknown" -> "$m ($b)"
+            else -> "Android Device"
+        }
+    }
+
+    /**
+     * Checks if the app can draw overlays (appear on top / pop-up window).
+     */
+    fun canDrawOverlays(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Settings.canDrawOverlays(context)
+        } else {
+            true
+        }
+    }
+
+    /**
+     * Opens system settings to allow 'Display over other apps' (Appear on top).
+     */
+    fun openOverlaySettings(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                context.startActivity(intent)
+                return
+            } catch (e: Exception) {
+                // Fallback to app details
+            }
+        }
+        openAppDetailsSettings(context)
     }
 
     /**
@@ -171,6 +229,32 @@ object OemPermissionHelper {
                     ComponentName(
                         "com.vivo.permissionmanager",
                         "com.vivo.permissionmanager.activity.PurviewTabActivity"
+                    )
+                )
+            )
+        } else if (isSamsung()) {
+            intents.add(
+                Intent().setComponent(
+                    ComponentName(
+                        "com.samsung.android.lool",
+                        "com.samsung.android.sm.ui.battery.BatteryActivity"
+                    )
+                )
+            )
+            intents.add(
+                Intent().setComponent(
+                    ComponentName(
+                        "com.samsung.android.sm",
+                        "com.samsung.android.sm.battery.ui.BatteryActivity"
+                    )
+                )
+            )
+        } else if (isTranssion()) {
+            intents.add(
+                Intent().setComponent(
+                    ComponentName(
+                        "com.transsion.phonemaster",
+                        "com.transsion.phonemaster.AutoStartListActivity"
                     )
                 )
             )
