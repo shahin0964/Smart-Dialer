@@ -53,16 +53,15 @@ class CallActivity : ComponentActivity() {
             setTurnScreenOn(true)
             val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
             keyguardManager?.requestDismissKeyguard(this, null)
+        } else {
+            @Suppress("DEPRECATION")
+            window.addFlags(
+                WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
+                        WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
+                        WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+            )
         }
-        @Suppress("DEPRECATION")
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or
-                    WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD or
-                    WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON or
-                    WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-        )
-
-        wakeUpScreenIfSleeping()
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         // Initialize Hardware Proximity Screen-Off WakeLock
         initProximitySensor()
@@ -218,22 +217,6 @@ class CallActivity : ComponentActivity() {
         releaseProximityLock()
         if (CallManager.currentCallState.value.status == CallStatus.ACTIVE) {
             FloatingCallHeadManager.show(this)
-        }
-    }
-
-    private fun wakeUpScreenIfSleeping() {
-        try {
-            val powerManager = getSystemService(Context.POWER_SERVICE) as? PowerManager
-            if (powerManager?.isInteractive == false) {
-                @Suppress("DEPRECATION")
-                val wakeLock = powerManager.newWakeLock(
-                    PowerManager.SCREEN_BRIGHT_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP or PowerManager.ON_AFTER_RELEASE,
-                    "SmartDialer:CallActivityWakeLock"
-                )
-                wakeLock.acquire(5000L)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
     }
 

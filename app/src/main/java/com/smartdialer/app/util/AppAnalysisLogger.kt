@@ -227,7 +227,12 @@ object AppAnalysisLogger {
     fun generateFullDiagnosticReport(context: Context): String {
         val pm = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
         val isBatteryIgnoring = pm?.isIgnoringBatteryOptimizations(context.packageName) ?: false
-        val canFullScreen = OemPermissionHelper.canUseFullScreenIntent(context)
+        val canFullScreen = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as? NotificationManager
+            nm?.canUseFullScreenIntent() ?: true
+        } else {
+            true
+        }
         val notificationsEnabled = NotificationManagerCompat.from(context).areNotificationsEnabled()
 
         val isDefaultDialer = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -247,6 +252,10 @@ object AppAnalysisLogger {
 
         val recentLogs = _logsFlow.value.take(40)
 
+        val isAggressiveOem = listOf("xiaomi", "redmi", "poco", "oppo", "realme", "oneplus", "vivo", "iqoo", "huawei", "honor").any {
+            Build.MANUFACTURER.lowercase(Locale.ROOT).contains(it) || Build.BRAND.lowercase(Locale.ROOT).contains(it)
+        }
+
         return buildString {
             appendLine("=========================================")
             appendLine(" SMART-DIALER SYSTEM DIAGNOSTIC REPORT")
@@ -258,7 +267,7 @@ object AppAnalysisLogger {
             appendLine("• Board / Product: ${Build.BOARD} / ${Build.PRODUCT}")
             appendLine("• Android Version: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
             appendLine("• Build Fingerprint: ${Build.FINGERPRINT}")
-            appendLine("• OEM Type: ${if (OemPermissionHelper.isAggressiveOem()) "Aggressive OEM (Xiaomi/ColorOS/Realme/Vivo)" else "Standard AOSP"}")
+            appendLine("• OEM Type: ${if (isAggressiveOem) "Aggressive OEM (Xiaomi/ColorOS/Realme/Vivo)" else "Standard AOSP"}")
             appendLine()
             appendLine("[2. TELECOM & CRITICAL PERMISSIONS]")
             appendLine("• Default Dialer (ROLE_DIALER): ${if (isDefaultDialer) "HELD (ACTIVE)" else "NOT DEFAULT (WARNING)"}")
