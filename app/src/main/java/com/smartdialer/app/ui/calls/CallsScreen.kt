@@ -431,11 +431,12 @@ fun CallsScreen(
 
 @Composable
 fun SectionHeader(title: String) {
+    val theme = LocalAppTheme.current
     Text(
         text = title,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
-        color = TextMuted,
+        color = theme.textMuted,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)

@@ -9,6 +9,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.telecom.Call
 import android.telecom.CallAudioState
 import android.telecom.PhoneAccountHandle
@@ -23,6 +24,7 @@ import com.smartdialer.app.data.model.SpamAction
 import com.smartdialer.app.data.repository.IpCallStatsRepository
 import com.smartdialer.app.data.repository.SpamProtectionManager
 import com.smartdialer.app.ui.call.CallActivity
+import com.smartdialer.app.util.AppAnalysisLogger
 import com.smartdialer.app.utils.SpecialCodeHelper
 import com.smartdialer.app.utils.VibrationHelper
 import kotlinx.coroutines.CoroutineScope
@@ -87,20 +89,25 @@ object CallManager {
         updateFromCall(call)
 
         val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        val isLocked = keyguardManager?.isKeyguardLocked == true
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val isScreenInteractive = powerManager?.isInteractive ?: true
+        val isLocked = (keyguardManager?.isKeyguardLocked == true) || !isScreenInteractive
         val isIncoming = (call.state == Call.STATE_RINGING)
 
-        // If it's an incoming call while device is unlocked (user in app/game),
-        // we DO NOT aggressively pop up CallActivity full-screen.
-        // Instead, the floating Heads-Up notification card is displayed at top.
-        // Only launch CallActivity directly if outgoing, or if device is locked.
+        // If phone is locked or screen is off: launch CallActivity full-screen.
+        // If phone is unlocked (user in an active app or game): DO NOT pop up full-screen;
+        // show Heads-Up banner notification at top (stock Xiaomi, Realme, Oppo behavior).
         if (!isIncoming || isLocked) {
             val intent = Intent(context, CallActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_SINGLE_TOP or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
-            context.startActivity(intent)
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                AppAnalysisLogger.error("CallManager", "Failed to start CallActivity from background (locked=$isLocked, isIncoming=$isIncoming)", e)
+            }
         }
     }
 
@@ -108,6 +115,7 @@ object CallManager {
         activeCall?.unregisterCallback(callCallback)
         activeCall = null
         stopDurationTimer()
+        AppAnalysisLogger.telecom("CallCleared", "Active call cleared and notifications dismissed")
         appContext?.let {
             CallNotificationManager.dismissAll(it)
             IpCallService.stop(it)
@@ -153,6 +161,8 @@ object CallManager {
             Call.STATE_ACTIVE -> CallStatus.ACTIVE
             Call.STATE_HOLDING -> CallStatus.HOLDING
             Call.STATE_CONNECTING -> CallStatus.CONNECTING
+            Call.STATE_SELECT_PHONE_ACCOUNT -> CallStatus.CONNECTING
+            Call.STATE_DISCONNECTING -> CallStatus.DISCONNECTED
             Call.STATE_DISCONNECTED -> CallStatus.DISCONNECTED
             else -> CallStatus.IDLE
         }
@@ -576,15 +586,22 @@ object CallManager {
             spamCategory = spamResult.category
         )
 
-        // If screen is locked, launch full-screen CallActivity
+        // If screen is locked or display is asleep, launch full-screen CallActivity
         val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
-        if (keyguardManager?.isKeyguardLocked == true) {
+        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager
+        val isScreenInteractive = powerManager?.isInteractive ?: true
+        val isLocked = (keyguardManager?.isKeyguardLocked == true) || !isScreenInteractive
+        if (isLocked) {
             val intent = Intent(context, CallActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                         Intent.FLAG_ACTIVITY_SINGLE_TOP or
                         Intent.FLAG_ACTIVITY_CLEAR_TOP
             }
-            context.startActivity(intent)
+            try {
+                context.startActivity(intent)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 

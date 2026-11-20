@@ -640,7 +640,7 @@ fun ContactsScreen(
                         },
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TextDark
+                        color = theme.textPrimary
                     )
                     if (activeFilter == ContactSourceFilter.GOOGLE && googleAccounts.isNotEmpty()) {
                         Text(
@@ -1546,13 +1546,14 @@ fun LiveCallerIdSearchCard(
 ) {
     val isSpam = callerId?.isSpam == true
     val hasName = !callerId?.name.isNullOrBlank()
+    val theme = LocalAppTheme.current
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = if (isSpam) Color(0xFFFEF2F2) else Color(0xFFF8FAFC)),
+        colors = CardDefaults.cardColors(containerColor = if (isSpam) Color(0xFFFEF2F2) else theme.cardBackground),
         border = androidx.compose.foundation.BorderStroke(1.dp, if (isSpam) Color(0xFFFCA5A5) else PurpleBorder)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -1582,16 +1583,14 @@ fun LiveCallerIdSearchCard(
                         }
                     }
                 }
-
                 Spacer(modifier = Modifier.width(12.dp))
-
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = if (hasName) callerId!!.name!! else if (isLoading) "Searching live caller data..." else "${callerId?.carrier ?: "Mobile"} Subscriber",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSpam) Color(0xFFDC2626) else TextDark,
+                            color = if (isSpam) Color(0xFFDC2626) else theme.textPrimary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )

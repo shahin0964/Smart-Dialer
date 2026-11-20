@@ -13,6 +13,7 @@ import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import androidx.core.graphics.drawable.IconCompat
 import com.smartdialer.app.R
@@ -20,7 +21,9 @@ import com.smartdialer.app.ui.call.CallActivity
 import com.smartdialer.app.ui.components.ContactPhotoLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Manages Incoming Call Heads-Up Notifications (HUN) and Ongoing In-Call Notifications.
@@ -29,7 +32,7 @@ import kotlinx.coroutines.launch
  */
 object CallNotificationManager {
 
-    private const val CHANNEL_ID_INCOMING = "smart_dialer_incoming_calls_v2"
+    private const val CHANNEL_ID_INCOMING = "smart_dialer_incoming_calls_v3"
     private const val CHANNEL_NAME_INCOMING = "Incoming Calls"
 
     private const val CHANNEL_ID_ONGOING = "smart_dialer_ongoing_calls"
@@ -38,14 +41,14 @@ object CallNotificationManager {
     const val NOTIFICATION_ID_INCOMING = 2001
     const val NOTIFICATION_ID_ONGOING = 2002
 
-    private val scope = CoroutineScope(Dispatchers.Main)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
     private fun ensureChannelsCreated(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val notificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-            // 1. High-Priority Channel for Incoming Calls (Shows Heads-Up notification card at top)
+            // 1. High-Priority Channel for Incoming Calls (Shows Heads-Up notification banner card at top)
             val incomingChannel = NotificationChannel(
                 CHANNEL_ID_INCOMING,
                 CHANNEL_NAME_INCOMING,
@@ -54,6 +57,7 @@ object CallNotificationManager {
                 description = "Shows incoming call banner card with answer and decline options"
                 enableLights(true)
                 enableVibration(true)
+                vibrationPattern = longArrayOf(0, 800, 500, 800)
                 lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
                 val audioAttributes = AudioAttributes.Builder()
@@ -89,6 +93,10 @@ object CallNotificationManager {
     ) {
         ensureChannelsCreated(context)
 
+        if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
+            return
+        }
+
         val displayName = if (!contactName.isNullOrBlank() && contactName != "Unknown") {
             contactName
         } else {
@@ -101,88 +109,102 @@ object CallNotificationManager {
             else -> "Incoming call..."
         }
 
-        // Asynchronously check photo and build notification
-        scope.launch {
-            var avatarBitmap: Bitmap? = null
-            if (!photoUri.isNullOrBlank()) {
-                avatarBitmap = ContactPhotoLoader.loadPhoto(context, photoUri, null, preferHighRes = true)
-            }
-            if (avatarBitmap == null) {
-                avatarBitmap = createMonogramBitmap(displayName)
-            }
-
-            val notificationManager =
-                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-            // Intent when user taps Decline (Red button)
-            val declineIntent = Intent(context, CallActionReceiver::class.java).apply {
-                action = CallActionReceiver.ACTION_DECLINE_CALL
-            }
-            val declinePendingIntent = PendingIntent.getBroadcast(
-                context,
-                101,
-                declineIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            // Intent when user taps Answer (Green button)
-            val answerIntent = Intent(context, CallActionReceiver::class.java).apply {
-                action = CallActionReceiver.ACTION_ANSWER_CALL
-            }
-            val answerPendingIntent = PendingIntent.getBroadcast(
-                context,
-                102,
-                answerIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            // Intent when user taps the notification card body -> opens full CallActivity
-            val fullScreenIntent = Intent(context, CallActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                        Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                        Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val fullScreenPendingIntent = PendingIntent.getActivity(
-                context,
-                103,
-                fullScreenIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            val callerIcon = IconCompat.createWithBitmap(avatarBitmap)
-            val person = Person.Builder()
-                .setName(displayName)
-                .setIcon(callerIcon)
-                .setImportant(true)
-                .build()
-
-            val builder = NotificationCompat.Builder(context, CHANNEL_ID_INCOMING)
-                .setSmallIcon(R.drawable.ic_notification_incoming_call)
-                .setContentTitle(displayName)
-                .setContentText(contentText)
-                .setSubText(if (isSpam) "⚠️ Spam Warning" else "Incoming Call")
-                .setLargeIcon(avatarBitmap)
-                .setPriority(NotificationCompat.PRIORITY_MAX)
-                .setCategory(NotificationCompat.CATEGORY_CALL)
-                .setContentIntent(fullScreenPendingIntent)
-                .setFullScreenIntent(fullScreenPendingIntent, true) // Shows heads-up card when unlocked!
-                .setOngoing(true)
-                .setAutoCancel(false)
-                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-                .setStyle(
-                    NotificationCompat.CallStyle.forIncomingCall(
-                        person,
-                        declinePendingIntent,
-                        answerPendingIntent
-                    )
-                )
-                .addAction(R.drawable.ic_call_decline, "Decline", declinePendingIntent)
-                .addAction(R.drawable.ic_call_answer, "Answer", answerPendingIntent)
-
+        fun buildAndPostNotification(avatarBitmap: Bitmap) {
             try {
+                val notificationManager =
+                    context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+                // Intent when user taps Decline (Red button)
+                val declineIntent = Intent(context, CallActionReceiver::class.java).apply {
+                    action = CallActionReceiver.ACTION_DECLINE_CALL
+                }
+                val declinePendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    101,
+                    declineIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                // Intent when user taps Answer (Green button)
+                val answerIntent = Intent(context, CallActionReceiver::class.java).apply {
+                    action = CallActionReceiver.ACTION_ANSWER_CALL
+                }
+                val answerPendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    102,
+                    answerIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                // Intent when user taps the notification card body -> opens full CallActivity
+                val fullScreenIntent = Intent(context, CallActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val fullScreenPendingIntent = PendingIntent.getActivity(
+                    context,
+                    103,
+                    fullScreenIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                )
+
+                val callerIcon = IconCompat.createWithBitmap(avatarBitmap)
+                val person = Person.Builder()
+                    .setName(displayName)
+                    .setIcon(callerIcon)
+                    .setImportant(true)
+                    .build()
+
+                val ringtoneUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+
+                val builder = NotificationCompat.Builder(context, CHANNEL_ID_INCOMING)
+                    .setSmallIcon(R.drawable.ic_notification_incoming_call)
+                    .setContentTitle(displayName)
+                    .setContentText(contentText)
+                    .setSubText(if (isSpam) "⚠️ Spam Warning" else "Incoming Call")
+                    .setLargeIcon(avatarBitmap)
+                    .setPriority(NotificationCompat.PRIORITY_MAX)
+                    .setCategory(NotificationCompat.CATEGORY_CALL)
+                    .setContentIntent(fullScreenPendingIntent)
+                    .setFullScreenIntent(fullScreenPendingIntent, true) // Shows heads-up card when unlocked!
+                    .setOngoing(true)
+                    .setAutoCancel(false)
+                    .setSound(ringtoneUri)
+                    .setVibrate(longArrayOf(0, 800, 500, 800))
+                    .setDefaults(NotificationCompat.DEFAULT_LIGHTS)
+                    .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                    .setStyle(
+                        NotificationCompat.CallStyle.forIncomingCall(
+                            person,
+                            declinePendingIntent,
+                            answerPendingIntent
+                        )
+                    )
+
                 notificationManager.notify(NOTIFICATION_ID_INCOMING, builder.build())
             } catch (e: Exception) {
                 e.printStackTrace()
+            }
+        }
+
+        // 1. Post notification immediately with monogram bitmap (zero delay!)
+        val monogramBitmap = createMonogramBitmap(displayName)
+        buildAndPostNotification(monogramBitmap)
+
+        // 2. If photo exists, asynchronously load high-res avatar and update
+        if (!photoUri.isNullOrBlank()) {
+            scope.launch {
+                try {
+                    val resolvedPhoto = withContext(Dispatchers.IO) {
+                        ContactPhotoLoader.loadPhoto(context, photoUri, null, preferHighRes = true)
+                    }
+                    if (resolvedPhoto != null) {
+                        buildAndPostNotification(resolvedPhoto)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }

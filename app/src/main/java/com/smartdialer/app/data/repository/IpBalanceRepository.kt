@@ -54,9 +54,17 @@ object IpBalanceRepository {
                 val prefs = IpCallPreferences(context)
                 val user = prefs.username.trim()
                 val pass = prefs.password.trim()
+                val domain = prefs.domain.trim().lowercase()
 
                 if (user.isBlank() || pass.isBlank()) {
                     _lastFetchError.value = "SIP credentials not set"
+                    _isFetching.value = false
+                    return@launch
+                }
+
+                // Privacy safeguard: only send credentials to amarip.net if the user is using Amar IP
+                val isAmarIp = domain.contains("amarip") || domain.contains("103.170.231.10") || user.startsWith("09649")
+                if (!isAmarIp) {
                     _isFetching.value = false
                     return@launch
                 }

@@ -30,6 +30,7 @@ class ContactsViewModel(
 
     private val callerIdService = CallerIdService(contactsRepository.context)
     private var callerIdSearchJob: Job? = null
+    private var searchJob: Job? = null
 
     private val _searchCallerIdResult = MutableStateFlow<CallerIdResult?>(null)
     val searchCallerIdResult: StateFlow<CallerIdResult?> = _searchCallerIdResult.asStateFlow()
@@ -180,7 +181,16 @@ class ContactsViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
-        loadContacts()
+        searchJob?.cancel()
+        searchJob = viewModelScope.launch {
+            delay(150) // Debounce rapid keystrokes to prevent ContentProvider query storm
+            val list = contactsRepository.getContacts(
+                searchQuery = query.trim(),
+                filter = _activeFilter.value,
+                selectedGoogleAccount = _selectedGoogleAccount.value
+            )
+            _contacts.value = list
+        }
 
         callerIdSearchJob?.cancel()
         val cleanDigits = query.filter { it.isDigit() }

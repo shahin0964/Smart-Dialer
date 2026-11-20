@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
@@ -36,17 +37,22 @@ import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
+import com.smartdialer.app.ui.dialogs.AppAnalysisDialog
 import com.smartdialer.app.ui.dialogs.CallerIdSettingsDialog
 import com.smartdialer.app.ui.dialogs.IpAudioSettingsDialog
 import com.smartdialer.app.ui.dialogs.ThemeSelectionDialog
+import com.smartdialer.app.util.AppAnalysisLogger
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import com.smartdialer.app.util.OemPermissionHelper
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -111,6 +117,7 @@ fun MoreScreen(
     var showUpdateDialog by remember { mutableStateOf(false) }
     var showCallerIdDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
+    var showAnalysisDialog by remember { mutableStateOf(false) }
 
     var refreshKey by remember { mutableStateOf(0) }
     var sims by remember { mutableStateOf<List<SimInfo>>(emptyList()) }
@@ -155,6 +162,12 @@ fun MoreScreen(
     if (showUpdateDialog) {
         AppUpdateDialog(
             onDismiss = { showUpdateDialog = false }
+        )
+    }
+
+    if (showAnalysisDialog) {
+        AppAnalysisDialog(
+            onDismiss = { showAnalysisDialog = false }
         )
     }
 
@@ -315,6 +328,130 @@ fun MoreScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text("Set Smart Dialer as Default")
+                    }
+                }
+            }
+        }
+
+        // OEM & Lock Screen Calling Alerts Card (Xiaomi / Realme / Oppo / Android 14+)
+        val canFullScreen = remember(refreshKey) { OemPermissionHelper.canUseFullScreenIntent(context) }
+        val isIgnoringBattery = remember(refreshKey) { OemPermissionHelper.isIgnoringBatteryOptimizations(context) }
+        val isAggressiveOem = remember { OemPermissionHelper.isAggressiveOem() }
+
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = theme.cardBackground)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color(0xFFEA580C)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Lock Screen & Alert Settings",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = theme.textPrimary
+                        )
+                        Text(
+                            text = if (canFullScreen && isIgnoringBattery) "Calls optimized for background & lock screen" else "Optimization recommended for Xiaomi/Oppo/Realme",
+                            fontSize = 12.sp,
+                            color = if (canFullScreen && isIgnoringBattery) CallIncomingGreen else Color(0xFFF59E0B)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Ensures incoming calls pop up as a banner when phone is unlocked, and wake the screen full-size when locked.",
+                    fontSize = 13.sp,
+                    color = theme.textMuted
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (!isIgnoringBattery) {
+                        OutlinedButton(
+                            onClick = {
+                                OemPermissionHelper.requestIgnoreBatteryOptimizations(context)
+                                refreshKey++
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Disable Battery Restriction (No Restrictions)", fontSize = 13.sp)
+                        }
+                    }
+
+                    if (!canFullScreen) {
+                        OutlinedButton(
+                            onClick = {
+                                OemPermissionHelper.openFullScreenIntentSettings(context)
+                                refreshKey++
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Allow Full-Screen Calling (Android 14+)", fontSize = 13.sp)
+                        }
+                    }
+
+                    if (isAggressiveOem) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    OemPermissionHelper.openOemAutostartSettings(context)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Autostart", fontSize = 12.sp)
+                            }
+
+                            if (OemPermissionHelper.isXiaomi()) {
+                                OutlinedButton(
+                                    onClick = {
+                                        OemPermissionHelper.openOemBackgroundPopupSettings(context)
+                                    },
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text("Pop-up Window", fontSize = 12.sp)
+                                }
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    OemPermissionHelper.openAppNotificationSettings(context)
+                                },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Banners & Sound", fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -514,6 +651,24 @@ fun MoreScreen(
             title = "About Smart Dialer",
             subtitle = "Smart Dialer v$currentVersion (Official Build)",
             onClick = { showAboutDialog = true }
+        )
+
+        // 13. App Analysis & Bug Logger
+        val analysisCrashCount by AppAnalysisLogger.crashCount.collectAsState()
+        val analysisErrorCount by AppAnalysisLogger.errorCount.collectAsState()
+        val analysisSummary = if (analysisCrashCount > 0) {
+            "⚠️ $analysisCrashCount Crash(es) & $analysisErrorCount Error(s) detected • Tap to inspect"
+        } else if (analysisErrorCount > 0) {
+            "$analysisErrorCount Warning/Error(s) logged • Tap to inspect"
+        } else {
+            "System healthy • Live error & crash diagnosis"
+        }
+
+        MoreOptionItem(
+            icon = Icons.Default.BugReport,
+            title = "App Analysis & Bug Logger",
+            subtitle = analysisSummary,
+            onClick = { showAnalysisDialog = true }
         )
 
         Spacer(modifier = Modifier.height(16.dp))

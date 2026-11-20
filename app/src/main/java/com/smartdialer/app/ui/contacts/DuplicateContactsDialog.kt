@@ -157,12 +157,12 @@ fun DuplicateContactsDialog(
                                 text = "Your contacts are clean!",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = TextDark
+                                color = theme.textPrimary
                             )
                             Text(
                                 text = "No duplicate contacts found.",
                                 fontSize = 13.sp,
-                                color = TextMuted
+                                color = theme.textMuted
                             )
                         }
                     }
@@ -197,7 +197,7 @@ fun DuplicateContactsDialog(
                             .height(46.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Close", color = TextDark)
+                        Text("Close", color = theme.textPrimary)
                     }
 
                     if (groups.isNotEmpty()) {
