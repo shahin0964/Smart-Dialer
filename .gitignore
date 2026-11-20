@@ -17,4 +17,4 @@ app/build/
 *.keystore
 keystore_base64.txt
 *.jks
-!app/release.jks
+release.jks
