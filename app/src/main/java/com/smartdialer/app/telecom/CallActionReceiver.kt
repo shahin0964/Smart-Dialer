@@ -19,13 +19,25 @@ class CallActionReceiver : BroadcastReceiver() {
                 CallNotificationManager.dismissIncomingCallNotification(context)
                 CallManager.answer()
 
-                // Launch CallActivity into foreground
-                val callIntent = Intent(context, CallActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_SINGLE_TOP or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+                val appContext = context.applicationContext
+                val canOverlay = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                    android.provider.Settings.canDrawOverlays(appContext)
+                } else {
+                    true
                 }
-                context.startActivity(callIntent)
+
+                if (canOverlay) {
+                    // Show in-game compact floating call overlay without disrupting the game!
+                    FloatingCallHeadManager.show(appContext)
+                } else {
+                    // Fallback to full-screen CallActivity if overlay permission is not granted
+                    val callIntent = Intent(context, CallActivity::class.java).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                                Intent.FLAG_ACTIVITY_SINGLE_TOP or
+                                Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    }
+                    context.startActivity(callIntent)
+                }
             }
 
             ACTION_DECLINE_CALL -> {

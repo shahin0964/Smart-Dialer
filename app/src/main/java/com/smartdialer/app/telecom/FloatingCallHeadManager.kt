@@ -16,6 +16,7 @@ import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.smartdialer.app.R
 import com.smartdialer.app.data.model.CallStatus
 import com.smartdialer.app.ui.call.CallActivity
 import kotlinx.coroutines.CoroutineScope
@@ -26,8 +27,8 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
- * Manages the floating call bubble / chathead that stays on top of other apps
- * during an active voice call (both GSM and IP calls).
+ * Manages the compact floating call overlay / pill that stays on top of other apps
+ * (like games) during an active voice call (both GSM and IP calls).
  */
 object FloatingCallHeadManager {
     private var windowManager: WindowManager? = null
@@ -40,12 +41,13 @@ object FloatingCallHeadManager {
 
     @SuppressLint("ClickableViewAccessibility")
     fun show(context: Context) {
+        val appContext = context.applicationContext
         if (floatingView != null) return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(context)) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !Settings.canDrawOverlays(appContext)) {
             return
         }
 
-        val wm = context.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
+        val wm = appContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
         windowManager = wm
 
         val layoutType = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -64,53 +66,53 @@ object FloatingCallHeadManager {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = 40
-            y = 220
+            x = dpToPx(appContext, 20)
+            y = dpToPx(appContext, 120)
         }
         params = lp
 
-        // Elegant floating pill container
-        val rootView = LinearLayout(context).apply {
+        // Elegant floating pill container with deep translucent slate & neon border
+        val rootView = LinearLayout(appContext).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            val padH = dpToPx(context, 12)
-            val padV = dpToPx(context, 8)
+            val padH = dpToPx(appContext, 14)
+            val padV = dpToPx(appContext, 9)
             setPadding(padH, padV, padH, padV)
 
             val bg = GradientDrawable().apply {
                 shape = GradientDrawable.RECTANGLE
-                cornerRadius = dpToPx(context, 28).toFloat()
-                setColor(Color.parseColor("#E61E1B4B")) // Deep translucent indigo
-                setStroke(dpToPx(context, 1.5f), Color.parseColor("#8B5CF6")) // Neon Purple accent border
+                cornerRadius = dpToPx(appContext, 30).toFloat()
+                setColor(Color.parseColor("#EB0F172A")) // Deep translucent navy/slate
+                setStroke(dpToPx(appContext, 1.5f), Color.parseColor("#38BDF8")) // Neon Cyan-Blue border
             }
             background = bg
-            elevation = dpToPx(context, 8).toFloat()
+            elevation = dpToPx(appContext, 12).toFloat()
         }
 
         // Green Call Icon
-        val iconView = ImageView(context).apply {
-            setImageResource(android.R.drawable.ic_menu_call)
+        val iconView = ImageView(appContext).apply {
+            setImageResource(R.drawable.ic_notification_incoming_call)
             setColorFilter(Color.parseColor("#10B981")) // Call green
-            val iconSize = dpToPx(context, 22)
+            val iconSize = dpToPx(appContext, 20)
             layoutParams = LinearLayout.LayoutParams(iconSize, iconSize).apply {
-                marginEnd = dpToPx(context, 8)
+                marginEnd = dpToPx(appContext, 8)
             }
         }
         rootView.addView(iconView)
 
-        // Texts: Caller Name + Timer
-        val textCol = LinearLayout(context).apply {
+        // Texts: Caller Name + Live Duration Timer
+        val textCol = LinearLayout(appContext).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                marginEnd = dpToPx(context, 12)
+                marginEnd = dpToPx(appContext, 12)
             }
         }
 
-        val nameView = TextView(context).apply {
+        val nameView = TextView(appContext).apply {
             text = CallManager.currentCallState.value.displayTitle
             setTextColor(Color.WHITE)
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 13f)
@@ -119,30 +121,31 @@ object FloatingCallHeadManager {
         }
         textCol.addView(nameView)
 
-        val timerView = TextView(context).apply {
-            text = CallManager.currentCallState.value.durationFormatted
-            setTextColor(Color.parseColor("#CBD5E1"))
+        val timerView = TextView(appContext).apply {
+            val d = CallManager.currentCallState.value.durationFormatted
+            text = if (d.isNotBlank()) d else "In call"
+            setTextColor(Color.parseColor("#94A3B8"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)
         }
         textCol.addView(timerView)
 
         rootView.addView(textCol)
 
-        // Mute / Unmute Button
-        val muteBtn = ImageView(context).apply {
+        // 1. Mute / Unmute Button
+        val muteBtn = ImageView(appContext).apply {
             val isMuted = CallManager.currentCallState.value.isMuted
-            setImageResource(if (isMuted) android.R.drawable.ic_lock_silent_mode else android.R.drawable.ic_btn_speak_now)
+            setImageResource(if (isMuted) R.drawable.ic_mic_off else R.drawable.ic_mic)
             setColorFilter(if (isMuted) Color.parseColor("#EF4444") else Color.WHITE)
-            val size = dpToPx(context, 28)
+            val size = dpToPx(appContext, 30)
             layoutParams = LinearLayout.LayoutParams(size, size).apply {
-                marginEnd = dpToPx(context, 8)
+                marginEnd = dpToPx(appContext, 8)
             }
             val bgCircle = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#33FFFFFF"))
+                setColor(if (isMuted) Color.parseColor("#44EF4444") else Color.parseColor("#26FFFFFF"))
             }
             background = bgCircle
-            val p = dpToPx(context, 5)
+            val p = dpToPx(appContext, 6)
             setPadding(p, p, p, p)
             setOnClickListener {
                 CallManager.toggleMute()
@@ -150,21 +153,47 @@ object FloatingCallHeadManager {
         }
         rootView.addView(muteBtn)
 
-        // End Call Button
-        val hangupBtn = ImageView(context).apply {
-            setImageResource(android.R.drawable.ic_menu_close_clear_cancel)
+        // 2. Speaker / Loudspeaker Button
+        val speakerBtn = ImageView(appContext).apply {
+            val isSpeaker = CallManager.currentCallState.value.isSpeakerOn
+            setImageResource(R.drawable.ic_speaker)
+            setColorFilter(if (isSpeaker) Color.parseColor("#38BDF8") else Color.WHITE)
+            val size = dpToPx(appContext, 30)
+            layoutParams = LinearLayout.LayoutParams(size, size).apply {
+                marginEnd = dpToPx(appContext, 8)
+            }
+            val bgCircle = GradientDrawable().apply {
+                shape = GradientDrawable.OVAL
+                setColor(if (isSpeaker) Color.parseColor("#4438BDF8") else Color.parseColor("#26FFFFFF"))
+            }
+            background = bgCircle
+            val p = dpToPx(appContext, 6)
+            setPadding(p, p, p, p)
+            setOnClickListener {
+                CallManager.toggleSpeaker(appContext)
+            }
+        }
+        rootView.addView(speakerBtn)
+
+        // 3. End Call Button (Red Circle)
+        val hangupBtn = ImageView(appContext).apply {
+            setImageResource(R.drawable.ic_call_hangup)
             setColorFilter(Color.WHITE)
-            val size = dpToPx(context, 28)
+            val size = dpToPx(appContext, 30)
             layoutParams = LinearLayout.LayoutParams(size, size)
             val bgRed = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
-                setColor(Color.parseColor("#EF4444"))
+                setColor(Color.parseColor("#EF4444")) // Crimson red
             }
             background = bgRed
-            val p = dpToPx(context, 6)
+            val p = dpToPx(appContext, 6)
             setPadding(p, p, p, p)
             setOnClickListener {
-                CallManager.reject()
+                if (CallManager.currentCallState.value.status == CallStatus.RINGING) {
+                    CallManager.reject()
+                } else {
+                    CallManager.disconnect()
+                }
                 dismiss()
             }
         }
@@ -204,13 +233,13 @@ object FloatingCallHeadManager {
                 }
                 MotionEvent.ACTION_UP -> {
                     if (isClick) {
-                        // Return to full-screen CallActivity
-                        val intent = Intent(context, CallActivity::class.java).apply {
+                        // Return to full-screen CallActivity on single tap
+                        val intent = Intent(appContext, CallActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                                     Intent.FLAG_ACTIVITY_SINGLE_TOP or
                                     Intent.FLAG_ACTIVITY_CLEAR_TOP
                         }
-                        context.startActivity(intent)
+                        appContext.startActivity(intent)
                         dismiss()
                     }
                     true
@@ -235,8 +264,20 @@ object FloatingCallHeadManager {
                     dismiss()
                 } else {
                     nameView.text = state.displayTitle
-                    timerView.text = state.durationFormatted
+                    timerView.text = if (state.durationFormatted.isNotBlank()) state.durationFormatted else "Connected"
+
+                    // Update Mute UI
+                    muteBtn.setImageResource(if (state.isMuted) R.drawable.ic_mic_off else R.drawable.ic_mic)
                     muteBtn.setColorFilter(if (state.isMuted) Color.parseColor("#EF4444") else Color.WHITE)
+                    (muteBtn.background as? GradientDrawable)?.setColor(
+                        if (state.isMuted) Color.parseColor("#44EF4444") else Color.parseColor("#26FFFFFF")
+                    )
+
+                    // Update Speaker UI
+                    speakerBtn.setColorFilter(if (state.isSpeakerOn) Color.parseColor("#38BDF8") else Color.WHITE)
+                    (speakerBtn.background as? GradientDrawable)?.setColor(
+                        if (state.isSpeakerOn) Color.parseColor("#4438BDF8") else Color.parseColor("#26FFFFFF")
+                    )
                 }
             }
         }

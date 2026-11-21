@@ -395,7 +395,12 @@ object CallManager {
             return
         }
         activeCall?.answer(android.telecom.VideoProfile.STATE_AUDIO_ONLY)
-        appContext?.let { CallNotificationManager.dismissIncomingCallNotification(it) }
+        _currentCallState.value = _currentCallState.value.copy(status = CallStatus.ACTIVE)
+        startDurationTimer()
+        appContext?.let { ctx ->
+            CallNotificationManager.dismissIncomingCallNotification(ctx)
+            VibrationHelper.vibrateCallConnected(ctx)
+        }
     }
 
     fun reject() {
