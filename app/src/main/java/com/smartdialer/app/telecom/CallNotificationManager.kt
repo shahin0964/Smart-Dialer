@@ -181,7 +181,7 @@ object CallNotificationManager {
                 .setFullScreenIntent(fullScreenPendingIntent, true) // Shows heads-up card when unlocked!
                 .setOngoing(true)
                 .setAutoCancel(false)
-                .setVisibility(if (isLocked) NotificationCompat.VISIBILITY_SECRET else NotificationCompat.VISIBILITY_PUBLIC)
+                .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
                 .setStyle(
                     NotificationCompat.CallStyle.forIncomingCall(
                         person,

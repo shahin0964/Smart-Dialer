@@ -49,6 +49,7 @@ class CallLogRepository(private val context: Context) {
         val yesterdayDay = now.get(Calendar.DAY_OF_YEAR)
 
         try {
+            val appSettings = AppSettingsPreferences(context)
             val cursor = context.contentResolver.query(
                 CallLog.Calls.CONTENT_URI,
                 projection,
@@ -90,7 +91,8 @@ class CallLogRepository(private val context: Context) {
                     val spamResult = com.smartdialer.app.data.repository.SpamProtectionManager.checkNumber(
                         context = context,
                         rawNumber = number,
-                        contactName = name
+                        contactName = name,
+                        appSettings = appSettings
                     )
 
                     val callCal = Calendar.getInstance().apply { timeInMillis = dateMillis }

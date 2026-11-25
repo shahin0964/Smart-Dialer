@@ -792,11 +792,80 @@ class ContactsRepository(val context: Context) {
 
     /**
      * Merges a single duplicate group by removing redundant secondary contacts.
+     * Safely copies all phone numbers and emails from duplicate contacts into the primary contact first!
      */
     suspend fun mergeDuplicateGroup(group: DuplicateContactGroup): Result<Int> = withContext(Dispatchers.IO) {
         try {
             var mergedCount = 0
+            val primaryId = group.primaryContact.id
+            val primaryLongId = primaryId.toLongOrNull()
+
+            val existingPhones = group.primaryContact.phoneNumbers.map { it.filter { c -> c.isDigit() || c == '+' } }.toMutableSet()
+            val existingEmails = group.primaryContact.emails.map { it.trim().lowercase() }.toMutableSet()
+
+            var primaryRawContactId: Long? = null
+            if (primaryLongId != null) {
+                try {
+                    context.contentResolver.query(
+                        ContactsContract.RawContacts.CONTENT_URI,
+                        arrayOf(ContactsContract.RawContacts._ID),
+                        "${ContactsContract.RawContacts.CONTACT_ID} = ? AND ${ContactsContract.RawContacts.DELETED} = 0",
+                        arrayOf(primaryId),
+                        null
+                    )?.use { c ->
+                        if (c.moveToFirst()) {
+                            primaryRawContactId = c.getLong(0)
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
             for (dup in group.duplicateContacts) {
+                // Merge missing phone numbers and emails into primary contact's RawContact
+                if (primaryRawContactId != null) {
+                    val ops = ArrayList<ContentProviderOperation>()
+                    for (phone in dup.phoneNumbers) {
+                        val cleanPhone = phone.trim()
+                        val normalized = cleanPhone.filter { it.isDigit() || it == '+' }
+                        if (normalized.isNotBlank() && !existingPhones.contains(normalized)) {
+                            existingPhones.add(normalized)
+                            ops.add(
+                                ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                    .withValue(ContactsContract.Data.RAW_CONTACT_ID, primaryRawContactId)
+                                    .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Phone.CONTENT_ITEM_TYPE)
+                                    .withValue(ContactsContract.CommonDataKinds.Phone.NUMBER, cleanPhone)
+                                    .withValue(ContactsContract.CommonDataKinds.Phone.TYPE, ContactsContract.CommonDataKinds.Phone.TYPE_OTHER)
+                                    .build()
+                            )
+                        }
+                    }
+                    for (email in dup.emails) {
+                        val cleanEmail = email.trim()
+                        val lowerEmail = cleanEmail.lowercase()
+                        if (lowerEmail.isNotBlank() && !existingEmails.contains(lowerEmail)) {
+                            existingEmails.add(lowerEmail)
+                            ops.add(
+                                ContentProviderOperation.newInsert(ContactsContract.Data.CONTENT_URI)
+                                    .withValue(ContactsContract.Data.RAW_CONTACT_ID, primaryRawContactId)
+                                    .withValue(ContactsContract.Data.MIMETYPE, ContactsContract.CommonDataKinds.Email.CONTENT_ITEM_TYPE)
+                                    .withValue(ContactsContract.CommonDataKinds.Email.ADDRESS, cleanEmail)
+                                    .withValue(ContactsContract.CommonDataKinds.Email.TYPE, ContactsContract.CommonDataKinds.Email.TYPE_OTHER)
+                                    .build()
+                            )
+                        }
+                    }
+                    if (ops.isNotEmpty()) {
+                        try {
+                            context.contentResolver.applyBatch(ContactsContract.AUTHORITY, ops)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }
+
+                // Delete the secondary duplicate contact
                 val contactUri = ContentUris.withAppendedId(
                     ContactsContract.Contacts.CONTENT_URI,
                     dup.id.toLongOrNull() ?: continue

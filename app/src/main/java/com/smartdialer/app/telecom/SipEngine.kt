@@ -1495,6 +1495,11 @@ object SipEngine {
         if (!isCallActive.getAndSet(false)) return
 
         scope.launch {
+            val ctx = appContext
+            val prefs = if (ctx != null) IpCallPreferences(ctx) else null
+            val configuredUser = prefs?.username?.trim()?.ifBlank { "user" } ?: "user"
+
+            // 1. Teardown active outgoing call
             val domain = currentDomain
             val callId = activeCallId
             val from = fromTag
@@ -1517,7 +1522,7 @@ object SipEngine {
                             append("BYE $byeTarget SIP/2.0\r\n")
                             append("Via: SIP/2.0/UDP $localIp:$localPort;branch=$branch;rport\r\n")
                             append("Max-Forwards: 70\r\n")
-                            append("From: <sip:user@$cleanDomain>;tag=$from\r\n")
+                            append("From: <sip:$configuredUser@$cleanDomain>;tag=$from\r\n")
                             append("To: <sip:$target@$cleanDomain>;tag=$toTag\r\n")
                             append("Call-ID: $callId\r\n")
                             append("CSeq: ${++currentCSeq} BYE\r\n")
@@ -1533,7 +1538,7 @@ object SipEngine {
                             append("CANCEL sip:$target@$cleanDomain SIP/2.0\r\n")
                             append("Via: SIP/2.0/UDP $localIp:$localPort;branch=$branch;rport\r\n")
                             append("Max-Forwards: 70\r\n")
-                            append("From: <sip:user@$cleanDomain>;tag=$from\r\n")
+                            append("From: <sip:$configuredUser@$cleanDomain>;tag=$from\r\n")
                             append("To: <sip:$target@$cleanDomain>\r\n")
                             append("Call-ID: $callId\r\n")
                             append("CSeq: 1 CANCEL\r\n")
@@ -1546,6 +1551,40 @@ object SipEngine {
                         }
                     }
                 }
+            }
+
+            // 2. Teardown active answered incoming call
+            val incCallId = incomingCallId
+            val incServerAddr = incomingServerAddr
+            val incToTag = incomingToTag
+            if (!incCallId.isNullOrBlank() && incServerAddr != null && !incToTag.isNullOrBlank()) {
+                val localIp = getLocalIp()
+                val localPort = sipSocket?.localPort ?: 5060
+                val branch = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
+                val byeTarget = incomingFrom?.let { raw ->
+                    Regex("""<([^>]+)>""").find(raw)?.groupValues?.get(1) ?: raw
+                } ?: "sip:server@${incServerAddr.hostAddress}"
+
+                val byeMsg = buildString {
+                    append("BYE $byeTarget SIP/2.0\r\n")
+                    append("Via: SIP/2.0/UDP $localIp:$localPort;branch=$branch;rport\r\n")
+                    append("Max-Forwards: 70\r\n")
+                    append("From: ${incomingTo};tag=$incToTag\r\n")
+                    append("To: $incomingFrom\r\n")
+                    append("Call-ID: $incCallId\r\n")
+                    append("CSeq: 200 BYE\r\n")
+                    append("User-Agent: SmartDialer/1.0\r\n")
+                    append("Content-Length: 0\r\n\r\n")
+                }
+                try {
+                    sipSocket?.send(DatagramPacket(byeMsg.toByteArray(), byeMsg.length, incServerAddr, incomingServerPort))
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+
+                incomingCallId = null
+                incomingServerAddr = null
+                incomingToTag = null
             }
 
             // Teardown Audio Streams (Keep sipSocket alive for incoming calls!)

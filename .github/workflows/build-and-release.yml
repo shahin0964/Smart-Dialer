@@ -121,3 +121,12 @@ jobs:
           replacesArtifacts: true
           makeLatest: true
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync Root version.json
+        run: |
+          cp release-artifacts/version.json version.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "chore(release): sync version.json to v${{ env.VERSION_NAME }} [skip ci]" || true
+          git push origin main || true

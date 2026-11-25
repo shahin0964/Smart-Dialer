@@ -23,14 +23,15 @@ object SpamProtectionManager {
     fun checkNumber(
         context: Context,
         rawNumber: String,
-        contactName: String? = null
+        contactName: String? = null,
+        appSettings: AppSettingsPreferences? = null
     ): SpamCheckResult {
-        val appSettings = AppSettingsPreferences(context)
+        val settings = appSettings ?: AppSettingsPreferences(context)
         val cleanNumber = rawNumber.trim().replace(" ", "").replace("-", "")
 
         // 1. Check if user explicitly blocked this number
-        if (appSettings.isBlocked(cleanNumber)) {
-            val action = when (appSettings.spamProtectionLevel) {
+        if (settings.isBlocked(cleanNumber)) {
+            val action = when (settings.spamProtectionLevel) {
                 SpamProtectionLevel.BASIC -> SpamAction.WARN
                 SpamProtectionLevel.SMART -> SpamAction.REJECT
                 SpamProtectionLevel.MAXIMUM -> SpamAction.REJECT
@@ -46,8 +47,8 @@ object SpamProtectionManager {
         }
 
         // 2. Check if user previously reported this number as spam
-        if (appSettings.isReportedSpam(cleanNumber)) {
-            val action = when (appSettings.spamProtectionLevel) {
+        if (settings.isReportedSpam(cleanNumber)) {
+            val action = when (settings.spamProtectionLevel) {
                 SpamProtectionLevel.BASIC -> SpamAction.WARN
                 SpamProtectionLevel.SMART -> SpamAction.SILENCE
                 SpamProtectionLevel.MAXIMUM -> SpamAction.REJECT
@@ -63,7 +64,7 @@ object SpamProtectionManager {
         }
 
         // If master spam protection is disabled, do not flag further
-        if (!appSettings.spamProtectionEnabled) {
+        if (!settings.spamProtectionEnabled) {
             return SpamCheckResult()
         }
 
@@ -74,8 +75,8 @@ object SpamProtectionManager {
                 cleanNumber.equals("restricted", ignoreCase = true)
 
         if (isPrivateOrHidden) {
-            if (appSettings.blockUnknownNumbers || appSettings.silenceUnknownCallers) {
-                val action = if (appSettings.spamProtectionLevel == SpamProtectionLevel.MAXIMUM) {
+            if (settings.blockUnknownNumbers || settings.silenceUnknownCallers) {
+                val action = if (settings.spamProtectionLevel == SpamProtectionLevel.MAXIMUM) {
                     SpamAction.REJECT
                 } else {
                     SpamAction.SILENCE
@@ -118,8 +119,8 @@ object SpamProtectionManager {
         }
 
         // Check if strict maximum mode silences/screens unsaved callers
-        if (detectedCategory == null && appSettings.spamProtectionLevel == SpamProtectionLevel.MAXIMUM) {
-            if (appSettings.silenceUnknownCallers) {
+        if (detectedCategory == null && settings.spamProtectionLevel == SpamProtectionLevel.MAXIMUM) {
+            if (settings.silenceUnknownCallers) {
                 return SpamCheckResult(
                     isSpam = false,
                     isBlocked = false,
@@ -132,7 +133,7 @@ object SpamProtectionManager {
         }
 
         if (detectedCategory != null) {
-            val action = when (appSettings.spamProtectionLevel) {
+            val action = when (settings.spamProtectionLevel) {
                 SpamProtectionLevel.BASIC -> SpamAction.WARN
                 SpamProtectionLevel.SMART -> SpamAction.SILENCE
                 SpamProtectionLevel.MAXIMUM -> SpamAction.REJECT
