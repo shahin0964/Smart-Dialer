@@ -69,6 +69,7 @@ fun IpAudioSettingsDialog(
     var enableAec by remember { mutableStateOf(ipPreferences.enableAec) }
     var enableNs by remember { mutableStateOf(ipPreferences.enableNs) }
     var enableAgc by remember { mutableStateOf(ipPreferences.enableAgc) }
+    var headsetOnlyMode by remember { mutableStateOf(ipPreferences.headsetOnlyMode) }
     var selectedMicBoost by remember { mutableIntStateOf(ipPreferences.micGainBoost) }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -206,6 +207,13 @@ fun IpAudioSettingsDialog(
                     onCheckedChange = { enableAgc = it }
                 )
 
+                AudioToggleItem(
+                    label = "Headset-Only Mode (Smart Routing)",
+                    subtitle = "Locks call audio to Bluetooth / USB-C / Wired headset when connected",
+                    checked = headsetOnlyMode,
+                    onCheckedChange = { headsetOnlyMode = it }
+                )
+
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // 5. Digital Mic Gain Boost
@@ -272,6 +280,7 @@ fun IpAudioSettingsDialog(
                             ipPreferences.enableAec = enableAec
                             ipPreferences.enableNs = enableNs
                             ipPreferences.enableAgc = enableAgc
+                            ipPreferences.headsetOnlyMode = headsetOnlyMode
                             ipPreferences.micGainBoost = selectedMicBoost
                             onSaved()
                             onDismiss()

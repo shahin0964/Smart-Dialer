@@ -20,14 +20,18 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.CallMissed
 import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.NetworkPing
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.SurroundSound
@@ -102,6 +106,7 @@ fun IpAccountSettingsScreen(
 ) {
     val context = LocalContext.current
     val liveStatus by SipEngine.registrationStatus.collectAsState()
+    val serverLatencyMs by SipEngine.serverLatencyMs.collectAsState()
     var testResultText by remember { mutableStateOf<String?>(null) }
     var isTestingConnection by remember { mutableStateOf(false) }
 
@@ -117,11 +122,16 @@ fun IpAccountSettingsScreen(
 
     LaunchedEffect(Unit) {
         IpBalanceRepository.fetchRealBalance(context)
+        if (ipPreferences.isConfigured) {
+            SipEngine.measureServerLatency(context)
+        }
     }
 
     val historyList = remember(refreshStatsKey) { IpCallStatsRepository.getCallHistory(context) }
     val contactStats = remember(refreshStatsKey) { IpCallStatsRepository.getTalkTimeByContact(context) }
     val totalTalkSeconds = remember(refreshStatsKey) { IpCallStatsRepository.getTotalTalkTimeSeconds(context) }
+    var savedAccounts by remember(refreshStatsKey) { mutableStateOf(ipPreferences.getSavedAccounts()) }
+    var activeAccountId by remember(refreshStatsKey) { mutableStateOf(ipPreferences.activeAccountId) }
 
     // Main Credentials
     var username by remember { mutableStateOf(ipPreferences.username) }
@@ -135,11 +145,10 @@ fun IpAccountSettingsScreen(
     var authName by remember { mutableStateOf(ipPreferences.authName) }
     var voicemail by remember { mutableStateOf(ipPreferences.voicemail) }
 
-    // Transport Protocol
+    // Transport Protocol & Security
     var transportProtocol by remember { mutableStateOf(ipPreferences.transportProtocol) }
-
-    // TLS Certificate Management
     var verifyTls by remember { mutableStateOf(ipPreferences.verifyTls) }
+    var enableSrtp by remember { mutableStateOf(ipPreferences.enableSrtp) }
 
     // STUN
     var enableStun by remember { mutableStateOf(ipPreferences.enableStun) }
@@ -156,6 +165,29 @@ fun IpAccountSettingsScreen(
     var ipPrefix by remember { mutableStateOf(ipPreferences.ipPrefix) }
     var ipMode by remember { mutableStateOf(ipPreferences.ipMode) }
 
+    fun syncStateFromPrefs() {
+        username = ipPreferences.username
+        password = ipPreferences.password
+        domain = ipPreferences.domain
+        outboundProxy = ipPreferences.outboundProxy
+        displayName = ipPreferences.displayName
+        authName = ipPreferences.authName
+        voicemail = ipPreferences.voicemail
+        transportProtocol = ipPreferences.transportProtocol
+        verifyTls = ipPreferences.verifyTls
+        enableSrtp = ipPreferences.enableSrtp
+        enableStun = ipPreferences.enableStun
+        stunServer = ipPreferences.stunServer
+        stunPort = ipPreferences.stunPort
+        useMobileData = ipPreferences.useMobileData
+        enableLogging = ipPreferences.enableLogging
+        ipPrefix = ipPreferences.ipPrefix
+        ipMode = ipPreferences.ipMode
+        savedAccounts = ipPreferences.getSavedAccounts()
+        activeAccountId = ipPreferences.activeAccountId
+        refreshStatsKey++
+    }
+
     fun saveAll() {
         ipPreferences.username = username
         ipPreferences.password = password
@@ -166,6 +198,7 @@ fun IpAccountSettingsScreen(
         ipPreferences.voicemail = voicemail
         ipPreferences.transportProtocol = transportProtocol
         ipPreferences.verifyTls = verifyTls
+        ipPreferences.enableSrtp = enableSrtp
         ipPreferences.enableStun = enableStun
         ipPreferences.stunServer = stunServer
         ipPreferences.stunPort = stunPort
@@ -173,6 +206,13 @@ fun IpAccountSettingsScreen(
         ipPreferences.enableLogging = enableLogging
         ipPreferences.ipPrefix = ipPrefix
         ipPreferences.ipMode = ipMode
+        if (username.isNotBlank() || domain.isNotBlank()) {
+            val profile = ipPreferences.snapshotCurrentAsProfile()
+            ipPreferences.saveAccountProfile(profile, makeActive = true)
+            savedAccounts = ipPreferences.getSavedAccounts()
+            activeAccountId = ipPreferences.activeAccountId
+        }
+        refreshStatsKey++
     }
 
 
@@ -335,6 +375,64 @@ fun IpAccountSettingsScreen(
                                                 fontSize = 12.sp,
                                                 color = theme.textMuted
                                             )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = theme.primaryUltraLight
+                                                ) {
+                                                    Text(
+                                                        text = transportProtocol.uppercase(),
+                                                        fontSize = 10.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = theme.primary,
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                    )
+                                                }
+                                                if (enableSrtp) {
+                                                    Surface(
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        color = Color(0xFFDCFCE7)
+                                                    ) {
+                                                        Text(
+                                                            text = "SRTP",
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = Color(0xFF16A34A),
+                                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                                        )
+                                                    }
+                                                }
+                                                Surface(
+                                                    shape = RoundedCornerShape(6.dp),
+                                                    color = theme.surface,
+                                                    modifier = Modifier.clickable {
+                                                        SipEngine.measureServerLatency(context)
+                                                    }
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Icon(
+                                                            imageVector = Icons.Default.NetworkPing,
+                                                            contentDescription = "Ping",
+                                                            tint = CallIncomingGreen,
+                                                            modifier = Modifier.size(11.dp)
+                                                        )
+                                                        Spacer(modifier = Modifier.width(3.dp))
+                                                        Text(
+                                                            text = if (serverLatencyMs != null) "${serverLatencyMs}ms" else "Ping",
+                                                            fontSize = 10.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = theme.textPrimary
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         }
                                     }
 
@@ -484,7 +582,142 @@ fun IpAccountSettingsScreen(
                             )
                         }
 
-                        // 3. Settings Option Row Card (User requested: "sob kichu oitar moddhe settings name ekta option kore tar moddhe die dreo")
+                        // 2b. Multi-SIP Accounts Manager Card
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = theme.cardBackground),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(16.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Multi-SIP Accounts (${savedAccounts.size})",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = theme.textPrimary
+                                        )
+                                        Text(
+                                            text = "Switch or add multiple SIP / VoIP servers",
+                                            fontSize = 11.sp,
+                                            color = theme.textMuted
+                                        )
+                                    }
+                                    Surface(
+                                        onClick = {
+                                            ipPreferences.activeAccountId = "sip_${System.currentTimeMillis()}"
+                                            username = ""
+                                            password = ""
+                                            domain = ""
+                                            outboundProxy = ""
+                                            displayName = ""
+                                            authName = ""
+                                            voicemail = ""
+                                            transportProtocol = "UDP"
+                                            verifyTls = false
+                                            enableSrtp = false
+                                            enableStun = false
+                                            stunServer = ""
+                                            ipPrefix = ""
+                                            subView = IpSettingsSubView.SETTINGS
+                                        },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = theme.primaryUltraLight
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.Add, contentDescription = null, tint = theme.primary, modifier = Modifier.size(15.dp))
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text("Add SIP", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = theme.primary)
+                                        }
+                                    }
+                                }
+
+                                if (savedAccounts.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    savedAccounts.forEach { profile ->
+                                        val isCurrent = profile.id == activeAccountId
+                                        Surface(
+                                            onClick = {
+                                                if (!isCurrent) {
+                                                    ipPreferences.switchActiveAccount(profile.id)
+                                                    syncStateFromPrefs()
+                                                    SipEngine.startListening(context)
+                                                    SipEngine.measureServerLatency(context)
+                                                    IpBalanceRepository.fetchRealBalance(context, force = true)
+                                                }
+                                            },
+                                            shape = RoundedCornerShape(12.dp),
+                                            color = if (isCurrent) theme.primaryUltraLight else theme.surface,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 4.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.SpaceBetween
+                                            ) {
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = if (isCurrent) Icons.Default.CheckCircle else Icons.Default.Language,
+                                                        contentDescription = null,
+                                                        tint = if (isCurrent) CallIncomingGreen else theme.textMuted,
+                                                        modifier = Modifier.size(20.dp)
+                                                    )
+                                                    Spacer(modifier = Modifier.width(10.dp))
+                                                    Column {
+                                                        Text(
+                                                            text = profile.label.ifBlank { profile.username },
+                                                            fontSize = 13.sp,
+                                                            fontWeight = FontWeight.Bold,
+                                                            color = theme.textPrimary
+                                                        )
+                                                        Text(
+                                                            text = "${profile.username}@${profile.domain} • ${profile.transportProtocol}${if (profile.enableSrtp) " + SRTP" else ""}",
+                                                            fontSize = 11.sp,
+                                                            color = theme.textMuted,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                }
+                                                if (savedAccounts.size > 1 && !isCurrent) {
+                                                    IconButton(
+                                                        onClick = {
+                                                            ipPreferences.deleteAccountProfile(profile.id)
+                                                            syncStateFromPrefs()
+                                                        },
+                                                        modifier = Modifier.size(28.dp)
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.DeleteOutline,
+                                                            contentDescription = "Delete Account",
+                                                            tint = Color(0xFFEF4444),
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. Settings Option Row Card ("sob kichu oitar moddhe settings name ekta option kore tar moddhe die dreo")
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -1257,7 +1490,7 @@ fun IpAccountSettingsScreen(
                         }
                     }
 
-                    // TLS CERTIFICATES MANAGEMENT
+                    // TLS & SRTP ENCRYPTION MANAGEMENT
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(16.dp),
@@ -1268,7 +1501,7 @@ fun IpAccountSettingsScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "TLS CERTIFICATES MANAGEMENT",
+                                text = "TLS & SRTP ENCRYPTION",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = TextMuted
@@ -1290,6 +1523,33 @@ fun IpAccountSettingsScreen(
                                 Switch(
                                     checked = verifyTls,
                                     onCheckedChange = { verifyTls = it },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
+                                )
+                            }
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    Text(
+                                        text = "SRTP Media Encryption (AES-128)",
+                                        fontSize = 14.sp,
+                                        color = theme.textPrimary,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "Encrypts VoIP voice stream using RFC 3711 RTP/SAVP",
+                                        fontSize = 11.sp,
+                                        color = theme.textMuted
+                                    )
+                                }
+                                Switch(
+                                    checked = enableSrtp,
+                                    onCheckedChange = { enableSrtp = it },
                                     colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
                                 )
                             }

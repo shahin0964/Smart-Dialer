@@ -67,7 +67,17 @@ fun CallRecordingsPlayerList(
     var playingFilePath by remember { mutableStateOf<String?>(null) }
     var isPlaying by remember { mutableStateOf(false) }
     var progressRatio by remember { mutableFloatStateOf(0f) }
+    var playbackSpeed by remember { mutableFloatStateOf(1.0f) }
     var mediaPlayer by remember { mutableStateOf<MediaPlayer?>(null) }
+
+    val speedOptions = remember { listOf(0.5f, 1.0f, 1.25f, 1.5f, 2.0f) }
+
+    fun applyPlaybackSpeed(mp: MediaPlayer, speed: Float) {
+        try {
+            mp.playbackParams = mp.playbackParams.setSpeed(speed)
+        } catch (_: Exception) {
+        }
+    }
 
     fun releasePlayer() {
         try {
@@ -128,6 +138,7 @@ fun CallRecordingsPlayerList(
                 }
                 start()
             }
+            applyPlaybackSpeed(mp, playbackSpeed)
             mediaPlayer = mp
             playingFilePath = item.file.absolutePath
             isPlaying = true
@@ -248,23 +259,47 @@ fun CallRecordingsPlayerList(
 
                         if (isCurrent) {
                             Spacer(modifier = Modifier.height(4.dp))
-                            Slider(
-                                value = progressRatio,
-                                onValueChange = { newVal ->
-                                    progressRatio = newVal
-                                    mediaPlayer?.let { mp ->
-                                        val targetMs = (mp.duration * newVal).toInt()
-                                        mp.seekTo(targetMs)
-                                    }
-                                },
-                                colors = SliderDefaults.colors(
-                                    thumbColor = theme.primary,
-                                    activeTrackColor = theme.primary
-                                ),
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(24.dp)
-                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Slider(
+                                    value = progressRatio,
+                                    onValueChange = { newVal ->
+                                        progressRatio = newVal
+                                        mediaPlayer?.let { mp ->
+                                            val targetMs = (mp.duration * newVal).toInt()
+                                            mp.seekTo(targetMs)
+                                        }
+                                    },
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = theme.primary,
+                                        activeTrackColor = theme.primary
+                                    ),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .height(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Surface(
+                                    onClick = {
+                                        val nextIdx = (speedOptions.indexOf(playbackSpeed) + 1) % speedOptions.size
+                                        playbackSpeed = speedOptions[nextIdx]
+                                        mediaPlayer?.let { applyPlaybackSpeed(it, playbackSpeed) }
+                                    },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = theme.primaryUltraLight,
+                                    border = BorderStroke(1.dp, theme.primary.copy(alpha = 0.4f))
+                                ) {
+                                    Text(
+                                        text = "${if (playbackSpeed % 1f == 0f) playbackSpeed.toInt() else playbackSpeed}×",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = theme.primary,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }

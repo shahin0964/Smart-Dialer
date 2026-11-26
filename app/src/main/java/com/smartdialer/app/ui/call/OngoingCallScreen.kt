@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.ui.draw.rotate
 import com.smartdialer.app.MainActivity
 import com.smartdialer.app.ui.theme.AppThemeRegistry
+import com.smartdialer.app.utils.NetworkTypeHelper
 import com.smartdialer.app.utils.SmsHelper
 import com.smartdialer.app.utils.WhatsAppHelper
 import android.app.Activity
@@ -670,6 +671,23 @@ fun OngoingCallScreen(
                         fontWeight = FontWeight.SemiBold,
                         color = Color.White
                     )
+
+                    val netBadge = remember(callInfo.status) { NetworkTypeHelper.getNetworkLabel(context) }
+                    if (netBadge.isNotBlank()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color.White.copy(alpha = 0.14f)
+                        ) {
+                            Text(
+                                text = netBadge,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFE2E8F0),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
             }
 

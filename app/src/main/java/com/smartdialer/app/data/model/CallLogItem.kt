@@ -21,7 +21,8 @@ data class CallLogItem(
     val isYesterday: Boolean,
     val photoUri: String? = null,
     val isSpam: Boolean = false,
-    val spamCategory: String? = null
+    val spamCategory: String? = null,
+    val isIpCall: Boolean = false
 ) {
     val displayName: String
         get() = if (!name.isNullOrBlank()) name else phoneNumber

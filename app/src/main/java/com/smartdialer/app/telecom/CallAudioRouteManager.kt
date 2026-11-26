@@ -25,6 +25,7 @@ class CallAudioRouteManager(private val context: Context) {
     private var isSpeakerEnabled = false
     private var isAudioRoutingActive = false
     private var isBluetoothActive = false
+    private var headsetOnlyMode = false
 
     private var audioDeviceCallback: AudioDeviceCallback? = null
     private var bluetoothReceiver: BroadcastReceiver? = null
@@ -33,11 +34,12 @@ class CallAudioRouteManager(private val context: Context) {
     // Callback invoked when audio route changes: (isSpeaker: Boolean, isBluetooth: Boolean)
     var onRouteChanged: ((Boolean, Boolean) -> Unit)? = null
 
-    fun start() {
+    fun start(headsetOnly: Boolean = false) {
         if (isAudioRoutingActive) return
         isAudioRoutingActive = true
         isSpeakerEnabled = false
         isBluetoothActive = false
+        headsetOnlyMode = headsetOnly
 
         requestCallAudioFocus()
 
@@ -52,8 +54,28 @@ class CallAudioRouteManager(private val context: Context) {
     }
 
     fun setSpeaker(enabled: Boolean) {
+        if (enabled && headsetOnlyMode && hasAnyHeadsetConnected()) {
+            // In Headset-Only mode, keep audio locked to connected headset
+            isSpeakerEnabled = false
+            applyAudioRoute()
+            return
+        }
         isSpeakerEnabled = enabled
         applyAudioRoute()
+    }
+
+    private fun hasAnyHeadsetConnected(): Boolean {
+        val am = audioManager ?: return false
+        return try {
+            am.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                isBluetoothDevice(it) ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADSET ||
+                    it.type == AudioDeviceInfo.TYPE_WIRED_HEADPHONES ||
+                    it.type == AudioDeviceInfo.TYPE_USB_HEADSET
+            }
+        } catch (_: Exception) {
+            false
+        }
     }
 
     fun isSpeakerOn(): Boolean = isSpeakerEnabled

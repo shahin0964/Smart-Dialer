@@ -213,6 +213,56 @@ val LightPurplePalette = AppThemePalette(
     bottomBarBg = Color(0xFFFFFFFF)
 )
 
+val PureAmoledPalette = AppThemePalette(
+    id = "AMOLED_BLACK",
+    name = "Pure AMOLED Black",
+    primary = Color(0xFF3B82F6),
+    primaryLight = Color(0xFF60A5FA),
+    primaryUltraLight = Color(0xFF0B192E),
+    background = Color(0xFF000000),
+    surface = Color(0xFF0A0A0A),
+    cardBackground = Color(0xFF121212),
+    textPrimary = Color(0xFFFFFFFF),
+    textSecondary = Color(0xFFA1A1AA),
+    textMuted = Color(0xFF71717A),
+    divider = Color(0xFF27272A),
+    isDark = true,
+    dialpadButtonBg = Color(0xFF141414),
+    dialpadText = Color(0xFFFFFFFF),
+    dialpadSubText = Color(0xFF71717A),
+    callButtonColor = Color(0xFF22C55E),
+    callerScreenGradient = listOf(Color(0xFF000000), Color(0xFF050505), Color(0xFF0A0A0A)),
+    callerAccent = Color(0xFF3B82F6),
+    callerButtonBg = Color(0x28FFFFFF),
+    topBarBg = Color(0xFF000000),
+    bottomBarBg = Color(0xFF000000)
+)
+
+val RoyalGoldPalette = AppThemePalette(
+    id = "ROYAL_GOLD",
+    name = "Royal Obsidian Gold",
+    primary = Color(0xFFF59E0B),
+    primaryLight = Color(0xFFFBBF24),
+    primaryUltraLight = Color(0xFF2B1D05),
+    background = Color(0xFF0F0D0A),
+    surface = Color(0xFF1C1914),
+    cardBackground = Color(0xFF262119),
+    textPrimary = Color(0xFFFEF3C7),
+    textSecondary = Color(0xFFFDE68A),
+    textMuted = Color(0xFFD97706).copy(alpha = 0.8f),
+    divider = Color(0xFF45361E),
+    isDark = true,
+    dialpadButtonBg = Color(0xFF1C1914),
+    dialpadText = Color(0xFFFEF3C7),
+    dialpadSubText = Color(0xFFD97706),
+    callButtonColor = Color(0xFF10B981),
+    callerScreenGradient = listOf(Color(0xFF0F0D0A), Color(0xFF1F1608), Color(0xFF2B1D05)),
+    callerAccent = Color(0xFFF59E0B),
+    callerButtonBg = Color(0x33F59E0B),
+    topBarBg = Color(0xFF0F0D0A),
+    bottomBarBg = Color(0xFF1C1914)
+)
+
 object AppThemeRegistry {
     fun getPalette(id: String): AppThemePalette {
         return when (id) {
@@ -222,6 +272,8 @@ object AppThemeRegistry {
             "EMERALD_AURORA" -> EmeraldAuroraPalette
             "SUNSET_VELVET" -> SunsetVelvetPalette
             "LIGHT_PURPLE" -> LightPurplePalette
+            "AMOLED_BLACK" -> PureAmoledPalette
+            "ROYAL_GOLD" -> RoyalGoldPalette
             else -> ClassicDarkPalette
         }
     }

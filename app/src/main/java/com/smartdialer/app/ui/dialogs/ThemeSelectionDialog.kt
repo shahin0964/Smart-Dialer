@@ -115,6 +115,20 @@ fun ThemeSelectionDialog(
             description = "Clean white backdrop with signature royal violet accents",
             gradientColors = listOf(Color(0xFF5B42F3), Color(0xFF8B5CF6), Color(0xFFF5F3FF)),
             accentColor = Color(0xFF5B42F3)
+        ),
+        ThemeItem(
+            id = "AMOLED_BLACK",
+            name = "Pure AMOLED Black",
+            description = "Battery-saving pitch black #000000 OLED theme",
+            gradientColors = listOf(Color(0xFF000000), Color(0xFF0A0A0A), Color(0xFF171717)),
+            accentColor = Color(0xFF3B82F6)
+        ),
+        ThemeItem(
+            id = "ROYAL_GOLD",
+            name = "Royal Obsidian Gold",
+            description = "Luxury obsidian dark with warm 24K amber gold highlights",
+            gradientColors = listOf(Color(0xFF0F0D0A), Color(0xFF1F1608), Color(0xFF2B1D05)),
+            accentColor = Color(0xFFF59E0B)
         )
     )
 

@@ -12,6 +12,68 @@ enum class IpCallMode {
     APP_CHOOSER     // Open installed IP / VoIP calling apps (PortSIP, Alaap, etc.)
 }
 
+data class SipAccountProfile(
+    val id: String,
+    val label: String,
+    val username: String,
+    val password: String,
+    val domain: String,
+    val outboundProxy: String = "",
+    val displayName: String = "",
+    val authName: String = "",
+    val voicemail: String = "",
+    val transportProtocol: String = "UDP",
+    val verifyTls: Boolean = false,
+    val enableStun: Boolean = false,
+    val stunServer: String = "",
+    val stunPort: String = "3478",
+    val enableSrtp: Boolean = false,
+    val ipPrefix: String = "",
+    val useMobileData: Boolean = true
+) {
+    fun toJson(): org.json.JSONObject = org.json.JSONObject().apply {
+        put("id", id)
+        put("label", label)
+        put("username", username)
+        put("password", password)
+        put("domain", domain)
+        put("outboundProxy", outboundProxy)
+        put("displayName", displayName)
+        put("authName", authName)
+        put("voicemail", voicemail)
+        put("transportProtocol", transportProtocol)
+        put("verifyTls", verifyTls)
+        put("enableStun", enableStun)
+        put("stunServer", stunServer)
+        put("stunPort", stunPort)
+        put("enableSrtp", enableSrtp)
+        put("ipPrefix", ipPrefix)
+        put("useMobileData", useMobileData)
+    }
+
+    companion object {
+        fun fromJson(obj: org.json.JSONObject): SipAccountProfile = SipAccountProfile(
+            id = obj.optString("id", "sip_${System.currentTimeMillis()}"),
+            label = obj.optString("label", "SIP Account"),
+            username = obj.optString("username", ""),
+            password = obj.optString("password", ""),
+            domain = obj.optString("domain", ""),
+            outboundProxy = obj.optString("outboundProxy", ""),
+            displayName = obj.optString("displayName", ""),
+            authName = obj.optString("authName", ""),
+            voicemail = obj.optString("voicemail", ""),
+            transportProtocol = obj.optString("transportProtocol", "UDP"),
+            verifyTls = obj.optBoolean("verifyTls", false),
+            enableStun = obj.optBoolean("enableStun", false),
+            stunServer = obj.optString("stunServer", ""),
+            stunPort = obj.optString("stunPort", "3478"),
+            enableSrtp = obj.optBoolean("enableSrtp", false),
+            ipPrefix = obj.optString("ipPrefix", ""),
+            useMobileData = obj.optBoolean("useMobileData", true)
+        )
+    }
+}
+
 class IpCallPreferences(private val context: Context) {
     private val prefs: SharedPreferences =
         context.getSharedPreferences("smart_dialer_ip_prefs", Context.MODE_PRIVATE)
@@ -156,6 +218,129 @@ class IpCallPreferences(private val context: Context) {
     var micGainBoost: Int
         get() = prefs.getInt("sip_mic_gain_boost", 0)
         set(value) = prefs.edit().putInt("sip_mic_gain_boost", value).apply()
+
+    // SRTP Media Encryption (RFC 3711 AES_CM_128_HMAC_SHA1_80)
+    var enableSrtp: Boolean
+        get() = prefs.getBoolean("sip_enable_srtp", false)
+        set(value) = prefs.edit().putBoolean("sip_enable_srtp", value).apply()
+
+    // Smart Audio Routing: Headset-Only Mode
+    var headsetOnlyMode: Boolean
+        get() = prefs.getBoolean("sip_headset_only_mode", false)
+        set(value) = prefs.edit().putBoolean("sip_headset_only_mode", value).apply()
+
+    // Multi-SIP Account Management
+    var activeAccountId: String
+        get() = prefs.getString("sip_active_account_id", "") ?: ""
+        set(value) = prefs.edit().putString("sip_active_account_id", value).apply()
+
+    fun getSavedAccounts(): List<SipAccountProfile> {
+        val raw = prefs.getString("sip_multi_accounts_json", null)
+        val list = mutableListOf<SipAccountProfile>()
+        if (!raw.isNullOrBlank()) {
+            try {
+                val arr = org.json.JSONArray(raw)
+                for (i in 0 until arr.length()) {
+                    arr.optJSONObject(i)?.let { list.add(SipAccountProfile.fromJson(it)) }
+                }
+            } catch (_: Exception) {
+            }
+        }
+        if (list.isEmpty() && (username.isNotBlank() || domain.isNotBlank())) {
+            val initial = snapshotCurrentAsProfile("default_1", displayName.ifBlank { username.ifBlank { domain } })
+            list.add(initial)
+            saveAccountList(list)
+            activeAccountId = initial.id
+        }
+        return list
+    }
+
+    fun snapshotCurrentAsProfile(id: String = activeAccountId.ifBlank { "sip_${System.currentTimeMillis()}" }, label: String = ""): SipAccountProfile {
+        return SipAccountProfile(
+            id = id,
+            label = label.ifBlank { displayName.ifBlank { username.ifBlank { domain.ifBlank { "SIP Account" } } } },
+            username = username,
+            password = password,
+            domain = domain,
+            outboundProxy = outboundProxy,
+            displayName = displayName,
+            authName = authName,
+            voicemail = voicemail,
+            transportProtocol = transportProtocol,
+            verifyTls = verifyTls,
+            enableStun = enableStun,
+            stunServer = stunServer,
+            stunPort = stunPort,
+            enableSrtp = enableSrtp,
+            ipPrefix = ipPrefix,
+            useMobileData = useMobileData
+        )
+    }
+
+    fun saveAccountProfile(profile: SipAccountProfile, makeActive: Boolean = true) {
+        val existing = getSavedAccounts().toMutableList()
+        val idx = existing.indexOfFirst { it.id == profile.id }
+        if (idx >= 0) {
+            existing[idx] = profile
+        } else {
+            existing.add(profile)
+        }
+        saveAccountList(existing)
+        if (makeActive) {
+            applyProfileAsActive(profile)
+        }
+    }
+
+    fun deleteAccountProfile(id: String) {
+        val remaining = getSavedAccounts().filterNot { it.id == id }
+        saveAccountList(remaining)
+        if (activeAccountId == id) {
+            if (remaining.isNotEmpty()) {
+                applyProfileAsActive(remaining.first())
+            } else {
+                activeAccountId = ""
+            }
+        }
+    }
+
+    fun switchActiveAccount(id: String): SipAccountProfile? {
+        val target = getSavedAccounts().firstOrNull { it.id == id } ?: return null
+        applyProfileAsActive(target)
+        return target
+    }
+
+    fun replaceAllAccounts(accounts: List<SipAccountProfile>, activeId: String) {
+        saveAccountList(accounts)
+        val active = accounts.firstOrNull { it.id == activeId } ?: accounts.firstOrNull()
+        if (active != null) {
+            applyProfileAsActive(active)
+        }
+    }
+
+    private fun applyProfileAsActive(profile: SipAccountProfile) {
+        activeAccountId = profile.id
+        username = profile.username
+        password = profile.password
+        domain = profile.domain
+        outboundProxy = profile.outboundProxy
+        displayName = profile.displayName
+        authName = profile.authName
+        voicemail = profile.voicemail
+        transportProtocol = profile.transportProtocol
+        verifyTls = profile.verifyTls
+        enableStun = profile.enableStun
+        stunServer = profile.stunServer
+        stunPort = profile.stunPort
+        enableSrtp = profile.enableSrtp
+        ipPrefix = profile.ipPrefix
+        useMobileData = profile.useMobileData
+    }
+
+    private fun saveAccountList(list: List<SipAccountProfile>) {
+        val arr = org.json.JSONArray()
+        list.forEach { arr.put(it.toJson()) }
+        prefs.edit().putString("sip_multi_accounts_json", arr.toString()).apply()
+    }
 
     fun clearAccount() {
         prefs.edit().clear().apply()

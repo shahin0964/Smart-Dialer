@@ -24,9 +24,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.EnhancedEncryption
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PhoneForwarded
 import androidx.compose.material.icons.filled.PhoneInTalk
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Search
@@ -42,7 +44,9 @@ import androidx.compose.material.icons.filled.Warning
 import com.smartdialer.app.telecom.CallRecorderManager
 import com.smartdialer.app.ui.dialogs.AppAnalysisDialog
 import com.smartdialer.app.ui.dialogs.CallAnalyticsDialog
+import com.smartdialer.app.ui.dialogs.CallForwardingDialog
 import com.smartdialer.app.ui.dialogs.CallerIdSettingsDialog
+import com.smartdialer.app.ui.dialogs.EncryptedBackupDialog
 import com.smartdialer.app.ui.dialogs.IpAudioSettingsDialog
 import com.smartdialer.app.ui.dialogs.SmartControlsDialog
 import com.smartdialer.app.ui.dialogs.ThemeSelectionDialog
@@ -125,6 +129,8 @@ fun MoreScreen(
     var showAnalysisDialog by remember { mutableStateOf(false) }
     var showSmartControlsDialog by remember { mutableStateOf(false) }
     var showAnalyticsDialog by remember { mutableStateOf(false) }
+    var showCallForwardingDialog by remember { mutableStateOf(false) }
+    var showEncryptedBackupDialog by remember { mutableStateOf(false) }
 
     var refreshKey by remember { mutableStateOf(0) }
     var sims by remember { mutableStateOf<List<SimInfo>>(emptyList()) }
@@ -189,6 +195,20 @@ fun MoreScreen(
     if (showAnalyticsDialog) {
         CallAnalyticsDialog(
             onDismiss = { showAnalyticsDialog = false }
+        )
+    }
+
+    if (showCallForwardingDialog) {
+        CallForwardingDialog(
+            sims = sims,
+            onDismiss = { showCallForwardingDialog = false }
+        )
+    }
+
+    if (showEncryptedBackupDialog) {
+        EncryptedBackupDialog(
+            onDismiss = { showEncryptedBackupDialog = false },
+            onRestored = { refreshKey++ }
         )
     }
 
@@ -399,6 +419,14 @@ fun MoreScreen(
             onClick = { showDualSimDialog = true }
         )
 
+        // 2b. Call Forwarding (SIM 1 / SIM 2)
+        MoreOptionItem(
+            icon = Icons.Default.PhoneForwarded,
+            title = "Call Forwarding (SIM)",
+            subtitle = "Forward calls when busy, unanswered or unreachable",
+            onClick = { showCallForwardingDialog = true }
+        )
+
         // 3. Calling Country & Voicemail
         val countrySummary = remember(refreshKey, appSettings.callingCountryName, appSettings.callingCountryCode) {
             "${appSettings.callingCountryName} (${appSettings.callingCountryCode}) • Voicemail: ${appSettings.voicemailNumber}"
@@ -543,6 +571,8 @@ fun MoreScreen(
                 "EMERALD_AURORA" -> "Emerald Aurora (Deep Teal Gradient)"
                 "SUNSET_VELVET" -> "Sunset Velvet (Purple & Crimson)"
                 "LIGHT_PURPLE" -> "Classic Purple (Clean White & Violet)"
+                "AMOLED_BLACK" -> "Pure AMOLED Black (#000000 OLED)"
+                "ROYAL_GOLD" -> "Royal Obsidian Gold (24K Amber)"
                 else -> "Classic Dark (Default Navy)"
             }
         }
@@ -565,6 +595,14 @@ fun MoreScreen(
             title = "Import & Export Contacts (.vcf)",
             subtitle = "Backup contacts into a .vcf file or restore",
             onClick = { showVcfDialog = true }
+        )
+
+        // 10b. AES-256 Encrypted App Backup & Restore
+        MoreOptionItem(
+            icon = Icons.Default.EnhancedEncryption,
+            title = "Encrypted App Backup (AES-256)",
+            subtitle = "Password-protected backup of SIP accounts, notes & settings",
+            onClick = { showEncryptedBackupDialog = true }
         )
 
         // 11. App OTA Update

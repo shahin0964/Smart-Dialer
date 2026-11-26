@@ -294,7 +294,16 @@ class MainActivity : ComponentActivity() {
             DialerViewModel(contactsRepository, simRepository, ipPreferences)
         }
         val callsViewModel = remember {
-            CallsViewModel(callLogRepository)
+            CallsViewModel(callLogRepository, applicationContext)
+        }
+        val missedCallCount by callsViewModel.missedCallCount.collectAsState()
+
+        LaunchedEffect(Unit) {
+            if (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_CALL_LOG)
+                == PackageManager.PERMISSION_GRANTED
+            ) {
+                callsViewModel.loadCallLogs()
+            }
         }
         val contactsViewModel = remember {
             ContactsViewModel(contactsRepository)
@@ -405,7 +414,13 @@ class MainActivity : ComponentActivity() {
                     )
                     TopTabBar(
                         selectedTab = selectedTab,
-                        onTabSelected = { selectedTab = it }
+                        missedCallBadge = missedCallCount,
+                        onTabSelected = { tab ->
+                            selectedTab = tab
+                            if (tab == MainTab.CALLS) {
+                                callsViewModel.clearMissedBadge()
+                            }
+                        }
                     )
                 }
             },

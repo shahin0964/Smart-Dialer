@@ -258,7 +258,7 @@ fun CallsScreen(
                         Icon(
                             imageVector = Icons.Default.Tune,
                             contentDescription = "Filter",
-                            tint = if (activeFilter != null) theme.primary else theme.textMuted,
+                            tint = if (activeFilter != CallsHistoryFilter.ALL) theme.primary else theme.textMuted,
                             modifier = Modifier.size(22.dp)
                         )
                     }
@@ -269,31 +269,45 @@ fun CallsScreen(
                         modifier = Modifier.background(theme.cardBackground)
                     ) {
                         DropdownMenuItem(
-                            text = { Text("All Calls", color = theme.textPrimary, fontWeight = if (activeFilter == null) FontWeight.Bold else FontWeight.Normal) },
+                            text = { Text("All Calls", color = theme.textPrimary, fontWeight = if (activeFilter == CallsHistoryFilter.ALL) FontWeight.Bold else FontWeight.Normal) },
                             onClick = {
                                 filterMenuExpanded = false
-                                viewModel.setFilter(null)
+                                viewModel.setFilter(CallsHistoryFilter.ALL)
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Incoming", color = CallIncomingGreen) },
                             onClick = {
                                 filterMenuExpanded = false
-                                viewModel.setFilter(CallType.INCOMING)
+                                viewModel.setFilter(CallsHistoryFilter.INCOMING)
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Outgoing", color = CallOutgoingBlue) },
                             onClick = {
                                 filterMenuExpanded = false
-                                viewModel.setFilter(CallType.OUTGOING)
+                                viewModel.setFilter(CallsHistoryFilter.OUTGOING)
                             }
                         )
                         DropdownMenuItem(
                             text = { Text("Missed", color = CallMissedRed) },
                             onClick = {
                                 filterMenuExpanded = false
-                                viewModel.setFilter(CallType.MISSED)
+                                viewModel.setFilter(CallsHistoryFilter.MISSED)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("SIP / IP Calls", color = Color(0xFF8B5CF6), fontWeight = if (activeFilter == CallsHistoryFilter.SIP) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = {
+                                filterMenuExpanded = false
+                                viewModel.setFilter(CallsHistoryFilter.SIP)
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("SIM Calls", color = theme.primary, fontWeight = if (activeFilter == CallsHistoryFilter.SIM) FontWeight.Bold else FontWeight.Normal) },
+                            onClick = {
+                                filterMenuExpanded = false
+                                viewModel.setFilter(CallsHistoryFilter.SIM)
                             }
                         )
                     }
@@ -535,6 +549,22 @@ fun GroupedCallLogRow(
                                 fontWeight = FontWeight.Bold,
                                 color = theme.primary,
                                 modifier = Modifier.padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+
+                    if (latest.isIpCall) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = Color(0xFF8B5CF6).copy(alpha = 0.16f)
+                        ) {
+                            Text(
+                                text = "SIP",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF8B5CF6),
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
                     }
