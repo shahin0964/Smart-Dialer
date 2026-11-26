@@ -1235,6 +1235,8 @@ object SipEngine {
                     }
                 }
 
+                CallRecorderManager.onLocalPcmFrame(pcmBuf)
+
                 if (negotiatedCodec == 8) {
                     for (i in 0 until pcmFrameSize) {
                         rtpPacketData[12 + i] = G711.linearToAlaw(pcmBuf[i])
@@ -1384,6 +1386,7 @@ object SipEngine {
                 val track = audioTrack ?: break
                 val frame = jitterQueue.poll(60, TimeUnit.MILLISECONDS)
                 if (frame != null) {
+                    CallRecorderManager.onRemotePcmFrame(frame)
                     track.write(frame, 0, frame.size, AudioTrack.WRITE_BLOCKING)
                 }
             }

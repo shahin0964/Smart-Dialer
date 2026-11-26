@@ -44,4 +44,28 @@ object SmsHelper {
             }
         }
     }
+
+    /**
+     * Opens default SMS app with a pre-filled message body (e.g. for Quick Reject Reply).
+     */
+    fun openSmsWithBody(context: Context, rawNumber: String, messageBody: String) {
+        val clean = rawNumber.filter { it.isDigit() || it == '+' }.trim()
+        if (clean.isBlank()) {
+            Toast.makeText(context, "Invalid phone number", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                data = Uri.parse("smsto:$clean")
+                putExtra("address", clean)
+                putExtra(Intent.EXTRA_PHONE_NUMBER, clean)
+                putExtra("sms_body", messageBody)
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            openSms(context, clean)
+        }
+    }
 }

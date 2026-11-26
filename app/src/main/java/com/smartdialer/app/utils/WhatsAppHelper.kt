@@ -47,17 +47,22 @@ object WhatsAppHelper {
     }
 
     /**
-     * Directly launches WhatsApp or WhatsApp Business 1-on-1 chat with the given number.
-     * Returns true if successfully launched, false otherwise.
+     * Directly launches WhatsApp or WhatsApp Business 1-on-1 chat with the given number
+     * and optionally pre-fills a message (e.g., for Quick Reject Reply).
      */
-    fun openWhatsAppChat(context: Context, phoneNumber: String): Boolean {
+    fun openWhatsAppChat(context: Context, phoneNumber: String, message: String? = null): Boolean {
         val international = normalizeForWhatsApp(phoneNumber)
         if (international.isBlank() || international.length < 5) {
             Toast.makeText(context, "Invalid phone number for WhatsApp", Toast.LENGTH_SHORT).show()
             return false
         }
 
-        val directUri = Uri.parse("https://api.whatsapp.com/send?phone=$international")
+        val url = if (!message.isNullOrBlank()) {
+            "https://api.whatsapp.com/send?phone=$international&text=${Uri.encode(message)}"
+        } else {
+            "https://api.whatsapp.com/send?phone=$international"
+        }
+        val directUri = Uri.parse(url)
 
         // 1. Try standard WhatsApp first
         val waIntent = Intent(Intent.ACTION_VIEW, directUri).apply {
@@ -78,7 +83,12 @@ object WhatsAppHelper {
                 return true
             } catch (e2: Exception) {
                 // 3. Fallback to generic web intent (which Android routes to WhatsApp or browser)
-                val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse("https://wa.me/$international")).apply {
+                val fallbackUrl = if (!message.isNullOrBlank()) {
+                    "https://wa.me/$international?text=${Uri.encode(message)}"
+                } else {
+                    "https://wa.me/$international"
+                }
+                val fallbackIntent = Intent(Intent.ACTION_VIEW, Uri.parse(fallbackUrl)).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
                 return try {

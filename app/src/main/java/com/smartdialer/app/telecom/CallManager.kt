@@ -21,7 +21,10 @@ import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.ActiveCallInfo
 import com.smartdialer.app.data.model.CallStatus
 import com.smartdialer.app.data.model.CallType
+import com.smartdialer.app.data.model.EndedCallSummary
 import com.smartdialer.app.data.model.SpamAction
+import com.smartdialer.app.data.repository.AppSettingsPreferences
+import com.smartdialer.app.data.repository.CallNotesRepository
 import com.smartdialer.app.data.repository.IpCallStatsRepository
 import com.smartdialer.app.data.repository.SpamProtectionManager
 import com.smartdialer.app.ui.call.CallActivity
@@ -45,14 +48,43 @@ object CallManager {
     private val _currentCallState = MutableStateFlow(ActiveCallInfo())
     val currentCallState: StateFlow<ActiveCallInfo> = _currentCallState.asStateFlow()
 
+    private val _lastEndedCall = MutableStateFlow<EndedCallSummary?>(null)
+    val lastEndedCall: StateFlow<EndedCallSummary?> = _lastEndedCall.asStateFlow()
+
+    private val trackedCalls = mutableListOf<Call>()
     private var activeCall: Call? = null
     private var inCallService: CallService? = null
     private var isIpCallActive = false
+    private var wasCurrentCallAnswered = false
 
     private val callCallback = object : Call.Callback() {
         override fun onStateChanged(call: Call, state: Int) {
-            updateFromCall(call)
+            if (call == activeCall) {
+                updateFromCall(call)
+            } else {
+                refreshSecondaryCallInfo()
+            }
         }
+    }
+
+    fun dismissPostCallSummary() {
+        _lastEndedCall.value = null
+    }
+
+    private fun emitPostCallSummary(info: ActiveCallInfo, wasAnswered: Boolean) {
+        val ctx = appContext ?: return
+        if (info.number.isBlank() || info.isBlocked) return
+        val prefs = AppSettingsPreferences(ctx)
+        if (!prefs.postCallSummaryEnabled) return
+        _lastEndedCall.value = EndedCallSummary(
+            number = info.number,
+            contactName = info.contactName,
+            photoUri = info.photoUri,
+            durationSeconds = info.durationSeconds,
+            isIncoming = info.isIncoming,
+            isIpCall = info.isIpCall,
+            wasAnswered = wasAnswered
+        )
     }
 
     fun updateAudioState(audioState: CallAudioState) {
@@ -129,33 +161,120 @@ object CallManager {
 
     fun setCall(call: Call, context: Context) {
         appContext = context.applicationContext
-        activeCall?.unregisterCallback(callCallback)
+        if (!trackedCalls.contains(call)) {
+            trackedCalls.add(call)
+            call.registerCallback(callCallback)
+        }
+
+        val hadActiveCall = activeCall != null && activeCall != call &&
+            activeCall?.state != Call.STATE_DISCONNECTED
+
+        if (hadActiveCall && call.state == Call.STATE_RINGING) {
+            // Call Waiting: keep existing activeCall primary, expose waiting call in secondary banner
+            refreshSecondaryCallInfo()
+            val waitingNumber = call.details?.handle?.schemeSpecificPart ?: ""
+            val (wName, wPhoto) = lookupContactInfo(context, waitingNumber)
+            CallNotificationManager.showIncomingCallNotification(
+                context = context,
+                rawNumber = waitingNumber,
+                contactName = wName,
+                photoUri = wPhoto,
+                isSpam = false,
+                spamCategory = null
+            )
+            return
+        }
+
+        // Promote new outgoing or newly foregrounded call to primary
         activeCall = call
-        call.registerCallback(callCallback)
+        wasCurrentCallAnswered = (call.state == Call.STATE_ACTIVE)
         updateFromCall(call)
 
         val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
         val isLocked = keyguardManager?.isKeyguardLocked == true
         val isIncoming = (call.state == Call.STATE_RINGING)
 
-        // If it's an incoming call while device is unlocked (user in app/game),
-        // we DO NOT aggressively pop up CallActivity full-screen.
-        // Instead, the floating Heads-Up notification card is displayed at top.
-        // Only launch CallActivity directly if outgoing, or if device is locked.
         if (!isIncoming || isLocked) {
             launchCallActivity(context)
         }
     }
 
+    fun removeCall(call: Call) {
+        call.unregisterCallback(callCallback)
+        trackedCalls.remove(call)
+
+        val removedInfo = if (call == activeCall) _currentCallState.value else null
+        val removedWasAnswered = wasCurrentCallAnswered
+
+        // Switch to remaining tracked call if any (Multi-call continuity)
+        val remaining = trackedCalls.lastOrNull { it.state != Call.STATE_DISCONNECTED }
+        if (remaining != null) {
+            activeCall = remaining
+            updateFromCall(remaining)
+            return
+        }
+
+        if (removedInfo != null && removedInfo.number.isNotBlank()) {
+            emitPostCallSummary(removedInfo, removedWasAnswered)
+        }
+        clearCall()
+    }
+
     fun clearCall() {
-        activeCall?.unregisterCallback(callCallback)
+        trackedCalls.forEach {
+            try {
+                it.unregisterCallback(callCallback)
+            } catch (_: Exception) {
+            }
+        }
+        trackedCalls.clear()
         activeCall = null
+        wasCurrentCallAnswered = false
         stopDurationTimer()
+        stopRecordingInternal()
+        SmartCallControlsManager.stopAll()
         appContext?.let {
             CallNotificationManager.dismissAll(it)
             IpCallService.stop(it)
         }
         _currentCallState.value = ActiveCallInfo(status = CallStatus.DISCONNECTED)
+    }
+
+    private fun refreshSecondaryCallInfo() {
+        val secondary = trackedCalls.firstOrNull {
+            it != activeCall && it.state != Call.STATE_DISCONNECTED
+        }
+        if (secondary == null) {
+            _currentCallState.value = _currentCallState.value.copy(
+                hasSecondaryCall = false,
+                secondaryCallName = "",
+                secondaryCallNumber = "",
+                secondaryCallStatus = CallStatus.IDLE,
+                canMergeCalls = false
+            )
+            return
+        }
+        val secNumber = secondary.details?.handle?.schemeSpecificPart ?: ""
+        val secName = appContext?.let { lookupContactInfo(it, secNumber).first }
+            ?: secondary.details?.callerDisplayName
+            ?: secNumber
+        val secStatus = when (secondary.state) {
+            Call.STATE_RINGING -> CallStatus.RINGING
+            Call.STATE_ACTIVE -> CallStatus.ACTIVE
+            Call.STATE_HOLDING -> CallStatus.HOLDING
+            Call.STATE_DIALING -> CallStatus.DIALING
+            Call.STATE_CONNECTING -> CallStatus.CONNECTING
+            else -> CallStatus.IDLE
+        }
+        val canMerge = activeCall?.details?.can(Call.Details.CAPABILITY_MERGE_CONFERENCE) == true ||
+            (trackedCalls.size > 1 && secondary.state != Call.STATE_RINGING)
+        _currentCallState.value = _currentCallState.value.copy(
+            hasSecondaryCall = true,
+            secondaryCallName = secName.ifBlank { secNumber },
+            secondaryCallNumber = secNumber,
+            secondaryCallStatus = secStatus,
+            canMergeCalls = canMerge
+        )
     }
 
     private fun lookupContactInfo(context: Context, number: String): Pair<String?, String?> {
@@ -211,9 +330,13 @@ object CallManager {
             call.state == Call.STATE_RINGING
         }
 
-        if (status == CallStatus.ACTIVE && durationJob == null) {
-            startDurationTimer()
-        } else if (status != CallStatus.ACTIVE && status != CallStatus.HOLDING) {
+        if (status == CallStatus.ACTIVE) {
+            wasCurrentCallAnswered = true
+            SmartCallControlsManager.stopAll()
+            if (durationJob == null) {
+                startDurationTimer()
+            }
+        } else if (status != CallStatus.HOLDING) {
             stopDurationTimer()
         }
 
@@ -255,6 +378,10 @@ object CallManager {
             }
         }
 
+        val activeNote = context?.let {
+            if (rawNumber.isNotBlank()) CallNotesRepository.getNoteForNumber(it, rawNumber)?.note else null
+        }
+
         _currentCallState.value = _currentCallState.value.copy(
             callId = call.toString(),
             number = rawNumber,
@@ -269,13 +396,27 @@ object CallManager {
             isSpeakerOn = isSpeaker,
             isBluetoothOn = isBluetooth,
             isHolding = (status == CallStatus.HOLDING),
-            isIncoming = isIncoming
+            isIncoming = isIncoming,
+            isRecording = CallRecorderManager.isRecording(),
+            isConference = call.details?.hasProperty(Call.Details.PROPERTY_CONFERENCE) == true,
+            activeNote = activeNote
         )
+        refreshSecondaryCallInfo()
 
-        // Tactile vibration feedback on call connect and disconnect for SIM calls
+        if (context != null && previousStatus != CallStatus.RINGING && status == CallStatus.RINGING && isIncoming) {
+            SmartCallControlsManager.onIncomingRingingStarted(
+                context = context,
+                displayName = contactName,
+                rawNumber = rawNumber,
+                isSilencedSpam = isSilencedSpam
+            )
+        }
+
+        // Tactile vibration feedback & auto-recording on call connect for SIM calls
         if (context != null) {
             if (previousStatus != CallStatus.ACTIVE && status == CallStatus.ACTIVE) {
                 VibrationHelper.vibrateCallConnected(context)
+                tryAutoStartRecording(context, rawNumber, contactName, isIpCall = false)
             } else if (previousStatus != CallStatus.DISCONNECTED && status == CallStatus.DISCONNECTED) {
                 VibrationHelper.vibrateCallEnded(context)
             }
@@ -378,7 +519,9 @@ object CallManager {
     }
 
     fun answer() {
+        SmartCallControlsManager.stopAll()
         if (isIpCallActive) {
+            wasCurrentCallAnswered = true
             SipEngine.answerIncomingCall()
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.ACTIVE)
             startDurationTimer()
@@ -391,7 +534,18 @@ object CallManager {
                     "Call in progress"
                 )
                 VibrationHelper.vibrateCallConnected(ctx)
+                tryAutoStartRecording(ctx, _currentCallState.value.number, _currentCallState.value.contactName, isIpCall = true)
             }
+            return
+        }
+        // If answering a waiting cellular call while another call is active, hold current and promote waiting
+        val waitingCall = trackedCalls.firstOrNull { it != activeCall && it.state == Call.STATE_RINGING }
+        if (waitingCall != null) {
+            activeCall?.hold()
+            activeCall = waitingCall
+            waitingCall.answer(android.telecom.VideoProfile.STATE_AUDIO_ONLY)
+            updateFromCall(waitingCall)
+            appContext?.let { CallNotificationManager.dismissIncomingCallNotification(it) }
             return
         }
         activeCall?.answer(android.telecom.VideoProfile.STATE_AUDIO_ONLY)
@@ -404,18 +558,22 @@ object CallManager {
     }
 
     fun reject() {
+        SmartCallControlsManager.stopAll()
         if (isIpCallActive) {
-            val num = _currentCallState.value.number
-            val name = _currentCallState.value.contactName
+            val snapshot = _currentCallState.value
+            val num = snapshot.number
+            val name = snapshot.contactName
             isIpCallActive = false
             SipEngine.rejectIncomingCall()
             stopDurationTimer()
+            stopRecordingInternal()
             appContext?.let { ctx ->
                 IpCallStatsRepository.recordCall(ctx, num, name, CallType.REJECTED, 0)
                 CallNotificationManager.dismissAll(ctx)
                 IpCallService.stop(ctx)
                 VibrationHelper.vibrateCallEnded(ctx)
             }
+            emitPostCallSummary(snapshot, wasAnswered = false)
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
                 delay(1200)
@@ -423,23 +581,39 @@ object CallManager {
             }
             return
         }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+        val waitingCall = trackedCalls.firstOrNull { it != activeCall && it.state == Call.STATE_RINGING }
+        if (waitingCall != null) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                waitingCall.reject(Call.REJECT_REASON_DECLINED)
+            } else {
+                @Suppress("DEPRECATION")
+                waitingCall.reject(false, null as? String)
+            }
+            appContext?.let { CallNotificationManager.dismissIncomingCallNotification(it) }
+            refreshSecondaryCallInfo()
+            return
+        }
+        val snapshot = _currentCallState.value
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             activeCall?.reject(Call.REJECT_REASON_DECLINED)
         } else {
             @Suppress("DEPRECATION")
             activeCall?.reject(false, null as? String)
         }
+        emitPostCallSummary(snapshot, wasAnswered = false)
         appContext?.let { CallNotificationManager.dismissAll(it) }
         clearCall()
     }
 
     fun disconnect() {
+        SmartCallControlsManager.stopAll()
         if (isIpCallActive) {
-            val num = _currentCallState.value.number
-            val name = _currentCallState.value.contactName
-            val duration = _currentCallState.value.durationSeconds
-            val isIncoming = _currentCallState.value.isIncoming
-            val wasActive = _currentCallState.value.status == CallStatus.ACTIVE
+            val snapshot = _currentCallState.value
+            val num = snapshot.number
+            val name = snapshot.contactName
+            val duration = snapshot.durationSeconds
+            val isIncoming = snapshot.isIncoming
+            val wasActive = snapshot.status == CallStatus.ACTIVE
             val callType = when {
                 wasActive -> if (isIncoming) CallType.INCOMING else CallType.OUTGOING
                 isIncoming -> CallType.MISSED
@@ -448,12 +622,14 @@ object CallManager {
             isIpCallActive = false
             SipEngine.endCall()
             stopDurationTimer()
+            stopRecordingInternal()
             appContext?.let { ctx ->
                 IpCallStatsRepository.recordCall(ctx, num, name, callType, duration)
                 CallNotificationManager.dismissAll(ctx)
                 IpCallService.stop(ctx)
                 VibrationHelper.vibrateCallEnded(ctx)
             }
+            emitPostCallSummary(snapshot, wasAnswered = wasActive)
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
                 delay(1200)
@@ -461,9 +637,15 @@ object CallManager {
             }
             return
         }
-        activeCall?.disconnect()
-        appContext?.let { CallNotificationManager.dismissAll(it) }
-        clearCall()
+        val callToDisconnect = activeCall
+        val snapshot = _currentCallState.value
+        val wasAnswered = wasCurrentCallAnswered
+        callToDisconnect?.disconnect()
+        if (trackedCalls.size <= 1) {
+            emitPostCallSummary(snapshot, wasAnswered = wasAnswered)
+            appContext?.let { CallNotificationManager.dismissAll(it) }
+            clearCall()
+        }
     }
 
     fun toggleMute() {
@@ -519,9 +701,91 @@ object CallManager {
         }
     }
 
+    fun swapCalls() {
+        val current = activeCall ?: return
+        val secondary = trackedCalls.firstOrNull {
+            it != current && it.state != Call.STATE_DISCONNECTED
+        } ?: return
+
+        if (secondary.state == Call.STATE_RINGING) {
+            current.hold()
+            activeCall = secondary
+            secondary.answer(android.telecom.VideoProfile.STATE_AUDIO_ONLY)
+        } else {
+            if (current.state == Call.STATE_ACTIVE) {
+                current.hold()
+            }
+            if (secondary.state == Call.STATE_HOLDING) {
+                secondary.unhold()
+            }
+            activeCall = secondary
+        }
+        updateFromCall(secondary)
+    }
+
+    fun mergeCalls() {
+        val current = activeCall ?: return
+        val secondary = trackedCalls.firstOrNull {
+            it != current && it.state != Call.STATE_DISCONNECTED && it.state != Call.STATE_RINGING
+        } ?: return
+        try {
+            current.conference(secondary)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun tryAutoStartRecording(
+        context: Context,
+        number: String,
+        contactName: String?,
+        isIpCall: Boolean
+    ) {
+        if (CallRecorderManager.isRecording()) return
+        val prefs = AppSettingsPreferences(context)
+        if (!prefs.autoRecord) return
+        val isUnknown = contactName.isNullOrBlank() || contactName == number
+        if (prefs.recordUnknownOnly && !isUnknown) return
+
+        val started = CallRecorderManager.startRecording(
+            context = context,
+            phoneNumber = number,
+            contactName = contactName,
+            isIpCall = isIpCall,
+            audioFormatPref = prefs.audioFormat
+        )
+        if (started) {
+            _currentCallState.value = _currentCallState.value.copy(isRecording = true)
+        }
+    }
+
+    private fun stopRecordingInternal() {
+        if (CallRecorderManager.isRecording()) {
+            CallRecorderManager.stopRecording()
+        }
+        _currentCallState.value = _currentCallState.value.copy(isRecording = false)
+    }
+
     fun toggleRecording() {
-        val current = _currentCallState.value.isRecording
-        _currentCallState.value = _currentCallState.value.copy(isRecording = !current)
+        val ctx = appContext ?: return
+        if (CallRecorderManager.isRecording()) {
+            val savedFile = CallRecorderManager.stopRecording()
+            _currentCallState.value = _currentCallState.value.copy(isRecording = false)
+            if (savedFile != null) {
+                android.widget.Toast.makeText(ctx, "Recording saved: ${savedFile.name}", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            val info = _currentCallState.value
+            val prefs = AppSettingsPreferences(ctx)
+            val started = CallRecorderManager.startRecording(
+                context = ctx,
+                phoneNumber = info.number,
+                contactName = info.contactName,
+                isIpCall = info.isIpCall,
+                audioFormatPref = prefs.audioFormat
+            )
+            _currentCallState.value = _currentCallState.value.copy(isRecording = started)
+        }
     }
 
     fun sendDtmf(digit: Char) {
@@ -544,7 +808,9 @@ object CallManager {
 
             val (resolvedName, resolvedPhoto) = lookupContactInfo(context, cleanNumber)
             val displayName = if (!resolvedName.isNullOrBlank()) resolvedName else cleanNumber
+            val activeNote = CallNotesRepository.getNoteForNumber(context, cleanNumber)?.note
 
+            wasCurrentCallAnswered = false
             isIpCallActive = true
             _currentCallState.value = ActiveCallInfo(
                 callId = "ip_${System.currentTimeMillis()}",
@@ -554,7 +820,8 @@ object CallManager {
                 status = CallStatus.CONNECTING,
                 simSlot = 3,
                 isIpCall = true,
-                isIncoming = false
+                isIncoming = false,
+                activeNote = activeNote
             )
 
             // Launch CallActivity directly without any system resolver or chooser
@@ -582,16 +849,21 @@ object CallManager {
                         appContext?.let { IpCallService.start(it, cleanNumber, displayName, "Ringing...") }
                     }
                     CallStatus.ACTIVE -> {
+                        wasCurrentCallAnswered = true
                         _currentCallState.value = _currentCallState.value.copy(status = CallStatus.ACTIVE)
                         startDurationTimer()
                         appContext?.let {
                             IpCallService.start(it, cleanNumber, displayName, "Call in progress")
                             VibrationHelper.vibrateCallConnected(it)
+                            tryAutoStartRecording(it, cleanNumber, displayName, isIpCall = true)
                         }
                     }
                     CallStatus.DISCONNECTED -> {
-                        val duration = _currentCallState.value.durationSeconds
+                        val snapshot = _currentCallState.value
+                        val duration = snapshot.durationSeconds
+                        val answered = wasCurrentCallAnswered
                         stopDurationTimer()
+                        stopRecordingInternal()
                         _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
                         isIpCallActive = false
                         appContext?.let { ctx ->
@@ -599,6 +871,7 @@ object CallManager {
                             IpCallService.stop(ctx)
                             VibrationHelper.vibrateCallEnded(ctx)
                         }
+                        emitPostCallSummary(snapshot, wasAnswered = answered)
                         scope.launch {
                             delay(1200)
                             clearCall()
@@ -628,6 +901,8 @@ object CallManager {
             return
         }
 
+        val activeNote = CallNotesRepository.getNoteForNumber(context, number)?.note
+        wasCurrentCallAnswered = false
         isIpCallActive = true
         _currentCallState.value = ActiveCallInfo(
             callId = "ip_in_${System.currentTimeMillis()}",
@@ -639,7 +914,15 @@ object CallManager {
             status = CallStatus.RINGING,
             simSlot = 3,
             isIpCall = true,
-            isIncoming = true
+            isIncoming = true,
+            activeNote = activeNote
+        )
+
+        SmartCallControlsManager.onIncomingRingingStarted(
+            context = context,
+            displayName = displayName,
+            rawNumber = number,
+            isSilencedSpam = (spamResult.action == SpamAction.SILENCE)
         )
 
         // Show floating Heads-Up notification card with Answer & Decline
@@ -665,9 +948,11 @@ object CallManager {
     }
 
     fun handleIncomingIpCallCancelled() {
+        SmartCallControlsManager.stopAll()
         if (isIpCallActive && _currentCallState.value.status == CallStatus.RINGING) {
-            val num = _currentCallState.value.number
-            val name = _currentCallState.value.contactName
+            val snapshot = _currentCallState.value
+            val num = snapshot.number
+            val name = snapshot.contactName
             isIpCallActive = false
             stopDurationTimer()
             appContext?.let { ctx ->
@@ -676,6 +961,7 @@ object CallManager {
                 IpCallService.stop(ctx)
                 VibrationHelper.vibrateCallEnded(ctx)
             }
+            emitPostCallSummary(snapshot, wasAnswered = false)
             _currentCallState.value = _currentCallState.value.copy(status = CallStatus.DISCONNECTED)
             scope.launch {
                 delay(1200)

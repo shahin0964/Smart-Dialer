@@ -26,6 +26,7 @@ import com.smartdialer.app.data.repository.AppSettingsPreferences
 import com.smartdialer.app.telecom.CallManager
 import com.smartdialer.app.telecom.CallNotificationManager
 import com.smartdialer.app.telecom.FloatingCallHeadManager
+import com.smartdialer.app.ui.dialogs.PostCallSummaryDialog
 import com.smartdialer.app.ui.theme.SmartDialerTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -81,7 +82,9 @@ class CallActivity : ComponentActivity() {
                 when {
                     state.status == CallStatus.DISCONNECTED -> {
                         releaseProximityLock()
-                        finishAndRemoveTask()
+                        if (CallManager.lastEndedCall.value == null) {
+                            finishAndRemoveTask()
+                        }
                     }
                     state.isSpeakerOn -> {
                         // Speakerphone active: keep display on, do not blank screen
@@ -101,18 +104,39 @@ class CallActivity : ComponentActivity() {
         setContent {
             val isNearEar by isNearEarState.collectAsState()
             val currentTheme by AppSettingsPreferences.themeFlow.collectAsState()
+            val callState by CallManager.currentCallState.collectAsState()
+            val endedSummary by CallManager.lastEndedCall.collectAsState()
 
             SmartDialerTheme(themeId = currentTheme, darkTheme = true) {
                 Box(modifier = Modifier.fillMaxSize()) {
-                    OngoingCallScreen(
-                        onDismiss = {
-                            releaseProximityLock()
-                            finishAndRemoveTask()
+                    if (callState.status == CallStatus.DISCONNECTED && endedSummary != null) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFF0B0F19))
+                        ) {
+                            PostCallSummaryDialog(
+                                summary = endedSummary!!,
+                                onDismiss = {
+                                    CallManager.dismissPostCallSummary()
+                                    releaseProximityLock()
+                                    finishAndRemoveTask()
+                                }
+                            )
                         }
-                    )
+                    } else {
+                        OngoingCallScreen(
+                            onDismiss = {
+                                releaseProximityLock()
+                                if (CallManager.lastEndedCall.value == null) {
+                                    finishAndRemoveTask()
+                                }
+                            }
+                        )
+                    }
 
                     // Fallback visual & touch blocker if proximity wake lock is unsupported
-                    if (isNearEar && proximityWakeLock == null) {
+                    if (isNearEar && proximityWakeLock == null && callState.status != CallStatus.DISCONNECTED) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()

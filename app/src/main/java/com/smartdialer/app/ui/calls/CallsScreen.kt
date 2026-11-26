@@ -27,13 +27,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Alarm
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallMade
 import androidx.compose.material.icons.filled.CallMissed
 import androidx.compose.material.icons.filled.CallReceived
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Message
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Tune
@@ -73,12 +77,16 @@ import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.CallLogItem
 import com.smartdialer.app.data.model.CallType
 import com.smartdialer.app.data.model.GroupedCallLog
+import com.smartdialer.app.data.repository.CallNote
+import com.smartdialer.app.data.repository.CallNotesRepository
 import com.smartdialer.app.telecom.CallManager
 import com.smartdialer.app.ui.components.ContactAvatar
 import com.smartdialer.app.ui.components.PermissionCard
 import com.smartdialer.app.ui.components.SamsungSwipeItem
 import com.smartdialer.app.ui.dialogs.CallAccountPickerDialog
+import com.smartdialer.app.ui.dialogs.CallAnalyticsDialog
 import com.smartdialer.app.utils.SmsHelper
+import com.smartdialer.app.utils.WhatsAppHelper
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.CallIncomingGreen
 import com.smartdialer.app.ui.theme.CallMissedRed
@@ -161,6 +169,15 @@ fun CallsScreen(
     val activeFilter by viewModel.activeFilter.collectAsState()
     var filterMenuExpanded by remember { mutableStateOf(false) }
     var selectedGroupForHistory by remember { mutableStateOf<GroupedCallLog?>(null) }
+    var showAnalyticsDialog by remember { mutableStateOf(false) }
+    var notesVersion by remember { mutableStateOf(0) }
+    val notesByKey = remember(groupedCallLogs, notesVersion) {
+        CallNotesRepository.getAllNotes(context).associateBy { it.normalizedKey }
+    }
+
+    if (showAnalyticsDialog) {
+        CallAnalyticsDialog(onDismiss = { showAnalyticsDialog = false })
+    }
 
     // Dynamic update for currently opened detail dialog
     val currentSelectedGroup = selectedGroupForHistory?.let { cur ->
@@ -181,7 +198,8 @@ fun CallsScreen(
             onDeleteAllHistory = { number ->
                 viewModel.deleteLogsForNumber(number)
                 selectedGroupForHistory = null
-            }
+            },
+            onNoteUpdated = { notesVersion++ }
         )
     }
 
@@ -192,7 +210,7 @@ fun CallsScreen(
             .fillMaxSize()
             .background(theme.background)
     ) {
-        // Sub-header: Call History Title + Search + Filter
+        // Sub-header: Call History Title + Analytics + Search + Filter
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -208,6 +226,18 @@ fun CallsScreen(
             )
 
             Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(
+                    onClick = { showAnalyticsDialog = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.BarChart,
+                        contentDescription = "Call Analytics",
+                        tint = theme.primary,
+                        modifier = Modifier.size(22.dp)
+                    )
+                }
+
                 IconButton(
                     onClick = { viewModel.toggleSearchVisibility() },
                     modifier = Modifier.size(36.dp)
@@ -355,8 +385,10 @@ fun CallsScreen(
                                 SmsHelper.openSms(context, group.primaryNumber)
                             }
                         ) {
+                            val note = notesByKey[CallNotesRepository.normalizeNumberKey(group.primaryNumber)]
                             GroupedCallLogRow(
                                 group = group,
+                                note = note,
                                 onRowClick = {
                                     selectedGroupForHistory = group
                                 },
@@ -383,8 +415,10 @@ fun CallsScreen(
                                 SmsHelper.openSms(context, group.primaryNumber)
                             }
                         ) {
+                            val note = notesByKey[CallNotesRepository.normalizeNumberKey(group.primaryNumber)]
                             GroupedCallLogRow(
                                 group = group,
+                                note = note,
                                 onRowClick = {
                                     selectedGroupForHistory = group
                                 },
@@ -411,8 +445,10 @@ fun CallsScreen(
                                 SmsHelper.openSms(context, group.primaryNumber)
                             }
                         ) {
+                            val note = notesByKey[CallNotesRepository.normalizeNumberKey(group.primaryNumber)]
                             GroupedCallLogRow(
                                 group = group,
+                                note = note,
                                 onRowClick = {
                                     selectedGroupForHistory = group
                                 },
@@ -446,6 +482,7 @@ fun SectionHeader(title: String) {
 @Composable
 fun GroupedCallLogRow(
     group: GroupedCallLog,
+    note: CallNote? = null,
     onRowClick: () -> Unit,
     onCallClick: () -> Unit
 ) {
@@ -548,6 +585,27 @@ fun GroupedCallLogRow(
                         overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                if (note != null && note.note.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.EditNote,
+                            contentDescription = null,
+                            tint = theme.primary,
+                            modifier = Modifier.size(13.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text(
+                            text = "${note.tag}: ${note.note}",
+                            fontSize = 11.sp,
+                            color = theme.primary,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
 
@@ -584,11 +642,18 @@ fun CallHistoryDetailDialog(
     onDismiss: () -> Unit,
     onCallClick: (number: String, name: String?) -> Unit,
     onDeleteCall: (callId: String) -> Unit,
-    onDeleteAllHistory: (number: String) -> Unit
+    onDeleteAllHistory: (number: String) -> Unit,
+    onNoteUpdated: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val existingNote = remember(group.primaryNumber) {
+        CallNotesRepository.getNoteForNumber(context, group.primaryNumber)
+    }
+    var showNoteEditor by remember { mutableStateOf(false) }
+    var noteDraft by remember(group.primaryNumber) { mutableStateOf(existingNote?.note ?: "") }
+    var currentNoteDisplay by remember(group.primaryNumber) { mutableStateOf(existingNote?.note ?: "") }
 
     if (showDeleteConfirm) {
         androidx.compose.material3.AlertDialog(
@@ -717,6 +782,20 @@ fun CallHistoryDetailDialog(
                             Text("Call", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                         }
 
+                        // WhatsApp Direct Chat Action (No Save Needed)
+                        Surface(
+                            onClick = {
+                                WhatsAppHelper.openWhatsAppChat(context, group.primaryNumber)
+                            },
+                            shape = RoundedCornerShape(10.dp),
+                            color = Color(0xFFDCFCE7),
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.Chat, contentDescription = "WhatsApp", tint = Color(0xFF16A34A), modifier = Modifier.size(18.dp))
+                            }
+                        }
+
                         // SMS Action
                         Surface(
                             onClick = {
@@ -728,6 +807,18 @@ fun CallHistoryDetailDialog(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(Icons.Default.Message, contentDescription = "SMS", tint = theme.primary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+
+                        // Note / Reminder Action
+                        Surface(
+                            onClick = { showNoteEditor = !showNoteEditor },
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (showNoteEditor || currentNoteDisplay.isNotBlank()) theme.primaryUltraLight else theme.surface,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(Icons.Default.EditNote, contentDescription = "Call Note", tint = theme.primary, modifier = Modifier.size(19.dp))
                             }
                         }
 
@@ -755,6 +846,89 @@ fun CallHistoryDetailDialog(
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(Icons.Default.DeleteOutline, contentDescription = "Delete", tint = Color(0xFFEF4444), modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+
+                    if (showNoteEditor || currentNoteDisplay.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = theme.surface,
+                            border = BorderStroke(1.dp, theme.divider),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(10.dp)) {
+                                if (!showNoteEditor) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable { showNoteEditor = true },
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Note: $currentNoteDisplay",
+                                            fontSize = 12.sp,
+                                            color = theme.textPrimary,
+                                            modifier = Modifier.weight(1f)
+                                        )
+                                        Text(
+                                            text = "Edit",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = theme.primary
+                                        )
+                                    }
+                                } else {
+                                    OutlinedTextField(
+                                        value = noteDraft,
+                                        onValueChange = { noteDraft = it },
+                                        placeholder = { Text("Write note for this number...", fontSize = 12.sp) },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth(),
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Surface(
+                                                onClick = {
+                                                    CallNotesRepository.scheduleReminder(context, group.primaryNumber, group.displayName, 30, noteDraft)
+                                                    Toast.makeText(context, "Callback reminder in 30m", Toast.LENGTH_SHORT).show()
+                                                },
+                                                shape = RoundedCornerShape(8.dp),
+                                                color = Color(0xFFFEF3C7)
+                                            ) {
+                                                Row(
+                                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Icon(Icons.Default.Alarm, contentDescription = null, tint = Color(0xFFD97706), modifier = Modifier.size(13.dp))
+                                                    Spacer(modifier = Modifier.width(3.dp))
+                                                    Text("Remind 30m", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFD97706))
+                                                }
+                                            }
+                                        }
+                                        Button(
+                                            onClick = {
+                                                CallNotesRepository.saveNote(context, group.primaryNumber, noteDraft)
+                                                currentNoteDisplay = noteDraft.trim()
+                                                showNoteEditor = false
+                                                onNoteUpdated()
+                                                Toast.makeText(context, "Note updated", Toast.LENGTH_SHORT).show()
+                                            },
+                                            shape = RoundedCornerShape(8.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
+                                        ) {
+                                            Text("Save", fontSize = 12.sp)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }

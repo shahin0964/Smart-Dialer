@@ -30,9 +30,19 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.CallEnd
+import androidx.compose.material.icons.filled.CallMerge
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Dialpad
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Message
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.ui.draw.rotate
+import com.smartdialer.app.MainActivity
 import com.smartdialer.app.ui.theme.AppThemeRegistry
+import com.smartdialer.app.utils.SmsHelper
+import com.smartdialer.app.utils.WhatsAppHelper
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -94,6 +104,7 @@ fun OngoingCallScreen(
     val view = LocalView.current
     val callInfo by CallManager.currentCallState.collectAsState()
     var showDtmfKeypad by remember { mutableStateOf(false) }
+    var showQuickRejectSheet by remember { mutableStateOf(false) }
 
     val currentTheme by AppSettingsPreferences.themeFlow.collectAsState()
     val themePalette = AppThemeRegistry.getPalette(currentTheme)
@@ -460,6 +471,108 @@ fun OngoingCallScreen(
                     )
                 }
 
+                // Saved Note Badge for this Caller
+                if (!callInfo.activeNote.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0xFF1E293B).copy(alpha = 0.85f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF60A5FA).copy(alpha = 0.45f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.EditNote, contentDescription = null, tint = Color(0xFF93C5FD), modifier = Modifier.size(15.dp))
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text(
+                                text = callInfo.activeNote!!,
+                                fontSize = 12.sp,
+                                color = Color(0xFFE0F2FE),
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+
+                // Multi-Call / Call Waiting Banner
+                if (callInfo.hasSecondaryCall) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = Color(0xFF0F172A).copy(alpha = 0.85f),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF38BDF8).copy(alpha = 0.55f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = callInfo.secondaryCallName,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White,
+                                    maxLines = 1
+                                )
+                                val secStatusLabel = when (callInfo.secondaryCallStatus) {
+                                    CallStatus.RINGING -> "Waiting call..."
+                                    CallStatus.HOLDING -> "On Hold"
+                                    else -> "Secondary call"
+                                }
+                                Text(
+                                    text = secStatusLabel,
+                                    fontSize = 11.sp,
+                                    color = Color(0xFF38BDF8)
+                                )
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Surface(
+                                    onClick = { CallManager.swapCalls() },
+                                    shape = RoundedCornerShape(8.dp),
+                                    color = Color(0xFF0284C7)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(Icons.Default.SwapHoriz, contentDescription = "Swap", tint = Color.White, modifier = Modifier.size(15.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text(
+                                            text = if (callInfo.secondaryCallStatus == CallStatus.RINGING) "Answer" else "Swap",
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White
+                                        )
+                                    }
+                                }
+                                if (callInfo.canMergeCalls) {
+                                    Surface(
+                                        onClick = { CallManager.mergeCalls() },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = Color(0xFF16A34A)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Icon(Icons.Default.CallMerge, contentDescription = "Merge", tint = Color.White, modifier = Modifier.size(15.dp))
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text("Merge", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 if (currentTheme == "CYBERPUNK_AMOLED") {
                     Spacer(modifier = Modifier.height(6.dp))
                     Box(
@@ -562,14 +675,45 @@ fun OngoingCallScreen(
 
             // In-Call Controls or Incoming Call Controls
             if (callInfo.status == CallStatus.RINGING && callInfo.isIncoming) {
-                // Incoming Call: Answer & Reject Buttons
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 32.dp),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Reject with Quick Reply Pill
+                    Surface(
+                        onClick = {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            showQuickRejectSheet = true
+                        },
+                        shape = RoundedCornerShape(20.dp),
+                        color = buttonBgColor,
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.28f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Message, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Reject with Message",
+                                color = Color.White,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Incoming Call: Answer & Reject Buttons
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 28.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                     // Reject (Red with animated pulse ripple)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Box(
@@ -641,6 +785,7 @@ fun OngoingCallScreen(
                         Text(text = "Answer", color = Color.White, fontSize = 14.sp)
                     }
                 }
+                }
             } else {
                 // Active / Dialing Controls
                 Column(
@@ -696,7 +841,7 @@ fun OngoingCallScreen(
                         )
                     }
 
-                    // Row 2: Add Call, Record Call
+                    // Row 2: Add Call, Hold / Swap, Record Call
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceEvenly
@@ -709,9 +854,26 @@ fun OngoingCallScreen(
                             buttonActiveBg = buttonActiveColor,
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                // Add Call
+                                val dialIntent = Intent(context, MainActivity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                                }
+                                context.startActivity(dialIntent)
                             }
                         )
+
+                        if (!callInfo.isIpCall) {
+                            InCallCircleButton(
+                                icon = if (callInfo.isHolding) Icons.Default.PlayArrow else Icons.Default.Pause,
+                                label = if (callInfo.isHolding) "Resume" else "Hold",
+                                isActive = callInfo.isHolding,
+                                buttonBg = buttonBgColor,
+                                buttonActiveBg = buttonActiveColor,
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    CallManager.toggleHold()
+                                }
+                            )
+                        }
 
                         InCallRecordButton(
                             isRecording = callInfo.isRecording,
@@ -769,6 +931,144 @@ fun OngoingCallScreen(
                 },
                 onClose = { showDtmfKeypad = false }
             )
+        }
+
+        // Quick Reject Reply (SMS / WhatsApp) Overlay
+        if (showQuickRejectSheet) {
+            QuickRejectReplyOverlay(
+                number = callInfo.number,
+                onSendSms = { msg ->
+                    showQuickRejectSheet = false
+                    CallManager.reject()
+                    SmsHelper.openSmsWithBody(context, callInfo.number, msg)
+                    onDismiss()
+                },
+                onSendWhatsApp = { msg ->
+                    showQuickRejectSheet = false
+                    CallManager.reject()
+                    WhatsAppHelper.openWhatsAppChat(context, callInfo.number, msg)
+                    onDismiss()
+                },
+                onClose = { showQuickRejectSheet = false }
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickRejectReplyOverlay(
+    number: String,
+    onSendSms: (String) -> Unit,
+    onSendWhatsApp: (String) -> Unit,
+    onClose: () -> Unit
+) {
+    val context = LocalContext.current
+    val templates = remember { AppSettingsPreferences(context).getQuickReplyTemplates() }
+    var useWhatsApp by remember { mutableStateOf(false) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xDD0B0F19))
+            .clickable { onClose() },
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Surface(
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+            color = Color(0xFF1E293B),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = false) {}
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Reject with Message",
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Surface(
+                            onClick = { useWhatsApp = false },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (!useWhatsApp) Color(0xFF3B82F6) else Color(0xFF334155)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Message, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("SMS", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                        Surface(
+                            onClick = { useWhatsApp = true },
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (useWhatsApp) Color(0xFF16A34A) else Color(0xFF334155)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Chat, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("WhatsApp", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "To: $number",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                templates.forEach { msg ->
+                    Surface(
+                        onClick = {
+                            if (useWhatsApp) onSendWhatsApp(msg) else onSendSms(msg)
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        color = Color(0xFF0F172A),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF334155)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = msg,
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = "Cancel",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .align(Alignment.CenterHorizontally)
+                        .clickable { onClose() }
+                        .padding(8.dp)
+                )
+            }
         }
     }
 }

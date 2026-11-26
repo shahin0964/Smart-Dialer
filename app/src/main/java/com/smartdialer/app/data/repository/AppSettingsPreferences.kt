@@ -250,4 +250,51 @@ class AppSettingsPreferences(private val context: Context) {
             prefs.edit().putString("caller_screen_theme", value).apply()
             _themeFlow.value = value
         }
+
+    // ==========================================
+    // 12. Smart Call Hardware Controls & Post-Call
+    // ==========================================
+    var flipToSilenceEnabled: Boolean
+        get() = prefs.getBoolean("smart_flip_to_silence", true)
+        set(value) = prefs.edit().putBoolean("smart_flip_to_silence", value).apply()
+
+    var flashAlertEnabled: Boolean
+        get() = prefs.getBoolean("smart_flash_alert", false)
+        set(value) = prefs.edit().putBoolean("smart_flash_alert", value).apply()
+
+    var callerAnnouncerEnabled: Boolean
+        get() = prefs.getBoolean("smart_caller_announcer", false)
+        set(value) = prefs.edit().putBoolean("smart_caller_announcer", value).apply()
+
+    var postCallSummaryEnabled: Boolean
+        get() = prefs.getBoolean("smart_post_call_summary", true)
+        set(value) = prefs.edit().putBoolean("smart_post_call_summary", value).apply()
+
+    fun getQuickReplyTemplates(): List<String> {
+        val raw = prefs.getString("quick_reply_templates_json", null)
+        if (!raw.isNullOrBlank()) {
+            try {
+                val arr = org.json.JSONArray(raw)
+                val list = mutableListOf<String>()
+                for (i in 0 until arr.length()) {
+                    val item = arr.optString(i)
+                    if (item.isNotBlank()) list.add(item)
+                }
+                if (list.isNotEmpty()) return list
+            } catch (_: Exception) {
+            }
+        }
+        return listOf(
+            "I'm busy right now. I'll call you back soon.",
+            "In a meeting right now, please send a message.",
+            "Driving right now. Will call you back shortly.",
+            "এখন ব্যস্ত আছি, একটু পরে কল দিচ্ছি।"
+        )
+    }
+
+    fun setQuickReplyTemplates(templates: List<String>) {
+        val arr = org.json.JSONArray()
+        templates.filter { it.isNotBlank() }.forEach { arr.put(it.trim()) }
+        prefs.edit().putString("quick_reply_templates_json", arr.toString()).apply()
+    }
 }

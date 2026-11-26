@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Info
@@ -35,11 +36,15 @@ import androidx.compose.material.icons.filled.SimCard
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.SurroundSound
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
+import com.smartdialer.app.telecom.CallRecorderManager
 import com.smartdialer.app.ui.dialogs.AppAnalysisDialog
+import com.smartdialer.app.ui.dialogs.CallAnalyticsDialog
 import com.smartdialer.app.ui.dialogs.CallerIdSettingsDialog
 import com.smartdialer.app.ui.dialogs.IpAudioSettingsDialog
+import com.smartdialer.app.ui.dialogs.SmartControlsDialog
 import com.smartdialer.app.ui.dialogs.ThemeSelectionDialog
 import com.smartdialer.app.util.AppAnalysisLogger
 import androidx.compose.material3.Button
@@ -118,6 +123,8 @@ fun MoreScreen(
     var showCallerIdDialog by remember { mutableStateOf(false) }
     var showThemeDialog by remember { mutableStateOf(false) }
     var showAnalysisDialog by remember { mutableStateOf(false) }
+    var showSmartControlsDialog by remember { mutableStateOf(false) }
+    var showAnalyticsDialog by remember { mutableStateOf(false) }
 
     var refreshKey by remember { mutableStateOf(0) }
     var sims by remember { mutableStateOf<List<SimInfo>>(emptyList()) }
@@ -168,6 +175,20 @@ fun MoreScreen(
     if (showAnalysisDialog) {
         AppAnalysisDialog(
             onDismiss = { showAnalysisDialog = false }
+        )
+    }
+
+    if (showSmartControlsDialog) {
+        SmartControlsDialog(
+            appSettings = appSettings,
+            onDismiss = { showSmartControlsDialog = false },
+            onSaved = { refreshKey++ }
+        )
+    }
+
+    if (showAnalyticsDialog) {
+        CallAnalyticsDialog(
+            onDismiss = { showAnalyticsDialog = false }
         )
     }
 
@@ -451,20 +472,54 @@ fun MoreScreen(
             onClick = { showCallerIdDialog = true }
         )
 
-        // 8. Call Recording
-        val recordSummary = remember(refreshKey, appSettings.autoRecord) {
+        // 8. Call Recording & Player
+        val recordingsCount = remember(refreshKey) { CallRecorderManager.getRecordings(context).size }
+        val recordSummary = remember(refreshKey, appSettings.autoRecord, recordingsCount) {
+            val countTag = if (recordingsCount > 0) "$recordingsCount saved • " else ""
             if (appSettings.autoRecord) {
-                "Auto Recording: Active (${appSettings.audioFormat})"
+                "${countTag}Auto Recording Active (${appSettings.audioFormat})"
             } else {
-                "Record incoming and outgoing calls"
+                "${countTag}In-app player & IP/Call recording"
             }
         }
 
         MoreOptionItem(
             icon = Icons.Default.RecordVoiceOver,
-            title = "Call Recording",
+            title = "Call Recording & Player",
             subtitle = recordSummary,
             onClick = { showCallRecordDialog = true }
+        )
+
+        // 8b. Smart Call Controls & App Lock
+        val smartSummary = remember(
+            refreshKey,
+            appSettings.appLockEnabled,
+            appSettings.flipToSilenceEnabled,
+            appSettings.flashAlertEnabled,
+            appSettings.callerAnnouncerEnabled
+        ) {
+            val activeFlags = mutableListOf<String>()
+            if (appSettings.appLockEnabled) activeFlags.add("App Lock")
+            if (appSettings.flipToSilenceEnabled) activeFlags.add("Flip-Silence")
+            if (appSettings.flashAlertEnabled) activeFlags.add("Flash Alert")
+            if (appSettings.callerAnnouncerEnabled) activeFlags.add("TTS Announcer")
+            if (activeFlags.isEmpty()) "App Lock, Flip-to-Silence, Flash & Quick Replies"
+            else activeFlags.joinToString(" • ")
+        }
+
+        MoreOptionItem(
+            icon = Icons.Default.Tune,
+            title = "Smart Controls & App Lock",
+            subtitle = smartSummary,
+            onClick = { showSmartControlsDialog = true }
+        )
+
+        // 8c. Call Analytics Dashboard
+        MoreOptionItem(
+            icon = Icons.Default.BarChart,
+            title = "Call Analytics Dashboard",
+            subtitle = "Talk time charts, SIM vs IP stats & top contacts",
+            onClick = { showAnalyticsDialog = true }
         )
 
         // 9. Sounds & Haptics

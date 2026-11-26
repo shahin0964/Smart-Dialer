@@ -193,6 +193,16 @@
             </intent-filter>
         </receiver>
 
+        <!-- BroadcastReceiver for scheduled Callback Reminders -->
+        <receiver
+            android:name=".telecom.CallbackReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.smartdialer.app.ACTION_CALLBACK_REMINDER" />
+                <action android:name="com.smartdialer.app.ACTION_REMINDER_CALL_NOW" />
+            </intent-filter>
+        </receiver>
+
         <!-- BroadcastReceiver for cleaning downloaded APKs on app update -->
         <receiver
             android:name=".data.repository.AppUpdateReceiver"

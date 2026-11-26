@@ -37,7 +37,16 @@ data class ActiveCallInfo(
     val simSlot: Int = 1,
     val isIpCall: Boolean = false,
     val isIncoming: Boolean = false,
-    val networkQuality: NetworkQualityInfo? = null
+    val networkQuality: NetworkQualityInfo? = null,
+    // Multi-call / Call Waiting state
+    val hasSecondaryCall: Boolean = false,
+    val secondaryCallName: String = "",
+    val secondaryCallNumber: String = "",
+    val secondaryCallStatus: CallStatus = CallStatus.IDLE,
+    val canMergeCalls: Boolean = false,
+    val isConference: Boolean = false,
+    // Saved note for caller
+    val activeNote: String? = null
 ) {
     val durationFormatted: String
         get() {
@@ -53,4 +62,30 @@ data class ActiveCallInfo(
 
     val displayTitle: String
         get() = if (contactName.isNotBlank()) contactName else number
+}
+
+data class EndedCallSummary(
+    val number: String,
+    val contactName: String,
+    val photoUri: String? = null,
+    val durationSeconds: Long,
+    val isIncoming: Boolean,
+    val isIpCall: Boolean,
+    val wasAnswered: Boolean,
+    val timestampMillis: Long = System.currentTimeMillis()
+) {
+    val displayTitle: String
+        get() = if (contactName.isNotBlank()) contactName else number
+
+    val durationFormatted: String
+        get() {
+            val minutes = durationSeconds / 60
+            val seconds = durationSeconds % 60
+            val hours = durationSeconds / 3600
+            return if (hours > 0) {
+                String.format("%02d:%02d:%02d", hours, minutes % 60, seconds)
+            } else {
+                String.format("%02d:%02d", minutes, seconds)
+            }
+        }
 }

@@ -28,7 +28,7 @@ class CallService : InCallService() {
     override fun onCallRemoved(call: Call) {
         super.onCallRemoved(call)
         AppAnalysisLogger.telecom("CallRemoved", "Call removed from Telecom framework")
-        CallManager.clearCall()
+        CallManager.removeCall(call)
     }
 
     override fun onCallAudioStateChanged(audioState: android.telecom.CallAudioState) {

@@ -15,13 +15,24 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -29,7 +40,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.CallStatus
 import com.smartdialer.app.data.repository.AppSettingsPreferences
@@ -49,10 +65,12 @@ import com.smartdialer.app.ui.contacts.ContactsViewModel
 import com.smartdialer.app.ui.dialer.DialerScreen
 import com.smartdialer.app.ui.dialer.DialerViewModel
 import com.smartdialer.app.ui.dialogs.AppUpdateDialog
+import com.smartdialer.app.ui.dialogs.PostCallSummaryDialog
 import com.smartdialer.app.ui.more.MoreScreen
 import com.smartdialer.app.ui.theme.BgLight
 import com.smartdialer.app.ui.theme.LocalAppTheme
 import com.smartdialer.app.ui.theme.SmartDialerTheme
+import com.smartdialer.app.utils.BiometricLockHelper
 
 class MainActivity : ComponentActivity() {
 
@@ -223,6 +241,32 @@ class MainActivity : ComponentActivity() {
         val triggerUpdateDialog by triggerUpdateDialogFlow.collectAsState()
         var showUpdateDialog by remember { mutableStateOf(false) }
 
+        val requiresAppLock = remember { appSettings.appLockEnabled }
+        var isUnlocked by remember { mutableStateOf(!requiresAppLock) }
+        var lockErrorText by remember { mutableStateOf<String?>(null) }
+
+        fun requestBiometricUnlock() {
+            BiometricLockHelper.authenticate(
+                context = this@MainActivity,
+                onSuccess = {
+                    isUnlocked = true
+                    lockErrorText = null
+                },
+                onError = { err ->
+                    lockErrorText = err
+                }
+            )
+        }
+
+        LaunchedEffect(requiresAppLock) {
+            if (requiresAppLock && !isUnlocked) {
+                requestBiometricUnlock()
+            }
+        }
+
+        val endedSummary by CallManager.lastEndedCall.collectAsState()
+        val activeCallState by CallManager.currentCallState.collectAsState()
+
         LaunchedEffect(triggerUpdateDialog) {
             if (triggerUpdateDialog) {
                 showUpdateDialog = true
@@ -233,6 +277,16 @@ class MainActivity : ComponentActivity() {
         if (showUpdateDialog) {
             AppUpdateDialog(
                 onDismiss = { showUpdateDialog = false }
+            )
+        }
+
+        if (isUnlocked && endedSummary != null &&
+            (activeCallState.status == CallStatus.IDLE || activeCallState.status == CallStatus.DISCONNECTED) &&
+            !com.smartdialer.app.ui.call.CallActivity.isCallActivityVisible
+        ) {
+            PostCallSummaryDialog(
+                summary = endedSummary!!,
+                onDismiss = { CallManager.dismissPostCallSummary() }
             )
         }
 
@@ -291,6 +345,50 @@ class MainActivity : ComponentActivity() {
         }
 
         val theme = LocalAppTheme.current
+
+        if (!isUnlocked) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(theme.background)
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Fingerprint,
+                        contentDescription = "Locked",
+                        tint = theme.primary,
+                        modifier = Modifier.size(72.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Smart Dialer Locked",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = theme.textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = lockErrorText ?: "Authenticate with biometrics or screen lock",
+                        fontSize = 13.sp,
+                        color = theme.textMuted
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = { requestBiometricUnlock() },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
+                    ) {
+                        Text("Unlock Smart Dialer", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
+                }
+            }
+            return
+        }
 
         Scaffold(
             topBar = {

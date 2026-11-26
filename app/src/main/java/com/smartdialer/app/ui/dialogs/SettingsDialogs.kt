@@ -251,15 +251,12 @@ fun CallRecordingDialog(
     var autoRecord by remember { mutableStateOf(appSettings.autoRecord) }
     var recordUnknownOnly by remember { mutableStateOf(appSettings.recordUnknownOnly) }
     var audioFormat by remember { mutableStateOf(appSettings.audioFormat) }
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Recordings, 1 = Settings
 
     val audioPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
-        if (granted) {
-            autoRecord = true
-        } else {
-            autoRecord = false
-        }
+        autoRecord = granted
     }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -276,140 +273,175 @@ fun CallRecordingDialog(
                     .padding(20.dp)
             ) {
                 DialogHeader(
-                    title = "Call Recording",
+                    title = "Call Recording & Player",
                     icon = Icons.Default.RecordVoiceOver,
                     iconTint = Color(0xFFE11D48),
                     onDismiss = onDismiss
                 )
 
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Auto Record Toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text(
-                            text = "Auto Call Recording",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = theme.textPrimary
-                        )
-                        Text(
-                            text = "Automatically record all calls",
-                            fontSize = 11.sp,
-                            color = theme.textMuted
-                        )
-                    }
-                    Switch(
-                        checked = autoRecord,
-                        onCheckedChange = { checked ->
-                            if (checked) {
-                                if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                                    audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                } else {
-                                    autoRecord = true
-                                }
-                            } else {
-                                autoRecord = false
-                            }
-                        },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Record Unknown Only
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        Text(
-                            text = "Record Unknown Numbers Only",
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = theme.textPrimary
-                        )
-                        Text(
-                            text = "Do not record calls from saved contacts",
-                            fontSize = 11.sp,
-                            color = theme.textMuted
-                        )
-                    }
-                    Switch(
-                        checked = recordUnknownOnly,
-                        enabled = autoRecord,
-                        onCheckedChange = { recordUnknownOnly = it },
-                        colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
-                    )
-                }
-
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Format Selection
-                Text(
-                    text = "Audio Format",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = theme.textPrimary
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("AAC / M4A", "AMR").forEach { format ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf(0 to "Recorded Calls", 1 to "Settings").forEach { (idx, label) ->
+                        val active = selectedTab == idx
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (audioFormat == format) theme.primary else theme.surface,
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (active) theme.primary else theme.surface,
+                            border = BorderStroke(1.dp, if (active) theme.primary else theme.divider),
                             modifier = Modifier
-                                .clickable { audioFormat = format }
-                                .padding(vertical = 2.dp)
+                                .weight(1f)
+                                .clickable { selectedTab = idx }
                         ) {
-                            Text(
-                                text = format,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (audioFormat == format) Color.White else theme.textPrimary,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
+                            Box(
+                                modifier = Modifier.padding(vertical = 8.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (active) Color.White else theme.textPrimary
+                                )
+                            }
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Storage location
-                Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    color = theme.surface,
-                    border = BorderStroke(1.dp, theme.divider),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Text(text = "Save Location", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = theme.textMuted)
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = "Internal Storage / Recordings / SmartDialer", fontSize = 12.sp, color = theme.textPrimary)
+                if (selectedTab == 0) {
+                    CallRecordingsPlayerList()
+                } else {
+                    // Auto Record Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                text = "Auto Call Recording",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = theme.textPrimary
+                            )
+                            Text(
+                                text = "Automatically record all calls (100% crystal clear for IP calls)",
+                                fontSize = 11.sp,
+                                color = theme.textMuted
+                            )
+                        }
+                        Switch(
+                            checked = autoRecord,
+                            onCheckedChange = { checked ->
+                                if (checked) {
+                                    if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                                        audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    } else {
+                                        autoRecord = true
+                                    }
+                                } else {
+                                    autoRecord = false
+                                }
+                            },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
+                        )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
 
-                Button(
-                    onClick = {
-                        appSettings.autoRecord = autoRecord
-                        appSettings.recordUnknownOnly = recordUnknownOnly
-                        appSettings.audioFormat = audioFormat
-                        onSaved()
-                        onDismiss()
-                    },
-                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
-                ) {
-                    Text("Save Recording Settings", fontWeight = FontWeight.Bold, color = Color.White)
+                    // Record Unknown Only
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                text = "Record Unknown Numbers Only",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = theme.textPrimary
+                            )
+                            Text(
+                                text = "Do not record calls from saved contacts",
+                                fontSize = 11.sp,
+                                color = theme.textMuted
+                            )
+                        }
+                        Switch(
+                            checked = recordUnknownOnly,
+                            enabled = autoRecord,
+                            onCheckedChange = { recordUnknownOnly = it },
+                            colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = theme.primary)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Format Selection (Cellular calls; IP calls always save lossless PCM WAV)
+                    Text(
+                        text = "Cellular Audio Format",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = theme.textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("AAC / M4A", "AMR").forEach { format ->
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = if (audioFormat == format) theme.primary else theme.surface,
+                                modifier = Modifier
+                                    .clickable { audioFormat = format }
+                                    .padding(vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = format,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (audioFormat == format) Color.White else theme.textPrimary,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Storage location
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = theme.surface,
+                        border = BorderStroke(1.dp, theme.divider),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Text(text = "Save Location", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = theme.textMuted)
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(text = "App Music Folder / SmartDialerRecordings", fontSize = 12.sp, color = theme.textPrimary)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Button(
+                        onClick = {
+                            appSettings.autoRecord = autoRecord
+                            appSettings.recordUnknownOnly = recordUnknownOnly
+                            appSettings.audioFormat = audioFormat
+                            onSaved()
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = theme.primary)
+                    ) {
+                        Text("Save Recording Settings", fontWeight = FontWeight.Bold, color = Color.White)
+                    }
                 }
             }
         }
@@ -960,7 +992,7 @@ fun AboutSmartDialerDialog(
 
 // Helper components
 @Composable
-private fun DialogHeader(
+internal fun DialogHeader(
     title: String,
     icon: ImageVector,
     iconTint: Color,
