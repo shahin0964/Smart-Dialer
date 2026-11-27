@@ -649,8 +649,14 @@ object SipEngine {
         }
     }
 
-    private fun ensureReceiverRunning(context: Context) {
+    private fun ensureReceiverRunning(context: Context, forceRebind: Boolean = false) {
         appContext = context.applicationContext
+        if (forceRebind) {
+            sipListenerJob?.cancel()
+            sipListenerJob = null
+            try { sipSocket?.close() } catch (_: Exception) {}
+            sipSocket = null
+        }
         if (sipSocket == null || sipSocket!!.isClosed) {
             try {
                 sipSocket = DatagramSocket()
@@ -664,11 +670,13 @@ object SipEngine {
         sipListenerJob = scope.launch(Dispatchers.IO) {
             val buffer = ByteArray(4096)
             while (isActive && isListening.get()) {
-                val sock = sipSocket ?: break
+                val sock = sipSocket
+                if (sock == null || sock.isClosed) break
                 val packet = DatagramPacket(buffer, buffer.size)
                 try {
                     sock.receive(packet)
                 } catch (e: Exception) {
+                    if (sock.isClosed || sock !== sipSocket) break
                     continue
                 }
 
@@ -756,15 +764,17 @@ object SipEngine {
         return withContext(Dispatchers.IO) {
             try {
                 val domain = rawDomain.removePrefix("sip:").removePrefix("sips:").substringBefore(":").trim()
-                val serverPort = defaultPortForTransport(rawDomain, transport)
+                val rawRoute = if (prefs.outboundProxy.isNotBlank()) prefs.outboundProxy.trim() else rawDomain
+                val targetHost = rawRoute.removePrefix("sip:").removePrefix("sips:").substringBefore(":").trim()
+                val serverPort = defaultPortForTransport(rawRoute, transport)
                 activeTransport = transport
-                activeServerHost = domain
+                activeServerHost = targetHost
                 activeServerPort = serverPort
 
                 if (transport == "TCP" || transport == "TLS") {
-                    if (!ensureStreamConnection(domain, serverPort, transport == "TLS", prefs.verifyTls)) {
+                    if (!ensureStreamConnection(targetHost, serverPort, transport == "TLS", prefs.verifyTls)) {
                         _registrationStatus.value = "Offline ($transport Fail)"
-                        return@withContext false to "Failed to establish $transport connection to $domain:$serverPort"
+                        return@withContext false to "Failed to establish $transport connection to $targetHost:$serverPort"
                     }
                 }
 
@@ -780,7 +790,7 @@ object SipEngine {
 
                 // 1. Subscribe for 1st response BEFORE sending initial REGISTER
                 val resp1Deferred = scope.async {
-                    withTimeoutOrNull(5000) {
+                    withTimeoutOrNull(4500) {
                         sipMessageFlow.first { it.isResponse && it.getHeader("call-id") == callId }
                     }
                 }
@@ -801,13 +811,23 @@ object SipEngine {
                 }
 
                 val startPingNs = System.nanoTime()
-                sendSipPayload(reg1, domain, serverPort, transport, prefs.verifyTls)
+                sendSipPayload(reg1, targetHost, serverPort, transport, prefs.verifyTls)
+                if (transport == "UDP") {
+                    scope.launch {
+                        delay(1500)
+                        if (!resp1Deferred.isCompleted) {
+                            try {
+                                sendSipPayload(reg1, targetHost, serverPort, transport, prefs.verifyTls)
+                            } catch (_: Exception) {}
+                        }
+                    }
+                }
 
                 val msg1 = resp1Deferred.await()
                 if (msg1 == null) {
                     _registrationStatus.value = "Offline (Timeout)"
                     _serverLatencyMs.value = null
-                    return@withContext false to "Server Connection Timeout (No response from $domain)"
+                    return@withContext false to "Server Connection Timeout (No response from $targetHost:$serverPort)"
                 }
                 _serverLatencyMs.value = ((System.nanoTime() - startPingNs) / 1_000_000L).toInt().coerceAtLeast(1)
 
@@ -859,7 +879,7 @@ object SipEngine {
                         append("Content-Length: 0\r\n\r\n")
                     }
 
-                    sendSipPayload(reg2, domain, serverPort, transport, prefs.verifyTls)
+                    sendSipPayload(reg2, targetHost, serverPort, transport, prefs.verifyTls)
 
                     val msg2 = resp2Deferred.await()
                     if (msg2?.statusCode == 200) {
@@ -1195,15 +1215,17 @@ object SipEngine {
 
                 val cleanDomain = domain.removePrefix("sip:").removePrefix("sips:").substringBefore(":").trim()
                 val ipPrefs = IpCallPreferences(context)
+                val rawRoute = if (ipPrefs.outboundProxy.isNotBlank()) ipPrefs.outboundProxy.trim() else domain
+                val targetHost = rawRoute.removePrefix("sip:").removePrefix("sips:").substringBefore(":").trim()
                 val transport = resolveTransport(ipPrefs)
-                val serverPort = defaultPortForTransport(domain, transport)
+                val serverPort = defaultPortForTransport(rawRoute, transport)
                 activeTransport = transport
-                activeServerHost = cleanDomain
+                activeServerHost = targetHost
                 activeServerPort = serverPort
 
                 if (transport == "TCP" || transport == "TLS") {
-                    if (!ensureStreamConnection(cleanDomain, serverPort, transport == "TLS", ipPrefs.verifyTls)) {
-                        throw IllegalStateException("Failed to connect over $transport")
+                    if (!ensureStreamConnection(targetHost, serverPort, transport == "TLS", ipPrefs.verifyTls)) {
+                        throw IllegalStateException("Failed to connect over $transport to $targetHost:$serverPort")
                     }
                 }
 
@@ -1260,13 +1282,40 @@ object SipEngine {
                     append(sdpOffer)
                 }
 
-                sendSipPayload(invite1, cleanDomain, serverPort, transport, ipPrefs.verifyTls)
+                sendSipPayload(invite1, targetHost, serverPort, transport, ipPrefs.verifyTls)
 
                 var callEstablished = false
+                val receivedServerReply = AtomicBoolean(false)
 
+                // Fast initial response watchdog & UDP retransmission (RFC 3261 Timer A/B)
+                val retransmitJob = scope.launch {
+                    val retryDelays = listOf(1000L, 1500L, 2500L)
+                    for (waitMs in retryDelays) {
+                        delay(waitMs)
+                        if (!isCallActive.get() || receivedServerReply.get()) return@launch
+                        if (transport == "UDP") {
+                            try {
+                                sendSipPayload(invite1, targetHost, serverPort, transport, ipPrefs.verifyTls)
+                            } catch (_: Exception) {}
+                        }
+                    }
+                    delay(4000L)
+                    if (isCallActive.get() && !receivedServerReply.get()) {
+                        withContext(Dispatchers.Main) {
+                            onCallStateChanged?.invoke(
+                                CallStatus.DISCONNECTED,
+                                "No response from SIP server ($targetHost:$serverPort)"
+                            )
+                        }
+                        endCall()
+                    }
+                }
+
+                try {
                 withTimeoutOrNull(45_000) {
                     sipMessageFlow.takeWhile { !callEstablished && isCallActive.get() && isActive }.collect { msg ->
                         if (msg.isResponse && msg.getHeader("call-id") == activeCallId) {
+                            receivedServerReply.set(true)
                             when (msg.statusCode) {
                                 100 -> {
                                     withContext(Dispatchers.Main) {
@@ -1278,7 +1327,7 @@ object SipEngine {
                                         onCallStateChanged?.invoke(CallStatus.RINGING, "Ringing...")
                                     }
                                     if (msg.body.contains("m=audio")) {
-                                        extractRemoteSdp(msg.body, cleanDomain, context)
+                                        extractRemoteSdp(msg.body, targetHost, context)
                                         startRtpAudio(context)
                                     }
                                 }
@@ -1294,7 +1343,7 @@ object SipEngine {
                                         append("CSeq: 1 ACK\r\n")
                                         append("Content-Length: 0\r\n\r\n")
                                     }
-                                    sendSipPayload(ackMsg, cleanDomain, serverPort, transport, ipPrefs.verifyTls)
+                                    sendSipPayload(ackMsg, targetHost, serverPort, transport, ipPrefs.verifyTls)
 
                                     val authHeader = msg.getHeader("www-authenticate") ?: msg.getHeader("proxy-authenticate") ?: ""
                                     val challenge = parseAuthChallenge(authHeader)
@@ -1332,7 +1381,7 @@ object SipEngine {
                                         append(sdpOffer)
                                     }
 
-                                    sendSipPayload(invite2, cleanDomain, serverPort, transport, ipPrefs.verifyTls)
+                                    sendSipPayload(invite2, targetHost, serverPort, transport, ipPrefs.verifyTls)
                                 }
                                 200 -> {
                                     callEstablished = true
@@ -1345,7 +1394,7 @@ object SipEngine {
                                         match?.groupValues?.get(1) ?: raw
                                     }
 
-                                    extractRemoteSdp(msg.body, cleanDomain, context)
+                                    extractRemoteSdp(msg.body, targetHost, context)
 
                                     // Send ACK for 200 OK
                                     val ackBranch = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
@@ -1361,7 +1410,7 @@ object SipEngine {
                                         append("Contact: <sip:$user@$localIp:$localSipPort;transport=$trParam>\r\n")
                                         append("Content-Length: 0\r\n\r\n")
                                     }
-                                    sendSipPayload(ackMsg, cleanDomain, serverPort, transport, ipPrefs.verifyTls)
+                                    sendSipPayload(ackMsg, targetHost, serverPort, transport, ipPrefs.verifyTls)
 
                                     withContext(Dispatchers.Main) {
                                         onCallStateChanged?.invoke(CallStatus.ACTIVE, null)
@@ -1390,6 +1439,9 @@ object SipEngine {
                             }
                         }
                     }
+                }
+                } finally {
+                    retransmitJob.cancel()
                 }
 
                 if (!callEstablished && isCallActive.get()) {
@@ -1806,24 +1858,32 @@ object SipEngine {
      */
     fun sendDtmf(digit: Char) {
         scope.launch {
+            val ctx = appContext
+            val prefs = ctx?.let { IpCallPreferences(it) }
+            val configuredUser = prefs?.username?.trim()?.ifBlank { "user" } ?: "user"
             val domain = currentDomain
             val callId = activeCallId ?: incomingCallId
             val from = fromTag ?: "smartdialer"
             val target = currentDestination
             if (domain.isBlank() || callId.isNullOrBlank()) return@launch
 
-            val targetUri = contactUri ?: "sip:$target@$domain"
-            val localIp = getLocalIp()
-            val localPort = sipSocket?.localPort ?: 5060
+            val cleanDomain = domain.removePrefix("sip:").removePrefix("sips:").substringBefore(":").trim()
+            val sendHost = activeServerHost.ifBlank { cleanDomain }
+            val sendPort = if (activeServerPort > 0) activeServerPort else 5060
+            val transport = activeTransport
+            val targetUri = contactUri ?: "sip:$target@$cleanDomain"
+            val localIp = discoveredPublicIp ?: getLocalIp()
+            val localPort = getEffectiveLocalPort(transport)
+            val viaP = viaProto(transport)
             val branch = "z9hG4bK-" + UUID.randomUUID().toString().replace("-", "").take(8)
 
             val body = "Signal=$digit\r\nDuration=160\r\n"
             val info = buildString {
                 append("INFO $targetUri SIP/2.0\r\n")
-                append("Via: SIP/2.0/UDP $localIp:$localPort;branch=$branch;rport\r\n")
+                append("Via: SIP/2.0/$viaP $localIp:$localPort;branch=$branch;rport\r\n")
                 append("Max-Forwards: 70\r\n")
-                append("From: <sip:user@$domain>;tag=$from\r\n")
-                append("To: <sip:$target@$domain>${if (toTag != null) ";tag=$toTag" else ""}\r\n")
+                append("From: <sip:$configuredUser@$cleanDomain>;tag=$from\r\n")
+                append("To: <sip:$target@$cleanDomain>${if (toTag != null) ";tag=$toTag" else ""}\r\n")
                 append("Call-ID: $callId\r\n")
                 append("CSeq: ${++currentCSeq} INFO\r\n")
                 append("Content-Type: application/dtmf-relay\r\n")
@@ -1832,9 +1892,7 @@ object SipEngine {
             }
 
             try {
-                val serverAddr = InetAddress.getByName(domain)
-                val packet = DatagramPacket(info.toByteArray(), info.length, serverAddr, 5060)
-                sipSocket?.send(packet)
+                sendSipPayload(info, sendHost, sendPort, transport, prefs?.verifyTls ?: false)
             } catch (e: Exception) {
                 e.printStackTrace()
             }

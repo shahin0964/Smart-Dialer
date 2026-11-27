@@ -870,8 +870,13 @@ object CallManager {
                             IpCallStatsRepository.recordCall(ctx, cleanNumber, displayName, CallType.OUTGOING, duration)
                             IpCallService.stop(ctx)
                             VibrationHelper.vibrateCallEnded(ctx)
+                            if (!errorReason.isNullOrBlank()) {
+                                android.widget.Toast.makeText(ctx, errorReason, android.widget.Toast.LENGTH_LONG).show()
+                            }
                         }
-                        emitPostCallSummary(snapshot, wasAnswered = answered)
+                        if (answered || duration > 0L) {
+                            emitPostCallSummary(snapshot, wasAnswered = answered)
+                        }
                         scope.launch {
                             delay(1200)
                             clearCall()
