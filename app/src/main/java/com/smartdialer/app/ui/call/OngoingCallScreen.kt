@@ -672,7 +672,30 @@ fun OngoingCallScreen(
                         color = Color.White
                     )
 
-                    val netBadge = remember(callInfo.status) { NetworkTypeHelper.getNetworkLabel(context) }
+                    val netBadge by remember(
+                        callInfo.callId,
+                        callInfo.status,
+                        callInfo.isIpCall,
+                        callInfo.simSlot,
+                        callInfo.subscriptionId,
+                        callInfo.isWifiCalling
+                    ) {
+                        NetworkTypeHelper.observeCallNetworkLabel(
+                            context = context,
+                            isIpCall = callInfo.isIpCall,
+                            simSlot = callInfo.simSlot,
+                            subscriptionId = callInfo.subscriptionId,
+                            isWifiCalling = callInfo.isWifiCalling
+                        )
+                    }.collectAsState(
+                        initial = NetworkTypeHelper.getCallNetworkLabel(
+                            context = context,
+                            isIpCall = callInfo.isIpCall,
+                            simSlot = callInfo.simSlot,
+                            subscriptionId = callInfo.subscriptionId,
+                            isWifiCalling = callInfo.isWifiCalling
+                        )
+                    )
                     if (netBadge.isNotBlank()) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Surface(

@@ -35,7 +35,9 @@ data class ActiveCallInfo(
     val isHolding: Boolean = false,
     val isRecording: Boolean = false,
     val simSlot: Int = 1,
+    val subscriptionId: Int = -1,
     val isIpCall: Boolean = false,
+    val isWifiCalling: Boolean = false,
     val isIncoming: Boolean = false,
     val networkQuality: NetworkQualityInfo? = null,
     // Multi-call / Call Waiting state

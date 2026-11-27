@@ -16,6 +16,7 @@ import android.telecom.CallAudioState
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.telephony.SubscriptionManager
+import android.telephony.TelephonyManager
 import android.provider.ContactsContract
 import androidx.core.content.ContextCompat
 import com.smartdialer.app.data.model.ActiveCallInfo
@@ -303,6 +304,58 @@ object CallManager {
         return null to null
     }
 
+    private fun resolveSubIdForSlot(context: Context?, simSlot: Int): Int {
+        if (context == null || simSlot < 0) return -1
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return -1
+        }
+        return try {
+            val sm = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+            sm?.activeSubscriptionInfoList?.firstOrNull { it.simSlotIndex == simSlot }?.subscriptionId ?: -1
+        } catch (_: Exception) {
+            -1
+        }
+    }
+
+    private fun resolveCallSimInfo(context: Context?, call: Call, fallbackSlot: Int): Pair<Int, Int> {
+        if (context == null) return fallbackSlot to -1
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            return fallbackSlot to -1
+        }
+        return try {
+            val handle = call.details?.accountHandle
+            val sm = context.getSystemService(Context.TELEPHONY_SUBSCRIPTION_SERVICE) as? SubscriptionManager
+            val subs = sm?.activeSubscriptionInfoList
+
+            if (handle != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as? TelephonyManager
+                val subId = tm?.getSubscriptionId(handle) ?: SubscriptionManager.INVALID_SUBSCRIPTION_ID
+                if (subId != SubscriptionManager.INVALID_SUBSCRIPTION_ID && subId > 0) {
+                    val slot = subs?.firstOrNull { it.subscriptionId == subId }?.simSlotIndex ?: fallbackSlot
+                    return slot to subId
+                }
+            }
+
+            if (handle != null) {
+                val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+                val idx = telecomManager?.callCapablePhoneAccounts?.indexOf(handle) ?: -1
+                if (idx >= 0) {
+                    val subId = subs?.firstOrNull { it.simSlotIndex == idx }?.subscriptionId ?: -1
+                    return idx to subId
+                }
+            }
+
+            val subId = subs?.firstOrNull { it.simSlotIndex == fallbackSlot }?.subscriptionId ?: -1
+            fallbackSlot to subId
+        } catch (_: Exception) {
+            fallbackSlot to -1
+        }
+    }
+
     private fun updateFromCall(call: Call) {
         val previousStatus = _currentCallState.value.status
         val handle = call.details?.handle
@@ -382,6 +435,9 @@ object CallManager {
             if (rawNumber.isNotBlank()) CallNotesRepository.getNoteForNumber(it, rawNumber)?.note else null
         }
 
+        val isWifiCalling = call.details?.hasProperty(Call.Details.PROPERTY_WIFI) == true
+        val (resolvedSlot, resolvedSubId) = resolveCallSimInfo(context, call, _currentCallState.value.simSlot)
+
         _currentCallState.value = _currentCallState.value.copy(
             callId = call.toString(),
             number = rawNumber,
@@ -396,6 +452,10 @@ object CallManager {
             isSpeakerOn = isSpeaker,
             isBluetoothOn = isBluetooth,
             isHolding = (status == CallStatus.HOLDING),
+            simSlot = resolvedSlot,
+            subscriptionId = resolvedSubId,
+            isIpCall = false,
+            isWifiCalling = isWifiCalling,
             isIncoming = isIncoming,
             isRecording = CallRecorderManager.isRecording(),
             isConference = call.details?.hasProperty(Call.Details.PROPERTY_CONFERENCE) == true,
@@ -1038,6 +1098,7 @@ object CallManager {
             appContext = context.applicationContext
             val (resolvedName, resolvedPhoto) = lookupContactInfo(context, cleanNumber)
             val displayName = if (!resolvedName.isNullOrBlank()) resolvedName else cleanNumber
+            val initialSubId = resolveSubIdForSlot(context, simSlot)
 
             _currentCallState.value = ActiveCallInfo(
                 callId = "out_${System.currentTimeMillis()}",
@@ -1046,6 +1107,8 @@ object CallManager {
                 photoUri = resolvedPhoto,
                 status = CallStatus.CONNECTING,
                 simSlot = simSlot,
+                subscriptionId = initialSubId,
+                isIpCall = false,
                 isIncoming = false
             )
 
